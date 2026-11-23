@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "token_saver_ui": {
+      "command": "python3",
+      "args": ["${PLUGIN_ROOT}/mcp_app/server.py"],
+      "env": {
+        "PLUGIN_DATA": "${PLUGIN_DATA}"
+      }
+    }
+  }
+}

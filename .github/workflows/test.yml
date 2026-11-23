@@ -1,0 +1,90 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+jobs:
+  unix-suite:
+    name: Full Suite (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run regression test suite & reproducible benchmark
+        run: |
+          bash tests/run_tests.sh
+          python3 scripts/benchmark.py --demo
+      - name: Verify MCP server & installer
+        run: |
+          python3 - <<'PYEOF'
+          import json, os, pathlib, subprocess, tempfile
+          srv = subprocess.Popen(["python3", "mcp_app/server.py"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+          try:
+              srv.stdin.write(json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-03-26"}}) + "\n")
+              srv.stdin.flush()
+              r = json.loads(srv.stdout.readline())
+              assert "result" in r and "resources" in r["result"]["capabilities"], r
+              srv.stdin.write(json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "open_token_saver", "arguments": {}}}) + "\n")
+              srv.stdin.flush()
+              r2 = json.loads(srv.stdout.readline())
+              assert r2["result"]["structuredContent"]["config"]["mode"] == "prepare_only"
+          finally:
+              srv.terminate(); srv.wait(timeout=5)
+          with tempfile.TemporaryDirectory() as td:
+              env = {**os.environ, "HOME": td}
+              p = subprocess.run(["python3", "install.py", "--cli", "--yes"], env=env, text=True, capture_output=True)
+              assert p.returncode == 0, p.stdout + p.stderr
+          print("MCP + installer OK")
+          PYEOF
+
+  windows-smoke:
+    name: Native Windows Smoke
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Test handoff_pack, MCP server, and Windows installer
+        shell: pwsh
+        run: |
+          python scripts/handoff_pack.py . | Out-Null
+          python -c @"
+          import json, os, pathlib, subprocess, sys, tempfile
+          srv = subprocess.Popen([sys.executable, 'mcp_app/server.py'], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+          try:
+              srv.stdin.write(json.dumps({'jsonrpc':'2.0','id':1,'method':'initialize','params':{'protocolVersion':'2025-03-26'}}) + '\n')
+              srv.stdin.flush()
+              r = json.loads(srv.stdout.readline())
+              assert 'result' in r
+          finally:
+              srv.terminate(); srv.wait(timeout=5)
+          with tempfile.TemporaryDirectory() as td:
+              env = {**os.environ, 'USERPROFILE': td, 'HOME': td}
+              p = subprocess.run([sys.executable, 'install.py', '--cli', '--yes'], env=env, text=True, capture_output=True)
+              assert p.returncode == 0, p.stdout + p.stderr
+              cfg = json.loads((pathlib.Path(td)/'.gemini/config/plugins/token-saver/mcp_config.json').read_text())
+              assert cfg['mcpServers']['token_saver_ui']['command'] == sys.executable
+          print('Windows smoke OK')
+          "@
+      - name: Test read_hook & cmd_hook on Windows C:\ paths (with Perl)
+        shell: pwsh
+        run: |
+          $perl = Get-Command perl -ErrorAction SilentlyContinue
+          if (-not $perl) { Write-Host "No perl on runner"; exit 0 }
+          $tmp = Join-Path $env:TEMP "agy-win-test"
+          New-Item -ItemType Directory -Force -Path $tmp | Out-Null
+          $lock = Join-Path $tmp "package-lock.json"
+          ('{"lockfileVersion":3}' + "`n") * 1000 | Set-Content -Path $lock -NoNewline
+          $esc = $lock.Replace('\', '\\')
+          $out = ('{"toolInput":{"Path":"' + $esc + '"},"cwd":"C:\\"}') | & perl scripts/read_hook.pl
+          if ($out -notmatch '"decision":"deny"') { throw "read_hook failed on Windows path: $out" }
+          $cout = '{"toolInput":{"CommandLine":"pytest $env:X"}}' | & perl scripts/cmd_hook.pl
+          if ($cout -ne '{"decision":"allow"}') { throw "cmd_hook should skip MSWin32/PowerShell: $cout" }
+          python scripts/benchmark.py --demo
+          Write-Host "Windows Perl hook & benchmark checks OK"

@@ -1,0 +1,18 @@
+{
+  "name": "token-saver",
+  "displayName": "agy-tokensaver",
+  "version": "1.0.0",
+  "author": {
+    "name": "menscho",
+    "url": "https://github.com/menscho"
+  },
+  "homepage": "https://github.com/menscho/agy-tokensaver",
+  "repository": "https://github.com/menscho/agy-tokensaver",
+  "description": "Local token, cache & quota optimizer for Antigravity: fail-open Perl hooks, duplicate-read guard, compact handoff archive, and MCP App dashboard.",
+  "logo": "assets/logo.svg",
+  "suggestedPrompts": [
+    "Run /token-stats to see real savings, cache-hit rates, and output-per-turn trends",
+    "Run /lean-workflow to audit, refactor, or fix tests without polluting the main context",
+    "Run /handoff to pack this session into a compact fresh-chat continuation prompt"
+  ]
+}

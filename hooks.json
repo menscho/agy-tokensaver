@@ -1,0 +1,90 @@
+{
+  "token-saver-cmd": {
+    "PreToolUse": [
+      {
+        "matcher": "run_command|shell_exec",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "perl ./scripts/cmd_hook.pl",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
+  "token-saver-read": {
+    "PreToolUse": [
+      {
+        "matcher": "read_file|view_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "perl ./scripts/read_hook.pl",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
+  "token-saver-write": {
+    "PreToolUse": [
+      {
+        "matcher": "write_file|write_to_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "perl ./scripts/write_hook.pl",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
+  "token-saver-find": {
+    "PreToolUse": [
+      {
+        "matcher": "find_by_name|find",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "perl ./scripts/find_hook.pl",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
+  "token-saver-swarm": {
+    "PreToolUse": [
+      {
+        "matcher": "swarm",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "perl ./scripts/swarm_hook.pl",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
+  "token-saver-alerts": {
+    "PostInvocation": [
+      {
+        "type": "command",
+        "command": "perl ./scripts/post_invocation_alerts.pl",
+        "timeout": 5
+      }
+    ]
+  },
+  "token-saver-telemetry": {
+    "Stop": [
+      {
+        "type": "command",
+        "command": "perl ./scripts/stop_telemetry.pl",
+        "timeout": 5
+      }
+    ]
+  }
+}
