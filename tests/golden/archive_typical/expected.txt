@@ -1,0 +1,25 @@
+[Archive/sync summary (359 lines)]
+  dist/: 359
+--- head/tail ---
+x dist/assets/bundle_0001_long_filename.js
+x dist/assets/bundle_0002_long_filename.js
+x dist/assets/bundle_0003_long_filename.js
+x dist/assets/bundle_0004_long_filename.js
+x dist/assets/bundle_0005_long_filename.js
+x dist/assets/bundle_0006_long_filename.js
+x dist/assets/bundle_0007_long_filename.js
+x dist/assets/bundle_0008_long_filename.js
+x dist/assets/bundle_0009_long_filename.js
+x dist/assets/bundle_0010_long_filename.js
+...
+x dist/assets/bundle_0350_long_filename.js
+x dist/assets/bundle_0351_long_filename.js
+x dist/assets/bundle_0352_long_filename.js
+x dist/assets/bundle_0353_long_filename.js
+x dist/assets/bundle_0354_long_filename.js
+x dist/assets/bundle_0355_long_filename.js
+x dist/assets/bundle_0356_long_filename.js
+x dist/assets/bundle_0357_long_filename.js
+x dist/assets/bundle_0358_long_filename.js
+x dist/assets/bundle_0359_long_filename.js
+[359L->24L; full: <SPILL_DIR>/44900f951454.log]

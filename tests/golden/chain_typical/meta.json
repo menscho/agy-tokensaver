@@ -1,0 +1,5 @@
+{
+  "cat": "chain",
+  "rc": 1,
+  "expect_spill": false
+}

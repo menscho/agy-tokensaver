@@ -20,6 +20,7 @@ SUITES=(
   tests/test_failopen.sh
   tests/test_cmd_semantics.sh
   tests/test_spill_safety.sh
+  tests/test_golden.sh
 )
 
 FAILED=0

@@ -1,0 +1,2 @@
+PID %CPU COMMAND
+1 0.0 /sbin/init

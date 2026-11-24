@@ -1,0 +1,142 @@
+  # aws_s3_bucket.b_1 will be updated
+  ~ resource "aws_s3_bucket" "b_1" {
+      id = "b-1"
+    }
+  # aws_s3_bucket.b_2 will be updated
+  ~ resource "aws_s3_bucket" "b_2" {
+      id = "b-2"
+    }
+  # aws_s3_bucket.b_3 will be updated
+  ~ resource "aws_s3_bucket" "b_3" {
+      id = "b-3"
+    }
+  # aws_s3_bucket.b_4 will be updated
+  ~ resource "aws_s3_bucket" "b_4" {
+      id = "b-4"
+    }
+  # aws_s3_bucket.b_5 will be updated
+  ~ resource "aws_s3_bucket" "b_5" {
+      id = "b-5"
+    }
+  # aws_s3_bucket.b_6 will be updated
+  ~ resource "aws_s3_bucket" "b_6" {
+      id = "b-6"
+    }
+  # aws_s3_bucket.b_7 will be updated
+  ~ resource "aws_s3_bucket" "b_7" {
+      id = "b-7"
+    }
+  # aws_s3_bucket.b_8 will be updated
+  ~ resource "aws_s3_bucket" "b_8" {
+      id = "b-8"
+    }
+  # aws_s3_bucket.b_9 will be updated
+  ~ resource "aws_s3_bucket" "b_9" {
+      id = "b-9"
+    }
+  # aws_s3_bucket.b_10 will be updated
+  ~ resource "aws_s3_bucket" "b_10" {
+      id = "b-10"
+    }
+  # aws_s3_bucket.b_11 will be updated
+  ~ resource "aws_s3_bucket" "b_11" {
+      id = "b-11"
+    }
+  # aws_s3_bucket.b_12 will be updated
+  ~ resource "aws_s3_bucket" "b_12" {
+      id = "b-12"
+    }
+  # aws_s3_bucket.b_13 will be updated
+  ~ resource "aws_s3_bucket" "b_13" {
+... (417 middle lines omitted; see full log below) ...
+    }
+  # aws_s3_bucket.b_118 will be updated
+  ~ resource "aws_s3_bucket" "b_118" {
+      id = "b-118"
+    }
+  # aws_s3_bucket.b_119 will be updated
+  ~ resource "aws_s3_bucket" "b_119" {
+      id = "b-119"
+    }
+  # aws_s3_bucket.b_120 will be updated
+  ~ resource "aws_s3_bucket" "b_120" {
+      id = "b-120"
+    }
+  # aws_s3_bucket.b_121 will be updated
+  ~ resource "aws_s3_bucket" "b_121" {
+      id = "b-121"
+    }
+  # aws_s3_bucket.b_122 will be updated
+  ~ resource "aws_s3_bucket" "b_122" {
+      id = "b-122"
+    }
+  # aws_s3_bucket.b_123 will be updated
+  ~ resource "aws_s3_bucket" "b_123" {
+      id = "b-123"
+    }
+  # aws_s3_bucket.b_124 will be updated
+  ~ resource "aws_s3_bucket" "b_124" {
+      id = "b-124"
+    }
+  # aws_s3_bucket.b_125 will be updated
+  ~ resource "aws_s3_bucket" "b_125" {
+      id = "b-125"
+    }
+  # aws_s3_bucket.b_126 will be updated
+  ~ resource "aws_s3_bucket" "b_126" {
+      id = "b-126"
+    }
+  # aws_s3_bucket.b_127 will be updated
+  ~ resource "aws_s3_bucket" "b_127" {
+      id = "b-127"
+    }
+  # aws_s3_bucket.b_128 will be updated
+  ~ resource "aws_s3_bucket" "b_128" {
+      id = "b-128"
+    }
+  # aws_s3_bucket.b_129 will be updated
+  ~ resource "aws_s3_bucket" "b_129" {
+      id = "b-129"
+    }
+  # aws_s3_bucket.b_130 will be updated
+  ~ resource "aws_s3_bucket" "b_130" {
+      id = "b-130"
+    }
+  # aws_s3_bucket.b_131 will be updated
+  ~ resource "aws_s3_bucket" "b_131" {
+      id = "b-131"
+    }
+  # aws_s3_bucket.b_132 will be updated
+  ~ resource "aws_s3_bucket" "b_132" {
+      id = "b-132"
+    }
+  # aws_s3_bucket.b_133 will be updated
+  ~ resource "aws_s3_bucket" "b_133" {
+      id = "b-133"
+    }
+  # aws_s3_bucket.b_134 will be updated
+  ~ resource "aws_s3_bucket" "b_134" {
+      id = "b-134"
+    }
+  # aws_s3_bucket.b_135 will be updated
+  ~ resource "aws_s3_bucket" "b_135" {
+      id = "b-135"
+    }
+  # aws_s3_bucket.b_136 will be updated
+  ~ resource "aws_s3_bucket" "b_136" {
+      id = "b-136"
+    }
+  # aws_s3_bucket.b_137 will be updated
+  ~ resource "aws_s3_bucket" "b_137" {
+      id = "b-137"
+    }
+  # aws_s3_bucket.b_138 will be updated
+  ~ resource "aws_s3_bucket" "b_138" {
+      id = "b-138"
+    }
+  # aws_s3_bucket.b_139 will be updated
+  ~ resource "aws_s3_bucket" "b_139" {
+      id = "b-139"
+    }
+Plan: 0 to add, 139 to change, 0 to destroy.
+[557L->141L; full: <SPILL_DIR>/86e8169d71bc.log]

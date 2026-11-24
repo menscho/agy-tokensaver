@@ -1,0 +1,2 @@
+Successfully installed 179 packages.
+[359L->1L; full: <SPILL_DIR>/8ec5c620b896.log]

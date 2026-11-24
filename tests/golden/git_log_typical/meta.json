@@ -1,0 +1,5 @@
+{
+  "cat": "git_log",
+  "rc": 0,
+  "expect_spill": true
+}

@@ -461,7 +461,7 @@ sub crush_json_output {
     if (ref($data) eq 'ARRAY') {
         $arr = $data;
     } elsif (ref($data) eq 'HASH') {
-        my @arr_keys = grep { ref($data->{$_}) eq 'ARRAY' && @{$data->{$_}} >= 3 } keys %$data;
+        my @arr_keys = sort grep { ref($data->{$_}) eq 'ARRAY' && @{$data->{$_}} >= 3 } keys %$data;
         return undef unless @arr_keys == 1;
         my $ak = $arr_keys[0];
         $arr = $data->{$ak};
@@ -822,7 +822,7 @@ sub compress_build {
             if (%supp) {
                 $LOSSY = 1;
                 push @out, '--- Repeated compiler errors collapsed ---';
-                my @top = sort { $supp{$b} <=> $supp{$a} } keys %supp;
+                my @top = sort { $supp{$b} <=> $supp{$a} || $a cmp $b } keys %supp;
                 for my $k (@top[0 .. ($#top > 4 ? 4 : $#top)]) {
                     my $sk = length($k) > 110 ? substr($k, 0, 107) . '...' : $k;
                     push @out, "  (+$supp{$k} more) $sk";
@@ -864,7 +864,7 @@ sub compress_lint {
     if (%supp) {
         $LOSSY = 1;
         push @out, '--- Repeated diagnostics collapsed ---';
-        my @top = sort { $supp{$b} <=> $supp{$a} } keys %supp;
+        my @top = sort { $supp{$b} <=> $supp{$a} || $a cmp $b } keys %supp;
         for my $k (@top[0 .. ($#top > 4 ? 4 : $#top)]) {
             my $sk = length($k) > 110 ? substr($k, 0, 107) . '...' : $k;
             push @out, "  (+$supp{$k} more) $sk";
@@ -1051,7 +1051,7 @@ sub compress_search {
     return cap_with_signal(\@grouped, 70, 35, 40) if !%file_counts;
     if (@grouped > 160 && $g_bytes > $NATIVE_CAP) {
         $LOSSY = 1;
-        my @top = sort { $file_counts{$b} <=> $file_counts{$a} } keys %file_counts;
+        my @top = sort { $file_counts{$b} <=> $file_counts{$a} || $a cmp $b } keys %file_counts;
         my @hdr = ("[Search summary: " . scalar(@$lines) . " lines across " . scalar(@top) . " files]");
         for my $f (@top[0 .. ($#top > 14 ? 14 : $#top)]) {
             push @hdr, "  $f: $file_counts{$f}";
@@ -1109,7 +1109,7 @@ sub compress_find {
         my $grp = @p >= 2 ? "$p[0]/$p[1]" : $p[0];
         $dir_cnt{$grp}++;
     }
-    my @top = sort { $dir_cnt{$b} <=> $dir_cnt{$a} } keys %dir_cnt;
+    my @top = sort { $dir_cnt{$b} <=> $dir_cnt{$a} || $a cmp $b } keys %dir_cnt;
     my @hdr = ("[Directory summary (" . scalar(@$lines) . " entries)]");
     for my $d (@top[0 .. ($#top > 14 ? 14 : $#top)]) {
         push @hdr, "  $d: $dir_cnt{$d}";
@@ -1170,7 +1170,7 @@ sub compress_archive {
             my ($d) = ($p =~ m{^([^/]+/)});
             $dirs{$d // '(root)'}++;
         }
-        my @top = sort { $dirs{$b} <=> $dirs{$a} } keys %dirs;
+        my @top = sort { $dirs{$b} <=> $dirs{$a} || $a cmp $b } keys %dirs;
         my @hdr = ("[Archive/sync summary (" . scalar(@$lines) . " lines)]");
         push @hdr, "  $_: $dirs{$_}" for @top[0 .. ($#top > 11 ? 11 : $#top)];
         return [@hdr, '--- head/tail ---', @{$lines}[0 .. 9], '...', @{$lines}[-10 .. -1]];

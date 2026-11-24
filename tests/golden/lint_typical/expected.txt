@@ -1,0 +1,27 @@
+src/mod_1.py:1:1: E501 line too long (112 > 88 characters) padding_text
+src/mod_2.py:2:1: E501 line too long (112 > 88 characters) padding_text
+src/mod_3.py:3:1: E501 line too long (112 > 88 characters) padding_text
+src/mod_0.py:4:1: E501 line too long (112 > 88 characters) padding_text
+src/mod_1.py:5:1: E501 line too long (112 > 88 characters) padding_text
+src/mod_2.py:6:1: E501 line too long (112 > 88 characters) padding_text
+src/mod_3.py:7:1: E501 line too long (112 > 88 characters) padding_text
+src/mod_0.py:8:1: E501 line too long (112 > 88 characters) padding_text
+src/mod_1.py:9:1: E501 line too long (112 > 88 characters) padding_text
+src/mod_2.py:10:1: E501 line too long (112 > 88 characters) padding_text
+src/mod_3.py:11:1: E501 line too long (112 > 88 characters) padding_text
+src/mod_0.py:12:1: E501 line too long (112 > 88 characters) padding_text
+src/mod_1.py:13:1: E501 line too long (112 > 88 characters) padding_text
+src/mod_2.py:14:1: E501 line too long (112 > 88 characters) padding_text
+src/mod_3.py:15:1: E501 line too long (112 > 88 characters) padding_text
+src/mod_0.py:16:1: E501 line too long (112 > 88 characters) padding_text
+src/mod_1.py:17:1: E501 line too long (112 > 88 characters) padding_text
+src/mod_2.py:18:1: E501 line too long (112 > 88 characters) padding_text
+src/mod_3.py:19:1: E501 line too long (112 > 88 characters) padding_text
+src/mod_0.py:20:1: E501 line too long (112 > 88 characters) padding_text
+Found 259 errors.
+--- Repeated diagnostics collapsed ---
+  (+60 more) src/mod_1.py:L: E501 line too long (112 > 88 characters) padding_text
+  (+60 more) src/mod_2.py:L: E501 line too long (112 > 88 characters) padding_text
+  (+60 more) src/mod_3.py:L: E501 line too long (112 > 88 characters) padding_text
+  (+59 more) src/mod_0.py:L: E501 line too long (112 > 88 characters) padding_text
+[260L->26L; full: <SPILL_DIR>/8c727615b54d.log]

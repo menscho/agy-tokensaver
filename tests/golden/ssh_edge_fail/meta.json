@@ -1,0 +1,5 @@
+{
+  "cat": "ssh",
+  "rc": 255,
+  "expect_spill": false
+}
