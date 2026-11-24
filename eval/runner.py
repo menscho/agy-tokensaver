@@ -243,7 +243,7 @@ def _collect_live_session_metrics(t_start: float, t_end: float) -> tuple[int, fl
     """Find the Antigravity session updated during [t_start, t_end] and extract tokens/cost/retries."""
     sys.path.insert(0, str(SCRIPTS))
     sys.path.insert(0, str(ROOT / "mcp_app"))
-    import replay_io  # type: ignore
+    import replay_io
 
     best_path: Path | None = None
     best_mtime = 0.0
@@ -278,7 +278,7 @@ def _collect_live_session_metrics(t_start: float, t_end: float) -> tuple[int, fl
 def _set_hud_mode(mode: str) -> dict[str, Any] | None:
     """Switch active plugin HUD config to `mode`, returning prior config for restoration."""
     sys.path.insert(0, str(ROOT / "mcp_app"))
-    import config  # type: ignore
+    import config
 
     prior = config.CFG_FILE.read_text(encoding="utf-8") if config.CFG_FILE.is_file() else None
     config.save_config(MODE_PROFILE[mode])

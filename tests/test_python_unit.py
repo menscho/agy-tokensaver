@@ -400,13 +400,14 @@ class TestMcpAppModules(unittest.TestCase):
         self.assertEqual(rec["total_tokens"], 1200)
 
         # Headless agy live task where mock agent solves task in cwd reports passed=True
+        from typing import Any
         orig_run = eval_runner.subprocess.run
 
-        def _fake_agy(cmd_parts: object, cwd: str = "", **kwargs: object) -> object:
+        def _fake_agy(cmd_parts: Any, **kwargs: Any) -> Any:
             if isinstance(cmd_parts, list) and cmd_parts and cmd_parts[0] == "agy":
-                eval_runner.apply_reference(task, Path(cwd))
+                eval_runner.apply_reference(task, Path(str(kwargs.get("cwd") or "")))
                 return mock.Mock(returncode=0)
-            return orig_run(cmd_parts, cwd=cwd, **kwargs)  # type: ignore[arg-type]
+            return orig_run(cmd_parts, **kwargs)
 
         with mock.patch.object(eval_runner.subprocess, "run", side_effect=_fake_agy), \
              mock.patch.object(eval_runner, "_collect_live_session_metrics", return_value=(800, 1000.0, 1, "sid-2")):

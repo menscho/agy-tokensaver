@@ -2,6 +2,11 @@
 
 All notable changes to **agy-tokensaver** (`menscho/agy-tokensaver`) are documented here.
 
+## [1.2.3] — 2026-11-24
+
+### Fixed
+- **Type checks (`eval/runner.py`, `tests/test_python_unit.py`):** removed unused `# type: ignore` comments and typed `_fake_agy` kwargs for `mypy --warn-unused-ignores`.
+
 ## [1.2.2] — 2026-11-24
 
 ### Changed
