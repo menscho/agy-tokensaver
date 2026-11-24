@@ -54,7 +54,8 @@ for rnd in range(1, max_rounds + 1):
     fix_res = await agent(
         f"Fix the failing test(s) in `{ws}`.\n"
         f"Failures:\n{tri.get('failures', tri['summary'])}\n\n"
-        f"Rules: Read only the failing code/test slices, apply surgical `edit_file` fix, "
+        f"Rules: Read only the failing code/test slices, apply surgical `edit_file` fix "
+        f"(never write files via `run_command`; omit `ArtifactMetadata`), "
         f"verify once with `{narrow}`, and stop. Return a 1-2 sentence summary of the root cause and fix.",
         schema={"type": "string"},
         role=f"Fix round {rnd}",

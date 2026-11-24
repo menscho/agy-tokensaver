@@ -9,6 +9,11 @@ Modes:
       byte/token counts (respecting Antigravity's native truncation caps) plus
       measured median hook latency in milliseconds.
 
+  python3 scripts/benchmark.py --replay
+      Replays every recorded tool call of ALL local Antigravity sessions (IDE + CLI) through
+      the real hooks with exact per-turn tokens (see scripts/transcript_replay.py) and reports
+      Hooks-only (Auto-Handoff OFF), Handoff-only and Hooks+Handoff quota deltas.
+
   python3 scripts/benchmark.py --transcripts
       Reproduces the counterfactual rollover table from local Antigravity
       transcripts (~/.gemini/antigravity/brain/*/transcript.jsonl), including
@@ -86,7 +91,9 @@ def run_demo() -> int:
         tmp = Path(td)
         pdata = tmp / "pdata"
         pdata.mkdir()
-        env = {**os.environ, "PLUGIN_DATA": str(pdata)}
+        # The demo fixture is a POSIX task (pytest, git diff, journalctl): force the POSIX classifier even
+        # on Windows hosts, where cmd_hook.pl would otherwise (correctly) take the PowerShell path.
+        env = {**os.environ, "PLUGIN_DATA": str(pdata), "AGY_TS_SHELL": "posix"}
 
         # Build realistic deterministic task fixtures
         lock_file = tmp / "package-lock.json"
@@ -125,6 +132,29 @@ def run_demo() -> int:
             "".join(f"2026-11-23T22:00:{i%60:02d}Z INFO worker id={i} heartbeat ok latency=4ms\n" for i in range(1, 601))
             + "2026-11-23T22:10:01Z ERROR auth_refresh upstream returned 500 (code=E_TOK_EXP)\n"
             + "".join(f"2026-11-23T22:10:{i%60:02d}Z DEBUG pool tick={i} active=2 idle=8\n" for i in range(1, 301))
+        )
+
+        json_api_out = json.dumps(
+            {
+                "service": "billing-api",
+                "total": 120,
+                "items": [
+                    {
+                        "id": f"evt_{i:04d}",
+                        "region": "eu-west-1",
+                        "status": 500 if i == 77 else 200,
+                        "latency_ms": 942 if i == 77 else 14 + (i % 9),
+                        "message": "upstream timeout error on stripe_charge" if i == 77 else "ok",
+                    }
+                    for i in range(1, 121)
+                ],
+            },
+            indent=2,
+        ) + "\n"
+
+        ssh_grep_out = "".join(
+            f"/srv/webapps/production/api/routes/auth_handlers.py:{100+i}: def route_v{i}(req): return verify_jwt(req)\n"
+            for i in range(1, 75)
         )
 
         latencies: list[float] = []
@@ -168,9 +198,9 @@ def run_demo() -> int:
             raw_b = NATIVE_CMD_PREVIEW if len(fixture_out.encode("utf-8")) > NATIVE_CMD_CAP else len(fixture_out.encode("utf-8"))
             cat = _extract_wrap_cat(res)
             if cat is None:
-                if perl_os != "MSWin32":
+                if sys.platform != "win32" and perl_os not in ("MSWin32", "msys", "cygwin"):
                     raise AssertionError(f"cmd_hook.pl did not wrap {cmd_line!r}: {res}")
-                rows.append((label, raw_b, raw_b, "not wrapped (MSWin32 PowerShell skip)"))
+                rows.append((label, raw_b, raw_b, "not wrapped (Windows PowerShell mode)"))
                 return
             out, _ = _run_wrap(cat, fixture_out, rc, env)
             check_fn(out)
@@ -204,6 +234,26 @@ def run_demo() -> int:
             0,
             lambda out: (_assert("E_TOK_EXP" in out and "full: " in out, "server log ERROR lost")),
             "ERROR pinned + raw saved",
+        )
+
+        # Step 7: JSON API response (120 objects + 1 buried 500 error) -> Headroom SmartCrusher CSV+schema
+        _run_cmd_step(
+            "7. run_command curl JSON API (120 rows)",
+            "curl -s https://api.example.com/events",
+            json_api_out,
+            0,
+            lambda out: (_assert("evt_0077" in out and "stripe_charge" in out and "[120]{" in out, "JSON SmartCrusher signal lost")),
+            "CSV+schema & error row kept",
+        )
+
+        # Step 8: SSH remote grep with repeated long file paths -> lossless path hoisting
+        _run_cmd_step(
+            "8. run_command ssh remote grep (74 hits)",
+            "ssh prod 'grep -rn verify_jwt /srv/webapps/production/api/routes'",
+            ssh_grep_out,
+            0,
+            lambda out: (_assert("/srv/webapps/production/api/routes/auth_handlers.py:" in out and "route_v74" in out, "SSH grep signal lost")),
+            "lossless path hoisting",
         )
 
     tot_before = sum(r[1] for r in rows)
@@ -317,8 +367,10 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Reproducible benchmark for agy-tokensaver.")
     ap.add_argument("--demo", action="store_true", help="Run deterministic 6-step Before/After hook benchmark")
     ap.add_argument("--transcripts", action="store_true", help="Run counterfactual rollover replay on local transcripts")
+    ap.add_argument("--replay", action="store_true", help="Replay real local sessions through the hooks (hooks-only + handoff)")
+    ap.add_argument("--json", default=None, help="With --replay: write the summary JSON here (input for make_benchmark_chart.py)")
     args = ap.parse_args()
-    if not args.demo and not args.transcripts:
+    if not args.demo and not args.transcripts and not args.replay:
         args.demo = True
     rc = 0
     if args.demo:
@@ -327,6 +379,12 @@ def main() -> int:
         if args.demo:
             print()
         rc |= run_transcripts()
+    if args.replay:
+        if args.demo or args.transcripts:
+            print()
+        sys.path.insert(0, str(SCRIPTS))
+        import transcript_replay
+        rc |= 0 if transcript_replay.run(json_out=args.json)["n"] else 1
     return rc
 
 

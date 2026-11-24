@@ -1,18 +1,22 @@
 ---
 name: handoff
-description: >-
-  Generate a compact (~500-token) zero-loss session continuation packet so you
-  can reset a 100K+ context chat into a fresh ~15K chat (saving 60-75% on long
-  sessions) without losing any state or decisions.
+description: User-only. Compact continuation packet to restart a 100K+ chat in a fresh one.
 disable-model-invocation: true
 ---
 
-# Zero-Loss Session Handoff (`/handoff`)
+# Session Handoff (`/handoff`)
 
-Run the local handoff generator script:
+Run the local generator (read-only: git `--no-optional-locks`, transcript read only):
 
 ```bash
 python3 "$HOME/.gemini/config/plugins/token-saver/scripts/handoff_pack.py" "$(pwd)"
 ```
 
-Then enrich the printed packet with **at most 5 terse bullets** capturing any in-memory decisions, verified root causes, or exact next step that aren't visible in `git status`, and output the final continuation prompt inside a single fenced markdown block ready for the user to paste into a fresh chat (or run `/compact`).
+It prints the packet: workspace/branch, last goal, last assistant state, recent commits, one merged
+list of uncommitted changes (`XY path (+a/-b)`), files edited in this conversation and files it
+consulted. Add **at most 5 terse bullets** for in-memory decisions, verified root causes, or the exact
+next step that the packet does not show, and output the result in a single fenced markdown block
+ready to paste into a fresh chat.
+
+Best moment: after an agent run has finished (not mid-run), especially when you return after the
+prompt cache expired - resuming a 150K chat then re-reads all 150K uncached; the packet costs ~16K.

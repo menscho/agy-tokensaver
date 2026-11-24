@@ -1,12 +1,12 @@
 ---
 name: token-stats
-description: >-
-  Show live (net, notice-adjusted) token savings, prompt cache-hit rates, read_file blocks/caps, CLI
-  compression ratios, and hook latency overhead recorded by the token-saver plugin.
+description: User-only. Token-saver savings and cache stats.
 disable-model-invocation: true
 ---
 
 # Token Saver — Usage & Cache-Hit Dashboard
+
+Shows live (net, notice-adjusted) savings, prompt cache-hit rate, read_file blocks/caps, CLI compression ratios and hook latency recorded by the plugin.
 
 Run the local telemetry aggregator script and present its report cleanly to the user:
 

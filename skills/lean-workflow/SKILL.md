@@ -1,12 +1,11 @@
 ---
 name: lean-workflow
-description: >-
-  Auto-use for >=5-file audits, multi-file refactors, or multi-round test-fix
-  loops: runs isolated `run_workflow` scripts so raw reads/logs stay out of the
-  main chat (-65-80% parent context).
+description: Isolated workflows for >=5-file audits, refactors or test-fix loops.
 ---
 
 # Phase-Isolated Workflows (`/lean-workflow`)
+
+Raw reads, logs and fix iterations run in isolated `run_workflow` agents, so they never enter the main chat's cached prefix (-65-80% parent context on such jobs).
 
 Choose the matching bundled workflow under `~/.gemini/config/plugins/token-saver/workflows/` and launch it directly via `run_workflow(ScriptPath=..., Args=..., Description=...)`:
 
@@ -20,4 +19,4 @@ Choose the matching bundled workflow under `~/.gemini/config/plugins/token-saver
    - `ScriptPath`: `~/.gemini/config/plugins/token-saver/workflows/test_fix_loop.py`
    - `Args`: `{"test_cmd": "<test command>", "max_rounds": 3, "fix_model": "inherit"}`
 
-Always set `Cwd` to the target project directory when running outside the primary workspace.
+Always set `Cwd` to the target project directory when running outside the primary workspace. Skip this for 1-4 file jobs: do them directly.

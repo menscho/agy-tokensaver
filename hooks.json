@@ -55,6 +55,20 @@
       }
     ]
   },
+  "token-saver-grep": {
+    "PreToolUse": [
+      {
+        "matcher": "grep_search",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "perl ./scripts/grep_hook.pl",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
   "token-saver-swarm": {
     "PreToolUse": [
       {
@@ -63,6 +77,20 @@
           {
             "type": "command",
             "command": "perl ./scripts/swarm_hook.pl",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
+  "token-saver-post-edit": {
+    "PostToolUse": [
+      {
+        "matcher": "edit_file|write_file|replace_file_content|multi_replace_file_content|write_to_file",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "perl ./scripts/post_edit_hook.pl",
             "timeout": 5
           }
         ]

@@ -1,13 +1,12 @@
 ---
 name: context-audit
-description: >-
-  Audit the current Antigravity configuration and active workspace for hidden
-  token leaks, oversized always-on rules, unused MCP servers/plugins, and
-  cache-busting hooks.
+description: User-only. Audit config/workspace for token leaks.
 disable-model-invocation: true
 ---
 
 # Context & Cache Leak Audit
+
+Audits oversized always-on rules, unused MCP servers/plugins, cache-busting hooks and workspace bloat.
 
 Run the local audit script against the current working directory (and global Antigravity config):
 

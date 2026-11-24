@@ -2,6 +2,18 @@
 
 All notable changes to **agy-tokensaver** (`menscho/agy-tokensaver`) are documented here.
 
+## [Unreleased]
+
+- **Real-session benchmark (`scripts/transcript_replay.py`, `benchmark.py --replay`, `make_benchmark_chart.py`):** replays every recorded tool call of all local IDE + CLI sessions through the real hooks with exact per-turn tokens (transcript or `conversations/*.db`), charges retries, follow-up reads and the plugin's own prompt overhead, and renders `docs/assets/benchmark-chart.svg`.
+- **Windows PowerShell compression:** `cmd_hook.pl` / `cmd_hook_core.pl` / `cmd_wrap.pl` wrap noisy PowerShell commands (cmdlet listings, builds, package managers) through a child `powershell.exe` with exact exit codes and raw spill; fixes Git-perl hosts rewriting PowerShell commands into `bash -c`, and the `do`-path bug that kept the core from loading via a Windows path. `AGY_TS_SHELL=off|posix|pwsh`.
+- **read_hook.pl:** compaction-verified dedupe window (from the transcript, fallback 16 steps), MD5 fingerprint, missing-range trim for partially covered re-reads, shorter reasons; prose docs up to 46 KB are no longer auto-capped (each cap forced a follow-up read).
+- **grep_hook.pl (new):** fixes Windows `grep_search` on a single file (always "No results") via parent dir + `Includes`.
+- **Auto-Handoff:** one causal `rollover_policy()` shared by the live tick, HUD threshold and simulator (no oracle), settled-only live firing, learned continuation probability, measured 17k cold start, denser handoff packet (lists edited files), all 30 IDE + CLI sessions visible to the HUD (db token fallback), background-task id regex fix.
+- **Headroom-inspired stdlib compressors (`scripts/cmd_wrap.pl`):** lossless JSON `[N]{cols}` CSV+schema compaction (with 1-level nested flattening, `>256 B` blob offload, and error/outlier-preserving `SmartCrusher` sampling past 9.9 KB), dense machine-generated line elision, repeated multi-line block folding, large-diff `±2` context trimming, Windows-safe grep path hoisting, and SSH remote grep path hoisting (`+45%` more SSH tokens removed on real-session replay).
+- **`@plexer/cli`-inspired lifecycle guards (`scripts/post_edit_hook.pl`, `cmd_hook_core.pl`, `read_hook.pl`, `ts_inspect.py`):** `PostToolUse` edit tracker (`editseq` bump + immediate `read_hook.pl` entry invalidation), duplicate search / unchanged `git diff` dedup with a 1-retry escape hatch, `WaitMsBeforeAsync` floor bump (`5000 ms`) on fast read-only queries, `initialNumSteps` drop compaction reset in `read_hook.pl`, and stdlib AST/regex `ts_inspect.py outline`.
+- **Prompt overhead 906 → 433 tok/turn:** ~0.7 KB rules (new: no file writes via `run_command`, no `ArtifactMetadata` outside the brain dir), 3 scouts instead of 5 (`scout` replaces `fast-explorer`/`triage-scout`/`web-scout`), short skill descriptions.
+- **291 assertions across 7 test suites** (`run_tests.sh`, `test_cmd_windows.sh`, `test_read.sh`, `test_rollover.sh`, `test_rules.sh`, `test_tools.sh`, `test_headroom_plexer.sh`) verified in 3-OS CI.
+
 ## [1.0.0] — Initial Open-Source Release
 
 - **Fail-Open Perl Hooks (`PreToolUse` / `PostInvocation` / `Stop`):**

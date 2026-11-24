@@ -58,7 +58,8 @@ results = await pipeline(
         f"Instructions: {s['instructions']}\n"
         f"Overall goal: {goal}\n\n"
         f"Rules: Read only the needed line slices of `{s['file']}` (and direct imports if required). "
-        f"Use `edit_file` (no full rewrites unless <100L). Return a 1-line summary of what changed.",
+        f"Use `edit_file` with 1-3 unique anchor lines (no full rewrites unless <100L); never write files via "
+        f"`run_command`; omit `ArtifactMetadata`. Return a 1-line summary of what changed.",
         schema={"type": "string"},
         role=f"Edit {s['file']}",
         model=edit_model,

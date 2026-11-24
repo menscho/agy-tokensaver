@@ -29,7 +29,9 @@ PLUGIN_ROOT = HERE.parent
 GITHUB_REPO = "menscho/agy-tokensaver"
 GITHUB_RELEASES_API = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 GITHUB_RELEASES_URL = f"https://github.com/{GITHUB_REPO}/releases"
-BRAIN_DIR = Path.home() / ".gemini" / "antigravity" / "brain"
+GEMINI_HOME = Path(os.environ.get("AGY_TS_GEMINI_HOME") or (Path.home() / ".gemini"))
+APP_DIRS = (GEMINI_HOME / "antigravity", GEMINI_HOME / "antigravity-cli")   # IDE + CLI (read-only)
+BRAIN_DIR = GEMINI_HOME / "antigravity" / "brain"
 DATA_DIR = Path(
     os.environ.get("PLUGIN_DATA")
     or (Path.home() / ".gemini" / "antigravity" / "plugin_data" / "token-saver")
@@ -42,7 +44,7 @@ EVENTS_FILE = DATA_DIR / "events.jsonl"
 
 _cfg_lock = threading.Lock()
 _state_lock = threading.Lock()
-_tx_cache: dict[str, tuple[float, int, dict[str, Any]]] = {}
+_tx_cache: dict[str, tuple[Any, dict[str, Any]]] = {}
 _ev_cache: tuple[float, int, dict[str, Any]] = (0.0, -1, {})
 _last_auto_event: dict[str, Any] = {}
 _update_cache: tuple[float, dict[str, Any]] = (0.0, {})
@@ -191,227 +193,678 @@ def parse_iso_ts(ts_str: str) -> float | None:
         return None
 
 
-def parse_transcript_cached(tx: Path) -> dict[str, Any] | None:
+# ----------------------------------------------------------------------------- rollover cost model
+# Every constant below is either measured on the 30 local sessions or is an explicit prior.
+#  * FRESH_CTX_TOK: context of the FIRST generation of a fresh conversation (system prompt + tool
+#    schemas + rules + first user message). Measured: median 15,375 (IDE, n=10) / 15,350 (CLI, n=20),
+#    range 10.0k-17.0k.
+#  * HANDOFF_PACKET_TOK: scripts/handoff_pack.py output measured on the 10 real workspaces used in
+#    those sessions (chars/4): now 180-610 tok (median 320, p90 ~390); before the densification
+#    410-1,040 (median 547) while listing NO edited files (string tool_calls were not parsed).
+#  * COLD_START_TOK = FRESH (15.4k) + PACKET p90 (0.4k) + ~1.2k slack for the max packet and the
+#    model's resume context = 17k. (Previously an unmeasured 22k.)
+#  * REDISCOVERY_TAX_TOK: re-reading files the old chat already had in context. NOT measured ->
+#    kept at the old conservative 8k.
+#  * Warm-up misses: fresh conversations on this machine often miss the prompt cache on their first
+#    1-3 generations (cr=0 at turn 1/2 in 17 of 30 sessions). The counterfactual replays THIS
+#    session's own measured warm-up miss pattern for the new conversation (charged, not assumed 0).
+FRESH_CTX_TOK = 15_400
+HANDOFF_PACKET_TOK = 400
+COLD_START_TOK = 17_000
+REDISCOVERY_TAX_TOK = 8_000
+PACKET_REPLY_OUT_TOK = 150      # output of the new chat's first reply to the packet (6x weighted)
+WARMUP_TURNS = 3
+SETTLE_GAP_SEC = 25             # live tick fires 20..90 s after the last generation (10 s period)
+MOMENTUM_WINDOW_SEC = 600
+MOMENTUM_MIN_TURNS = 3
+
+# Auto policy priors (causal: no knowledge of how many turns remain)
+POLICY_HORIZON_TURNS = 12       # assumed remaining turns once a chat is past min_turns (was the oracle)
+POLICY_MARGIN = 1.5             # required gain / cost ratio over that horizon
+POLICY_DROP_PRIOR = (0.5, 20)   # Beta-ish prior: 0.5 TTL drops per 20 warm turns (~2.5%/turn)
+AUTO_CAP_MIN = 90_000
+AUTO_CAP_MAX = 220_000
+# Live rollovers can only fire when an agent run has settled. Whether the user then continues in the
+# new chat is unknown at decision time, so the auto policy scales its horizon by p_continue: the
+# Laplace-smoothed share of this user's PAST settled points (ctx >= AUTO_CAP_MIN) that were followed
+# by more generations. On the 30 local sessions that share is 0/13 -> auto-spawn backs off.
+POLICY_CONTINUE_PRIOR = (1, 2)
+
+_SIM_CFG = {"threshold_mode": "auto", "threshold_k": 110, "min_turns": 14}
+
+
+# ----------------------------------------------------------------------------- session sources
+def _rv(b: bytes, i: int) -> tuple[int, int]:
+    r = s = 0
+    while True:
+        x = b[i]
+        i += 1
+        r |= (x & 0x7F) << s
+        s += 7
+        if x < 0x80:
+            return r, i
+
+
+def _pb_fields(b: bytes) -> list[tuple[int, int, Any]] | None:
+    out: list[tuple[int, int, Any]] = []
+    i = 0
     try:
-        st = tx.stat()
-    except OSError:
+        while i < len(b):
+            k, i = _rv(b, i)
+            f, w = k >> 3, k & 7
+            if f == 0:
+                return None
+            if w == 0:
+                v, i = _rv(b, i)
+                out.append((f, w, v))
+            elif w == 1:
+                i += 8
+            elif w == 5:
+                i += 4
+            elif w == 2:
+                ln, i = _rv(b, i)
+                out.append((f, w, b[i:i + ln]))
+                i += ln
+            else:
+                return None
+        if i != len(b):
+            return None
+    except IndexError:
         return None
-    key = str(tx)
-    cached = _tx_cache.get(key)
-    if cached and cached[0] == st.st_mtime and cached[1] == st.st_size:
-        return cached[2]
+    return out
 
-    turns = tot_in = tot_cr = tot_out = warm_in = warm_cr = drops = tail_2049 = prev_cr = 0
-    cur_in = cur_cr = cur_tot = peak_ctx = 0
-    last_model = ""
-    first_ts = st.st_mtime
-    last_ts = st.st_mtime
-    img_reads = 0
-    turn_tuples: list[tuple[int, int, int]] = []
-    turn_timestamps: list[float] = []
-    last_user_goal = ""
-    is_handoff_session = False
 
+def _db_gen_usage(db: Path) -> list[tuple[int, int, int]]:
+    """(input, cache_read, output) for EVERY gen_metadata row of conversations/<id>.db, in idx order
+    (zero rows kept so rows stay aligned with transcript PLANNER_RESPONSE records).
+    gen_metadata field 1.4: 2=input, 5=cache_read, 3=output. Opened read-only."""
+    res: list[tuple[int, int, int]] = []
     try:
-        with tx.open("r", encoding="utf-8", errors="replace") as fh:
-            for line in fh:
-                if '"read_file"' in line and any(ext in line.lower() for ext in (".png", ".jpg", ".jpeg", ".webp")):
-                    img_reads += 1
-                if '"USER_INPUT"' in line:
-                    try:
-                        uobj = json.loads(line)
-                        if uobj.get("type") == "USER_INPUT":
-                            uc = str(uobj.get("content") or "")
-                            if "# Session Continuation Handoff" in uc:
-                                is_handoff_session = True
-                            m = re.search(r"<USER_REQUEST>\s*(.*?)\s*</USER_REQUEST>", uc, re.S)
-                            clean_g = (m.group(1) if m else uc).strip()
-                            if clean_g and not clean_g.startswith("# Session Continuation Handoff"):
-                                last_user_goal = clean_g[:220]
-                    except Exception:
-                        pass
-                    continue
-                if '"PLANNER_RESPONSE"' not in line:
-                    continue
+        import sqlite3
+        con = sqlite3.connect(f"file:{db.as_posix()}?mode=ro", uri=True, timeout=1.0)
+        try:
+            rows = con.execute("select idx, data from gen_metadata order by idx").fetchall()
+        finally:
+            con.close()
+    except Exception:
+        return res
+    for _idx, data in rows:
+        usage: dict[int, int] = {}
+        for f, w, v in _pb_fields(bytes(data or b"")) or []:
+            if f == 1 and w == 2:
+                for f2, w2, v2 in _pb_fields(v) or []:
+                    if f2 == 4 and w2 == 2:
+                        for f3, w3, v3 in _pb_fields(v2) or []:
+                            if w3 == 0:
+                                usage[f3] = int(v3)
+                        break
+                break
+        res.append((usage.get(2, 0), usage.get(5, 0), usage.get(3, 0)))
+    return res
+
+
+def _fsig(p: Path | None) -> tuple[float, int]:
+    if p is None:
+        return (0.0, -1)
+    try:
+        st = p.stat()
+        return (st.st_mtime, st.st_size)
+    except OSError:
+        return (0.0, -1)
+
+
+def _session_paths(app: Path, sid: str) -> tuple[Path | None, Path | None]:
+    tx = app / "brain" / sid / ".system_generated" / "logs" / "transcript.jsonl"
+    db = app / "conversations" / f"{sid}.db"
+    return (tx if tx.is_file() else None), (db if db.is_file() else None)
+
+
+def discover_session_sources() -> list[tuple[float, str, Path | None, Path | None]]:
+    """All local sessions of the IDE (~/.gemini/antigravity) AND the CLI (~/.gemini/antigravity-cli):
+    (last-modified, conversation_id, transcript-or-None, db-or-None), newest first."""
+    out: list[tuple[float, str, Path | None, Path | None]] = []
+    seen: set[str] = set()
+    for app in APP_DIRS:
+        ids: set[str] = set()
+        try:
+            if (app / "brain").is_dir():
+                ids |= {p.name for p in (app / "brain").iterdir() if p.is_dir()}
+            if (app / "conversations").is_dir():
+                ids |= {p.stem for p in (app / "conversations").glob("*.db")}
+        except OSError:
+            continue
+        for sid in ids:
+            if sid in seen:
+                continue
+            tx, db = _session_paths(app, sid)
+            if tx is None and db is None:
+                continue
+            seen.add(sid)
+            wal = Path(str(db) + "-wal") if db else None
+            mt = max(_fsig(tx)[0], _fsig(db)[0], _fsig(wal)[0])
+            out.append((mt, sid, tx, db))
+    out.sort(key=lambda r: r[0], reverse=True)
+    return out
+
+
+_BG_START = re.compile(r"running as a background task with task id: ([A-Za-z0-9_.:/-]+)")  # stops at JSON "\n"
+_SUBAGENTS = re.compile(r"You have (\d+) active subagent")
+
+
+def _has_tool_calls(tc: Any) -> bool:
+    if not tc:
+        return False
+    if isinstance(tc, str):
+        s = tc.strip()
+        return bool(s) and s not in ("[]", "None", "null")
+    return bool(tc)
+
+
+def _scan_transcript(tx: Path) -> dict[str, Any]:
+    """One pass over transcript.jsonl: per-PLANNER_RESPONSE metadata + session facts.
+    planner rows: {"ts", "final" (no tool calls), "quiet" (no background task / subagent pending),
+    "tok" (input, cache_read, output) - zeros when the transcript carries no token fields}."""
+    planners: list[dict[str, Any]] = []
+    users = img_reads = checkpoints = 0
+    last_goal = ""
+    is_handoff = False
+    bg: set[str] = set()
+    subagents = 0
+    with tx.open("r", encoding="utf-8", errors="replace") as fh:
+        for line in fh:
+            if '"read_file"' in line and any(ext in line.lower() for ext in (".png", ".jpg", ".jpeg", ".webp")):
+                img_reads += 1
+            if '"PLANNER_RESPONSE"' in line:
                 try:
                     obj = json.loads(line)
                 except Exception:
                     continue
                 if obj.get("type") != "PLANNER_RESPONSE":
                     continue
-                inp = int(obj.get("input_tokens") or 0)
-                cr = int(obj.get("cache_read_tokens") or 0)
-                out = int(obj.get("output_tokens") or 0)
-                if inp == 0 and cr == 0 and out == 0:
+                final = not _has_tool_calls(obj.get("tool_calls"))
+                planners.append({
+                    "ts": parse_iso_ts(str(obj.get("created_at") or "")),
+                    "final": final,
+                    "quiet": final and not bg and subagents == 0,
+                    "tok": (int(obj.get("input_tokens") or 0), int(obj.get("cache_read_tokens") or 0),
+                            int(obj.get("output_tokens") or 0)),
+                    "model": str(obj.get("model") or ""),
+                })
+                continue
+            if '"USER_INPUT"' in line:
+                try:
+                    uobj = json.loads(line)
+                except Exception:
                     continue
-                turns += 1
-                tot_in += inp
-                tot_cr += cr
-                tot_out += out
-                cur_in, cur_cr, cur_tot = inp, cr, inp + cr
-                if cur_tot > peak_ctx:
-                    peak_ctx = cur_tot
-                turn_tuples.append((inp, cr, out))
-                if obj.get("model"):
-                    last_model = str(obj["model"])
-                pts = parse_iso_ts(str(obj.get("created_at") or ""))
-                if pts:
-                    if turns == 1:
-                        first_ts = pts
-                    last_ts = pts
-                    turn_timestamps.append(pts)
-                if turns > 1:
-                    warm_in += inp
-                    warm_cr += cr
-                    if prev_cr >= 4000 and cr < prev_cr * 0.8:
-                        drops += 1
-                    if 2048 <= inp <= 2060 and cr >= 4000:
-                        tail_2049 += 1
-                prev_cr = cr
-    except OSError:
+                if uobj.get("type") != "USER_INPUT":
+                    continue
+                users += 1
+                bg.clear()          # a new user run: earlier background chatter is no longer "pending"
+                uc = str(uobj.get("content") or "")
+                if "# Session Continuation Handoff" in uc:
+                    is_handoff = True
+                m = re.search(r"<USER_REQUEST>\s*(.*?)\s*</USER_REQUEST>", uc, re.S)
+                clean_g = (m.group(1) if m else uc).strip()
+                if clean_g and not clean_g.startswith("# Session Continuation Handoff"):
+                    last_goal = clean_g[:220]
+                continue
+            if '"CHECKPOINT"' in line:
+                checkpoints += 1
+            if "background task" in line:
+                for m in _BG_START.finditer(line):
+                    bg.add(m.group(1).rstrip(".:"))
+            if "active subagent" in line:
+                ms = _SUBAGENTS.findall(line)
+                if ms:
+                    subagents = int(ms[-1])
+            if bg and '"SYSTEM_MESSAGE"' in line:
+                for tid in [t for t in bg if t in line]:
+                    bg.discard(tid)
+    return {"planners": planners, "users": users, "img_reads": img_reads, "checkpoints": checkpoints,
+            "last_goal": last_goal, "is_handoff": is_handoff}
+
+
+def _settled_flags(meta: list[dict[str, Any] | None], has_user: bool) -> list[bool]:
+    """settled[k] == True iff the LIVE tick could fire a rollover right after generation k:
+    the agent run has ended (final answer, no tool calls), nothing runs in the background (no pending
+    background task / subagent), the conversation is user-driven (not a subagent), the chat then
+    stays idle >= SETTLE_GAP_SEC (or it is the last generation), and it had momentum
+    (>= MOMENTUM_MIN_TURNS generations in the last MOMENTUM_WINDOW_SEC). Unknown metadata => False."""
+    n = len(meta)
+    out = [False] * n
+    if not has_user:
+        return out
+    ts = [m.get("ts") if m else None for m in meta]
+    for k, m in enumerate(meta):
+        if not m or not m.get("quiet") or ts[k] is None:
+            continue
+        nxt = next((t for t in ts[k + 1:] if t is not None), None)
+        if nxt is not None and nxt - ts[k] < SETTLE_GAP_SEC:
+            continue
+        recent = sum(1 for t in ts[max(0, k - 40):k + 1] if t is not None and ts[k] - t <= MOMENTUM_WINDOW_SEC)
+        out[k] = recent >= MOMENTUM_MIN_TURNS
+    return out
+
+
+# ----------------------------------------------------------------------------- causal features
+class RolloverTracker:
+    """Causal per-conversation features, updated one generation at a time.
+    The SAME tracker feeds the live HUD/tick (over the real chat) and the counterfactual simulation
+    (over the simulated chat), so the benchmark measures the policy that ships."""
+
+    __slots__ = ("turns", "ctx", "peak", "growth", "drops", "compactions", "warm_in", "warm_cr",
+                 "warm_miss", "_own_warm")
+
+    def __init__(self, warm_miss: list[float] | None = None) -> None:
+        self.turns = 0
+        self.ctx = 0
+        self.peak = 0
+        self.growth = 0.0
+        self.drops = 0
+        self.compactions = 0
+        self.warm_in = 0
+        self.warm_cr = 0
+        self.warm_miss: list[float] = list(warm_miss) if warm_miss is not None else []
+        self._own_warm = warm_miss is None
+
+    def classify(self, inp: int, cr: int) -> str:
+        ctx, prev = inp + cr, self.ctx
+        if self.turns == 0:
+            return "first"
+        if prev >= 20_000 and ctx < prev * 0.6:
+            return "compaction"            # context shrank: Antigravity checkpoint / truncation
+        if prev >= 4_000 and cr < prev * 0.7:
+            return "warmup" if self.turns <= WARMUP_TURNS else "drop"   # prefix not served from cache
+        return "turn"
+
+    def push(self, inp: int, cr: int, out: int = 0) -> str:
+        ev = self.classify(inp, cr)
+        ctx, prev = inp + cr, self.ctx
+        if ev == "compaction":
+            self.compactions += 1
+        elif ev == "drop":
+            self.drops += 1
+        if self._own_warm and 1 <= self.turns <= WARMUP_TURNS and prev > 0:
+            self.warm_miss.append(min(1.0, max(0.0, (prev - cr) / prev)))
+        if self.turns > 0 and ev != "compaction":
+            d = ctx - prev
+            if d > 0:
+                self.growth = float(d) if self.growth == 0 else 0.7 * self.growth + 0.3 * d
+        if self.turns > 0:
+            self.warm_in += inp
+            self.warm_cr += cr
+        self.turns += 1
+        self.ctx = ctx
+        if ctx > self.peak:
+            self.peak = ctx
+        return ev
+
+    def features(self) -> dict[str, Any]:
+        wden = self.warm_in + self.warm_cr
+        return {
+            "ctx": self.ctx,
+            "turns": self.turns,
+            "growth": int(self.growth),
+            "drops": self.drops,
+            "compactions": self.compactions,
+            "warm_turns": max(0, self.turns - 1 - WARMUP_TURNS),
+            "warm_hit_pct": round(self.warm_cr / wden * 100.0, 1) if wden else 0.0,
+            "warm_miss": [round(m, 3) for m in self.warm_miss[:WARMUP_TURNS]],
+        }
+
+
+def rollover_cost_tok(feat: dict[str, Any] | None = None, cold_start: int = COLD_START_TOK,
+                      rediscovery_tax: int = REDISCOVERY_TAX_TOK) -> int:
+    """Uncached tokens a rollover costs: cold start + re-read tax + expected warm-up cache misses of
+    the new chat (this chat's own measured warm-up pattern applied to the new chat's size)."""
+    base = cold_start + rediscovery_tax
+    wm = (feat or {}).get("warm_miss") or []
+    return int(base + sum(min(1.0, max(0.0, float(m))) for m in wm[:WARMUP_TURNS]) * base)
+
+
+def rollover_policy(feat: dict[str, Any] | None, cfg: dict[str, Any] | None = None,
+                    cold_start: int = COLD_START_TOK, rediscovery_tax: int = REDISCOVERY_TAX_TOK) -> dict[str, Any]:
+    """THE rollover policy (live tick, HUD threshold and counterfactual all call this).
+    Causal: uses only the current chat's context size, turn count, cache-drop history and measured
+    warm-up behaviour. Auto mode picks the smallest context C at which a rollover pays back
+    POLICY_MARGIN x its cost within POLICY_HORIZON_TURNS turns:
+        gain/turn = w * (C - cost),  w = 0.05 + p_drop * 0.95  (cache read + expected TTL-drop rebuild)
+        net cost  = cost + warmup - 0.05 * C  (the replaced old-chat turn is not paid)
+    """
+    cfg = cfg or _SIM_CFG
+    f = feat or {}
+    cost = rollover_cost_tok(f, cold_start, rediscovery_tax)
+    min_turns = int(cfg.get("min_turns", 14))
+    tmode = str(cfg.get("threshold_mode", "auto"))
+    drops = int(f.get("drops", 0))
+    warm_turns = int(f.get("warm_turns", 0))
+    a, b = POLICY_DROP_PRIOR
+    p_drop = (drops + a) / (warm_turns + b)
+    w = W_CR + min(0.5, p_drop) * (W_IN - W_CR)
+    p_cont = min(1.0, max(0.0, float(f.get("p_continue", cfg.get("p_continue", 1.0)))))
+    paused = False
+    if tmode != "auto" and tmode.isdigit():
+        cap = int(tmode) * 1000
+        is_auto = False
+        reason = f"Manual threshold fixed at {cap // 1000}k tokens."
+    else:
+        h, m = POLICY_HORIZON_TURNS * p_cont, POLICY_MARGIN
+        cap_raw = (m * cost + h * w * cost) / (h * w + m * W_CR) if h > 0 else float("inf")
+        paused = cap_raw > AUTO_CAP_MAX
+        cap = int(min(AUTO_CAP_MAX, max(AUTO_CAP_MIN, cap_raw)) // 1000 * 1000)
+        is_auto = True
+        if paused:
+            reason = (f"Auto rollover paused: only ~{p_cont * 100:.0f}% of your past settled long chats "
+                      f"continued afterwards, so a ~{cost // 1000}k rollover would not pay back.")
+        else:
+            reason = (f"Auto {cap // 1000}k: rollover costs ~{cost // 1000}k uncached; with "
+                      f"{drops} cache drop(s) in {warm_turns} warm turns (~{p_drop * 100:.1f}%/turn) it pays back "
+                      f"{m:g}x within {h:.0f} expected turns above {cap // 1000}k.")
+    ctx = int(f.get("ctx", 0))
+    gain_turn = w * max(0, ctx - cost)
+    be = (cost - W_CR * ctx) / gain_turn if gain_turn > 0 else None
+    roll = bool(f) and not paused and ctx >= cap and int(f.get("turns", 0)) >= min_turns
+    return {
+        "paused": paused,
+        "p_continue": round(p_cont, 3),
+        "cap": cap,
+        "cap_k": cap // 1000,
+        "is_auto": is_auto,
+        "reason": reason,
+        "roll": roll,
+        "cost_tok": cost,
+        "p_drop": round(p_drop, 4),
+        "break_even_turns": round(be, 1) if be is not None and be > 0 else 0.0,
+    }
+
+
+def _simulate_rollover_session(
+    turns: list[tuple[int, int, int]],
+    cap: int | None = None,
+    rediscovery_tax: int = REDISCOVERY_TAX_TOK,
+    settled: list[bool] | None = None,
+    cfg: dict[str, Any] | None = None,
+    cold_start: int = COLD_START_TOK,
+    detail: bool = False,
+) -> Any:
+    """
+    Causal counterfactual: replays the session generation by generation and lets `rollover_policy`
+    (the live policy) decide after each generation whether to roll over - it never sees the future.
+      * cap=None -> auto policy (the shipped default); cap=int -> manual threshold at that cap.
+      * settled  -> optional per-generation flags (see _settled_flags): rollover may only fire after
+        generations where the live tick could fire. None = assume every generation is eligible
+        (UPPER BOUND: the live tick cannot roll over in the middle of an agent run).
+      * per-conversation turn counter: after a rollover the new chat must reach min_turns again.
+      * cost of a rollover: the NEXT generation runs in the new chat with cold_start +
+        rediscovery_tax + its real new content all uncached, followed by this session's own
+        measured warm-up cache misses; a rollover after the final generation is still paid
+        (cold start + PACKET_REPLY_OUT_TOK output folded into input-equivalents).
+      * real TTL cache drops are replayed on the (smaller) simulated context; a real compaction
+        (context shrinks > 40%) is NOT a cache drop: the smaller simulated chat keeps its warm cache
+        (unless it is at least as large as the real chat was, then it compacts the same way).
+    Returns (sim_in, sim_cr, rollovers) [, detail list when detail=True].
+    """
+    log: list[dict[str, Any]] = []
+    if not turns:
+        return (0.0, 0.0, 0, log) if detail else (0.0, 0.0, 0)
+    pcfg = dict(cfg or _SIM_CFG)
+    if cap is not None:
+        pcfg["threshold_mode"] = str(max(1, int(cap) // 1000))
+    n = len(turns)
+    base = cold_start + rediscovery_tax
+    real = RolloverTracker()
+    conv = RolloverTracker()
+    sim_in = sim_cr = 0.0
+    rollovers = 0
+    rolled = False
+    pending = False
+    j = 0                      # generation index inside the current simulated (new) chat
+    sim_ctx = 0
+    for idx, (inp, cr, out) in enumerate(turns):
+        prev_real = real.ctx
+        g_before = real.growth
+        ev = real.push(inp, cr, out)
+        if not rolled:
+            ti, tc = inp, cr
+            sim_ctx = inp + cr
+        else:
+            old = sim_ctx
+            delta = (inp + cr) - prev_real
+            if pending:
+                new = max(0, delta) if ev != "compaction" else int(g_before)
+                sim_ctx = base + new
+                ti, tc = sim_ctx, 0
+                pending = False
+                j = 0
+            else:
+                j += 1
+                if ev == "compaction":
+                    new = int(g_before)
+                    if old + new >= prev_real * 0.95:      # as large as the real chat -> compacts too
+                        sim_ctx = inp + cr
+                        ti, tc = inp, cr
+                    else:
+                        sim_ctx = old + new
+                        ti, tc = min(inp, sim_ctx), max(0, sim_ctx - min(inp, sim_ctx))
+                else:
+                    sim_ctx = max(FRESH_CTX_TOK, old + delta)
+                    if ev == "drop":
+                        ti, tc = sim_ctx, 0
+                    else:
+                        wm = real.warm_miss
+                        miss = wm[j - 1] if 1 <= j <= len(wm) and j <= WARMUP_TURNS else 0.0
+                        ti = min(sim_ctx, min(inp, sim_ctx) + miss * old)
+                        tc = sim_ctx - ti
+        sim_in += ti
+        sim_cr += tc
+        conv.push(int(ti), int(tc), out)
+        pol = rollover_policy(conv.features(), pcfg, cold_start, rediscovery_tax)
+        if pol["roll"] and (settled is None or (idx < len(settled) and settled[idx])):
+            rollovers += 1
+            rolled = True
+            if detail:
+                log.append({"after_turn": idx, "ctx": conv.ctx, "conv_turns": conv.turns, "cap": pol["cap"],
+                            "remaining": n - 1 - idx})
+            if idx == n - 1:
+                sim_in += base + PACKET_REPLY_OUT_TOK * W_OUT / W_IN   # spawned chat nobody used
+            else:
+                pending = True
+            conv = RolloverTracker(warm_miss=real.warm_miss)
+    if detail:
+        return sim_in, sim_cr, rollovers, log
+    return sim_in, sim_cr, rollovers
+
+
+# ----------------------------------------------------------------------------- session parsing
+def _build_session_record(sid: str, app_name: str, tx: Path | None, db: Path | None) -> dict[str, Any] | None:
+    scan: dict[str, Any] = {"planners": [], "users": 0, "img_reads": 0, "checkpoints": 0, "last_goal": "",
+                            "is_handoff": False}
+    if tx is not None:
+        try:
+            scan = _scan_transcript(tx)
+        except OSError:
+            pass
+    planners = scan["planners"]
+    turn_tuples: list[tuple[int, int, int]] = []
+    meta: list[dict[str, Any] | None] = []
+    src = "transcript"
+    if any(any(p["tok"]) for p in planners):
+        for p in planners:
+            if any(p["tok"]):
+                turn_tuples.append(p["tok"])
+                meta.append(p)
+    elif db is not None:
+        src = "db"
+        rows = _db_gen_usage(db)
+        off = len(planners) - len(rows)     # align from the end: the latest generation matters most
+        for r, tok in enumerate(rows):
+            if not any(tok):
+                continue
+            turn_tuples.append(tok)
+            k = r + off
+            meta.append(planners[k] if 0 <= k < len(planners) else None)
+    if not turn_tuples:
         return None
 
-    if turns == 0:
-        return None
+    fallback_ts = max(_fsig(tx)[0], _fsig(db)[0], _fsig(Path(str(db) + "-wal") if db else None)[0])
+    tracker = RolloverTracker()
+    tot_in = tot_cr = tot_out = drops = tail_2049 = 0
+    prev_cr = 0
+    for i, (inp, cr, out) in enumerate(turn_tuples):
+        tracker.push(inp, cr, out)
+        tot_in += inp
+        tot_cr += cr
+        tot_out += out
+        if i > 0:
+            if prev_cr >= 4000 and cr < prev_cr * 0.8:
+                drops += 1
+            if 2048 <= inp <= 2060 and cr >= 4000:
+                tail_2049 += 1
+        prev_cr = cr
+    turns = len(turn_tuples)
+    last_model = next((p["model"] for p in reversed(planners) if p.get("model")), "")
+    stamps = [m["ts"] for m in meta if m and m.get("ts")]
+    first_ts = stamps[0] if stamps else fallback_ts
+    last_ts = stamps[-1] if stamps else fallback_ts
+    if planners and planners[-1].get("ts"):
+        last_ts = max(last_ts, planners[-1]["ts"])
 
-    wden = warm_in + warm_cr
+    has_user = scan["users"] > 0
+    settled = _settled_flags(meta, has_user)
+    last_p = planners[-1] if planners else None
+    last_settled = bool(has_user and last_p and last_p.get("quiet"))
+    hi_pts = [k for k, ok in enumerate(settled) if ok and sum(turn_tuples[k][:2]) >= AUTO_CAP_MIN]
+    hi_cont = sum(1 for k in hi_pts if k < turns - 1)
+
+    feat = tracker.features()
     ttl_cliff = 90 if "hydrogen" in last_model.lower() else 150
-
-    # Simulate counterfactual optimal rollover at 110k (only when >=12 turns remain)
-    sim_in, sim_cr, sim_rollovers = _simulate_rollover_session(turn_tuples, 110_000)
+    sim_cfg = {**_SIM_CFG, "p_continue": _p_continue(0, 0)}     # no cross-session history: prior
+    sim_in, sim_cr, sim_rollovers = _simulate_rollover_session(turn_tuples, None, settled=settled, cfg=sim_cfg)
+    ub_in, ub_cr, ub_rollovers = _simulate_rollover_session(turn_tuples, None)
 
     actual_quota = tot_in * W_IN + tot_cr * W_CR + tot_out * W_OUT
     sim_quota = sim_in * W_IN + sim_cr * W_CR + tot_out * W_OUT
     uncached_baseline_quota = (tot_in + tot_cr) * W_IN + tot_out * W_OUT
-
-    res = {
-        "conversation_id": tx.parents[2].name,
+    cur_in, cur_cr, _ = turn_tuples[-1]
+    wden = sum(t[0] for t in turn_tuples[1:]) + sum(t[1] for t in turn_tuples[1:])
+    return {
+        "conversation_id": sid,
+        "app": app_name,
+        "source": src,
         "turns": turns,
         "model": last_model or "unknown",
-        "cur_tot": cur_tot,
-        "peak_ctx": peak_ctx,
+        "cur_tot": cur_in + cur_cr,
+        "peak_ctx": tracker.peak,
         "cur_in": cur_in,
         "cur_cr": cur_cr,
         "tot_in": tot_in,
         "tot_cr": tot_cr,
         "tot_out": tot_out,
         "out_per_turn": tot_out // turns,
-        "warm_hit_pct": round((warm_cr / wden) * 100, 1) if wden else 0.0,
+        "warm_hit_pct": round((sum(t[1] for t in turn_tuples[1:]) / wden) * 100, 1) if wden else 0.0,
         "drops": drops,
         "tail_2049": tail_2049,
-        "img_reads": img_reads,
+        "img_reads": scan["img_reads"],
         "first_ts": first_ts,
         "last_ts": last_ts,
-        "turn_timestamps": turn_timestamps[-30:],
+        "turn_timestamps": stamps[-30:],
         "ttl_cliff_sec": ttl_cliff,
-        "cache_burn_per_turn": int(cur_tot * W_CR),
+        "cache_burn_per_turn": int((cur_in + cur_cr) * W_CR),
         "actual_quota": actual_quota,
         "uncached_baseline_quota": uncached_baseline_quota,
         "sim_in": sim_in,
         "sim_cr": sim_cr,
         "sim_quota": sim_quota,
         "sim_rollovers": sim_rollovers,
-        "is_handoff_session": is_handoff_session,
-        "goal_preview": last_user_goal,
+        "sim_upper_bound_quota": ub_in * W_IN + ub_cr * W_CR + tot_out * W_OUT,
+        "sim_upper_bound_rollovers": ub_rollovers,
+        "user_inputs": scan["users"],
+        "last_settled": last_settled,
+        "settled_hi": len(hi_pts),
+        "settled_hi_continued": hi_cont,
+        "rollover_features": feat,
+        "is_handoff_session": scan["is_handoff"],
+        "goal_preview": scan["last_goal"],
     }
-    _tx_cache[key] = (st.st_mtime, st.st_size, res)
-    if len(_tx_cache) > 150:
-        oldest = sorted(_tx_cache.items(), key=lambda kv: kv[1][0])[:40]
-        for ok, _ in oldest:
+
+
+def parse_session_cached(sid: str, tx: Path | None, db: Path | None, app_name: str = "") -> dict[str, Any] | None:
+    """Session record from transcript.jsonl and/or conversations/<id>.db (token fallback), cached by
+    (mtime, size) of transcript, db and db-wal."""
+    wal = Path(str(db) + "-wal") if db else None
+    sig = (_fsig(tx), _fsig(db), _fsig(wal))
+    key = f"{tx}|{db}"
+    cached = _tx_cache.get(key)
+    if cached and cached[0] == sig:
+        return cached[1]
+    if not app_name:
+        ref = tx.parents[4] if tx is not None else (db.parent.parent if db is not None else None)
+        app_name = ref.name if ref is not None else ""
+    try:
+        res = _build_session_record(sid, app_name, tx, db)
+    except Exception:
+        res = None
+    if res is None:
+        return None
+    _tx_cache[key] = (sig, res)
+    if len(_tx_cache) > 300:
+        for ok in list(_tx_cache)[:80]:
             _tx_cache.pop(ok, None)
     return res
 
 
-def _simulate_rollover_session(
-    turns: list[tuple[int, int, int]], cap: int = 110_000, rediscovery_tax: int = 8_000
-) -> tuple[float, float, int]:
-    """
-    Counterfactual input + cache_read if rollover triggers at `cap` with >=12 turns left.
-    Explicitly charges `22k cold start + rediscovery_tax (8k)` = 30k uncached input per rollover
-    to account for post-rollover file re-reads, and carries that 30k base forward.
-    """
-    if not turns:
-        return 0.0, 0.0, 0
-    sim_in = 0.0
-    sim_cr = 0.0
-    sim_ctx = turns[0][0] + turns[0][1]
-    prev_real_ctx = sim_ctx
-    rollovers = 0
-    n = len(turns)
-    reset_base = 22_000 + rediscovery_tax
-    for idx, (inp, cr, _out) in enumerate(turns):
-        real_ctx = inp + cr
-        delta = max(500, real_ctx - prev_real_ctx) if idx > 0 else 0
-        was_drop = idx > 0 and cr < prev_real_ctx * 0.7 and prev_real_ctx >= 4000
-        if idx == 0:
-            sim_in += inp
-            sim_cr += cr
-            sim_ctx = real_ctx
-        elif rollovers == 0:
-            if real_ctx >= cap and (n - idx) >= 12:
-                rollovers += 1
-                sim_ctx = reset_base
-                sim_in += reset_base
-            else:
-                sim_ctx = real_ctx
-                sim_in += inp
-                sim_cr += cr
-        else:
-            sim_ctx += delta
-            if sim_ctx >= cap and (n - idx) >= 12:
-                rollovers += 1
-                sim_ctx = reset_base
-                sim_in += reset_base
-            elif was_drop:
-                sim_in += sim_ctx
-            else:
-                sim_in += min(inp, delta + 1500)
-                sim_cr += max(0, sim_ctx - delta)
-        prev_real_ctx = real_ctx
-    return sim_in, sim_cr, rollovers
+def parse_transcript_cached(tx: Path) -> dict[str, Any] | None:
+    """Backward-compatible entry point: <app>/brain/<id>/.system_generated/logs/transcript.jsonl.
+    Falls back to <app>/conversations/<id>.db for token usage when the transcript has none."""
+    try:
+        sid = tx.parents[2].name
+        app = tx.parents[4]
+    except IndexError:
+        return None
+    db = app / "conversations" / f"{sid}.db"
+    return parse_session_cached(sid, tx if tx.is_file() else None, db if db.is_file() else None, app.name)
+
+
+def _p_continue(continued: int, points: int) -> float:
+    a, b = POLICY_CONTINUE_PRIOR
+    return (continued + a) / (points + b)
+
+
+def continuation_probability(sessions: list[dict[str, Any]], exclude: str = "") -> float:
+    """Share of past settled long-chat points (live tick could have rolled over) that the user
+    followed with more generations - learned from this machine's own history, causal for the
+    current chat (the current chat itself is excluded)."""
+    pts = cont = 0
+    for s in sessions:
+        if s.get("conversation_id") == exclude:
+            continue
+        pts += int(s.get("settled_hi", 0))
+        cont += int(s.get("settled_hi_continued", 0))
+    return _p_continue(cont, pts)
 
 
 def compute_adaptive_threshold(active: dict[str, Any] | None, cfg: dict[str, Any]) -> dict[str, Any]:
-    """Compute the optimal token rollover cap dynamically for the current session."""
-    tmode = cfg.get("threshold_mode", "auto")
-    if tmode != "auto" and str(tmode).isdigit():
-        cap_k = int(tmode)
-        return {
-            "cap_k": cap_k,
-            "is_auto": False,
-            "reason": f"Manual threshold fixed at {cap_k}k tokens.",
-        }
-
+    """Live rollover threshold for the current chat = rollover_policy (same function the
+    counterfactual simulation uses)."""
     if not active:
-        return {
-            "cap_k": 125,
-            "is_auto": True,
-            "reason": "Auto-tuned baseline (125k) — adjusts live from cache hit rate & drops.",
+        pol = rollover_policy({"ctx": 0, "turns": 0, "drops": 0, "warm_turns": 0, "warm_miss": []}, cfg)
+        if pol["is_auto"]:
+            pol["reason"] = (f"Auto baseline {pol['cap_k']}k (rollover cost ~{pol['cost_tok'] // 1000}k) - "
+                             "adapts live to cache drops and warm-up misses.")
+        pol["roll"] = False
+        return pol
+    feat = active.get("rollover_features")
+    if not feat:
+        feat = {
+            "ctx": int(active.get("cur_tot", 0)),
+            "turns": int(active.get("turns", 0)),
+            "drops": int(active.get("drops", 0)),
+            "warm_turns": max(0, int(active.get("turns", 0)) - 1 - WARMUP_TURNS),
+            "warm_miss": [],
         }
-
-    drops = active.get("drops", 0)
-    warm_hit = active.get("warm_hit_pct", 0.0)
-    ttl = active.get("ttl_cliff_sec", 150)
-    turns = max(1, active.get("turns", 1))
-    growth_per_turn = max(0, (active.get("cur_tot", 0) - 18_000)) // turns
-
-    if drops >= 2:
-        cap_k = 100
-        reason = f"Auto-tuned to 100k ({drops} cache drops — prevents expensive cold reloads)"
-    elif growth_per_turn >= 7000:
-        cap_k = 105
-        reason = f"Auto-tuned to 105k (fast context growth ~{growth_per_turn // 1000}k/turn)"
-    elif ttl <= 90 or drops == 1:
-        cap_k = 110
-        reason = "Auto-tuned to 110k (short TTL / cache drop risk — optimal break-even)"
-    elif warm_hit >= 95.0 and drops == 0:
-        cap_k = 145
-        reason = f"Auto-tuned to 145k ({warm_hit}% warm cache, 0 drops — riding hot streak)"
-    else:
-        cap_k = 125
-        reason = f"Auto-tuned to 125k ({warm_hit}% warm cache — balanced quota break-even)"
-
-    return {"cap_k": cap_k, "is_auto": True, "reason": reason}
+    if "p_continue" in active:
+        feat = {**feat, "p_continue": active["p_continue"]}
+    return rollover_policy(feat, cfg)
 
 
 def load_events_summary() -> dict[str, Any]:
@@ -643,7 +1096,7 @@ def _find_agentapi_cmd() -> list[str] | None:
 def build_handoff_packet(ws: str, conv_id: str = "") -> dict[str, Any]:
     if not ws or not Path(ws).is_dir():
         ws = str(Path.home())
-    cmd = [sys.executable, str(PLUGIN_ROOT / "scripts" / "handoff_pack.py"), ws]
+    cmd = [sys.executable, str(PLUGIN_ROOT / "scripts" / "handoff_pack.py"), ws, "--no-save"]
     if conv_id:
         cmd.extend(["--conversation-id", conv_id])
     p = subprocess.run(cmd, text=True, capture_output=True, timeout=12)
@@ -733,29 +1186,27 @@ def build_state(conv_id: str = "") -> dict[str, Any]:
     all_sessions: list[dict[str, Any]] = []
     active: dict[str, Any] | None = None
 
-    if BRAIN_DIR.is_dir():
-        cands = []
-        for p in BRAIN_DIR.glob("*/.system_generated/logs/transcript.jsonl"):
-            try:
-                cands.append((p.stat().st_mtime, p))
-            except OSError:
-                continue
-        cands.sort(reverse=True)
+    # IDE + CLI sessions; token usage falls back to conversations/<id>.db when the transcript has none
+    cands = discover_session_sources()
+    if conv_id:
+        for app in APP_DIRS:
+            tx, db = _session_paths(app, conv_id)
+            if tx is not None or db is not None:
+                active = parse_session_cached(conv_id, tx, db, app.name)
+                if active:
+                    break
 
-        if conv_id:
-            target = BRAIN_DIR / conv_id / ".system_generated/logs/transcript.jsonl"
-            if target.is_file():
-                active = parse_transcript_cached(target)
-
-        for _, p in cands[:120]:
-            rec = parse_transcript_cached(p)
-            if not rec:
-                continue
-            if active is None:
-                active = rec
-            all_sessions.append(rec)
+    for _mt, sid, tx, db in cands[:120]:
+        rec = parse_session_cached(sid, tx, db)
+        if not rec:
+            continue
+        if active is None:
+            active = rec
+        all_sessions.append(rec)
 
     cfg = load_config()
+    if active:
+        active = {**active, "p_continue": continuation_probability(all_sessions, active["conversation_id"])}
     adaptive = compute_adaptive_threshold(active, cfg)
 
     if active:
@@ -1087,15 +1538,20 @@ def run_smart_rollover_tick() -> None:
 
     cid = act["conversation_id"]
     cap_k = st["adaptive"]["cap_k"]
-    cap = cap_k * 1000
     now = int(time.time())
 
     # Anti-spam & break-even guardrails:
-    # 1. Context must exceed adaptive cap
-    if act["cur_tot"] < cap:
+    # 1+2. Shared policy (same function the counterfactual uses): context >= adaptive cap and
+    #      >= min_turns in THIS conversation.
+    if not st["adaptive"].get("roll"):
         return
-    # 2. Must be a sustained multi-turn session (never roll over tiny bursts)
-    if act["turns"] < cfg.get("min_turns", 14):
+    # Only IDE chats (agentapi spawns IDE conversations); never a CLI session from here.
+    if act.get("app") and act.get("app") != "antigravity":
+        return
+    # Agent run must be finished: last generation had no tool calls, no background task/subagent
+    # pending, and the chat is user-driven (subagent chats have no USER_INPUT). Spawning a new chat
+    # mid-run would NOT stop the old one - both would keep burning quota.
+    if not act.get("last_settled"):
         return
     # 3. Must have active momentum (>=3 turns in last 10m) — avoids spawning when user is already done!
     if act.get("recent_turns_10m", 0) < 3:

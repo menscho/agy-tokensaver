@@ -1,91 +1,75 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 455" width="960" height="455" role="img" aria-label="Counterfactual Rollover Simulation by Session Length">
-  <defs>
-    <style>
-      .t { font-family: "Google Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
-      .m { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
-    </style>
-  </defs>
-  <rect width="960" height="455" rx="14" fill="#070708"/>
-  <rect x="0.5" y="0.5" width="959" height="454" rx="13.5" fill="none" stroke="#222227"/>
-
-  <text x="36" y="38" class="t" font-size="16.5" font-weight="500" fill="#ececef">Counterfactual Rollover Replay (62 Local Transcripts)</text>
-  <text x="36" y="59" class="t" font-size="12" fill="#8e8e98">python3 scripts/benchmark.py --transcripts · signed delta, +8k re-read tax/reset · 32 improved, 30 unchanged, 0 regressed</text>
-
-  <!-- Gridlines: x=220..720 (500px = 50%, 10px per 1%) -->
-  <g stroke="#18181d" stroke-width="1">
-    <line x1="220" y1="88" x2="220" y2="412"/>
-    <line x1="320" y1="88" x2="320" y2="412"/>
-    <line x1="420" y1="88" x2="420" y2="412"/>
-    <line x1="520" y1="88" x2="520" y2="412"/>
-    <line x1="620" y1="88" x2="620" y2="412"/>
-    <line x1="720" y1="88" x2="720" y2="412"/>
-  </g>
-  <g class="m" font-size="11" fill="#5e5e68" text-anchor="middle">
-    <text x="220" y="432">0%</text>
-    <text x="320" y="432">10%</text>
-    <text x="420" y="432">20%</text>
-    <text x="520" y="432">30%</text>
-    <text x="620" y="432">40%</text>
-    <text x="720" y="432">50%</text>
-  </g>
-  <text x="842" y="84" class="t" font-size="11.5" font-weight="500" fill="#8e8e98" text-anchor="middle">Upper-Bound Capacity</text>
-
-  <!-- Row 1: Short (<75k) 0% -->
-  <text x="36" y="112" class="t" font-size="13" fill="#ececef">Short (&lt;75k)</text>
-  <text x="36" y="127" class="t" font-size="11" fill="#5e5e68">19 sessions · avg peak 41k</text>
-  <rect x="220" y="104" width="4" height="14" rx="2" fill="#45454f"/>
-  <text x="232" y="115" class="m" font-size="11.5" fill="#8e8e98">0.0% (below cap)</text>
-  <text x="842" y="115" class="m" font-size="12" fill="#5e5e68" text-anchor="middle">+0.0%</text>
-
-  <!-- Row 2: Medium (75k-110k) 0% -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 486" width="960" height="486" role="img" aria-label="Real-session replay benchmark">
+  <defs><style>.t{font-family:"Google Sans","Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}.m{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}</style></defs>
+  <rect width="960" height="486" rx="14" fill="#070708"/>
+  <rect x="0.5" y="0.5" width="959" height="485" rx="13.5" fill="none" stroke="#222227"/>
+  <text x="36" y="38" class="t" font-size="16.5" font-weight="500" fill="#ececef">Real-Session Replay · 65 local Antigravity sessions, 3,602 turns</text>
+  <text x="36" y="59" class="t" font-size="11.5" fill="#8e8e98">python3 scripts/transcript_replay.py · recorded tool calls replayed through the hooks · exact per-turn tokens · quota = 1× in + 0.05× cache + 6× out</text>
+  <text x="400" y="90" class="t" font-size="12" font-weight="500" fill="#8e8e98" text-anchor="middle">Hooks only · Auto-Handoff OFF</text>
+  <line x1="270.0" y1="98" x2="270.0" y2="410" stroke="#18181d"/>
+  <text x="270.0" y="426" class="m" font-size="10.5" fill="#5e5e68" text-anchor="middle">0%</text>
+  <line x1="349.7" y1="98" x2="349.7" y2="410" stroke="#18181d"/>
+  <text x="349.7" y="426" class="m" font-size="10.5" fill="#5e5e68" text-anchor="middle">10%</text>
+  <line x1="429.3" y1="98" x2="429.3" y2="410" stroke="#18181d"/>
+  <text x="429.3" y="426" class="m" font-size="10.5" fill="#5e5e68" text-anchor="middle">20%</text>
+  <line x1="509.0" y1="98" x2="509.0" y2="410" stroke="#18181d"/>
+  <text x="509.0" y="426" class="m" font-size="10.5" fill="#5e5e68" text-anchor="middle">30%</text>
+  <text x="760" y="90" class="t" font-size="12" font-weight="500" fill="#8e8e98" text-anchor="middle">Hooks + Auto-Handoff (live-reachable)</text>
+  <line x1="629.0" y1="98" x2="629.0" y2="410" stroke="#18181d"/>
+  <text x="629.0" y="426" class="m" font-size="10.5" fill="#5e5e68" text-anchor="middle">0%</text>
+  <line x1="708.7" y1="98" x2="708.7" y2="410" stroke="#18181d"/>
+  <text x="708.7" y="426" class="m" font-size="10.5" fill="#5e5e68" text-anchor="middle">10%</text>
+  <line x1="788.3" y1="98" x2="788.3" y2="410" stroke="#18181d"/>
+  <text x="788.3" y="426" class="m" font-size="10.5" fill="#5e5e68" text-anchor="middle">20%</text>
+  <line x1="868.0" y1="98" x2="868.0" y2="410" stroke="#18181d"/>
+  <text x="868.0" y="426" class="m" font-size="10.5" fill="#5e5e68" text-anchor="middle">30%</text>
+  <text x="36" y="114" class="t" font-size="13" fill="#ececef">Short (&lt;75k)</text>
+  <text x="36" y="129" class="t" font-size="11" fill="#5e5e68">19 sessions · avg peak 41k</text>
+  <rect x="267.0" y="103" width="3.0" height="12" rx="3" fill="#f87171"/>
+  <text x="276.0" y="113" class="m" font-size="11.5" fill="#f87171">+0.1%</text>
+  <rect x="626.0" y="103" width="3.0" height="12" rx="3" fill="#f87171"/>
+  <text x="635.0" y="113" class="m" font-size="11.5" fill="#f87171">+0.1%</text>
   <text x="36" y="152" class="t" font-size="13" fill="#ececef">Medium (75k–110k)</text>
   <text x="36" y="167" class="t" font-size="11" fill="#5e5e68">7 sessions · avg peak 91k</text>
-  <rect x="220" y="144" width="4" height="14" rx="2" fill="#45454f"/>
-  <text x="232" y="155" class="m" font-size="11.5" fill="#8e8e98">0.0% (below cap)</text>
-  <text x="842" y="155" class="m" font-size="12" fill="#5e5e68" text-anchor="middle">+0.0%</text>
-
-  <!-- Row 3: Long (110k-200k) -12.7% -->
-  <text x="36" y="192" class="t" font-size="13" fill="#ececef">Long (110k–200k)</text>
-  <text x="36" y="207" class="t" font-size="11" fill="#5e5e68">8 sessions · avg peak 159k</text>
-  <rect x="220" y="184" width="127" height="14" rx="3" fill="#4ade80"/>
-  <text x="355" y="195" class="m" font-size="11.5" fill="#4ade80">-12.7%</text>
-  <text x="842" y="195" class="m" font-size="12" fill="#ececef" text-anchor="middle">+14.6%</text>
-
-  <!-- Row 4: Very long (200k-400k) -34.8% -->
-  <text x="36" y="232" class="t" font-size="13" fill="#ececef">Very long (200k–400k)</text>
-  <text x="36" y="247" class="t" font-size="11" fill="#5e5e68">20 sessions · avg peak 302k</text>
-  <rect x="220" y="224" width="348" height="14" rx="3" fill="#4ade80"/>
-  <text x="576" y="235" class="m" font-size="11.5" fill="#4ade80">-34.8%</text>
-  <text x="842" y="235" class="m" font-size="12" font-weight="500" fill="#4ade80" text-anchor="middle">+53.3%</text>
-
-  <!-- Row 5: Extreme (>400k) -38.0% -->
-  <text x="36" y="272" class="t" font-size="13" fill="#ececef">Extreme (&gt;400k)</text>
-  <text x="36" y="287" class="t" font-size="11" fill="#5e5e68">8 sessions · avg peak 479k</text>
-  <rect x="220" y="264" width="380" height="14" rx="3" fill="#4ade80"/>
-  <text x="608" y="275" class="m" font-size="11.5" fill="#4ade80">-38.0%</text>
-  <text x="842" y="275" class="m" font-size="12" font-weight="500" fill="#4ade80" text-anchor="middle">+61.3%</text>
-
-  <!-- Divider -->
-  <line x1="36" y1="298" x2="924" y2="298" stroke="#222227"/>
-
-  <!-- Row 6: Per-Session Median -10.4% -->
-  <text x="36" y="320" class="t" font-size="13" fill="#ececef">Per-Session Median</text>
-  <text x="36" y="335" class="t" font-size="11" fill="#8e8e98">Each of 62 sessions weighted equally</text>
-  <rect x="220" y="312" width="104" height="14" rx="3" fill="#52525e"/>
-  <text x="332" y="323" class="m" font-size="11.5" fill="#c8c8d0">-10.4%</text>
-  <text x="842" y="323" class="m" font-size="12" fill="#ececef" text-anchor="middle">+11.6%</text>
-
-  <!-- Row 7: Per-Session Mean -15.9% -->
-  <text x="36" y="358" class="t" font-size="13" fill="#ececef">Per-Session Mean</text>
-  <text x="36" y="373" class="t" font-size="11" fill="#8e8e98">Arithmetic mean of 62 session deltas</text>
-  <rect x="220" y="350" width="159" height="14" rx="3" fill="#52525e"/>
-  <text x="387" y="361" class="m" font-size="11.5" fill="#c8c8d0">-15.9%</text>
-  <text x="842" y="361" class="m" font-size="12" fill="#ececef" text-anchor="middle">+18.9%</text>
-
-  <!-- Row 8: Total Quota-Weighted -32.3% -->
-  <text x="36" y="396" class="t" font-size="13.5" font-weight="500" fill="#ececef">Total Quota-Weighted</text>
-  <text x="36" y="411" class="t" font-size="11" fill="#8e8e98">Aggregate simulated / actual quota</text>
-  <rect x="220" y="388" width="323" height="14" rx="3" fill="#4ade80"/>
-  <text x="551" y="399" class="m" font-size="12" font-weight="500" fill="#4ade80">-32.3%</text>
-  <text x="842" y="399" class="m" font-size="12.5" font-weight="500" fill="#4ade80" text-anchor="middle">+47.6%</text>
+  <rect x="267.0" y="141" width="3.0" height="12" rx="3" fill="#f87171"/>
+  <text x="276.0" y="151" class="m" font-size="11.5" fill="#f87171">+0.1%</text>
+  <rect x="622.9" y="141" width="6.1" height="12" rx="3" fill="#f87171"/>
+  <text x="635.0" y="151" class="m" font-size="11.5" fill="#f87171">+0.8%</text>
+  <text x="36" y="190" class="t" font-size="13" fill="#ececef">Long (110k–200k)</text>
+  <text x="36" y="205" class="t" font-size="11" fill="#5e5e68">9 sessions · avg peak 157k</text>
+  <rect x="267.0" y="179" width="3.0" height="12" rx="3" fill="#45454f"/>
+  <text x="276.0" y="189" class="m" font-size="11.5" fill="#8e8e98">+0.0%</text>
+  <rect x="629.0" y="179" width="17.3" height="12" rx="3" fill="#4ade80"/>
+  <text x="652.3" y="189" class="m" font-size="11.5" fill="#4ade80">-2.2%</text>
+  <text x="36" y="228" class="t" font-size="13" fill="#ececef">Very long (200k–400k)</text>
+  <text x="36" y="243" class="t" font-size="11" fill="#5e5e68">22 sessions · avg peak 297k</text>
+  <rect x="270.0" y="217" width="8.7" height="12" rx="3" fill="#4ade80"/>
+  <text x="284.7" y="227" class="m" font-size="11.5" fill="#4ade80">-1.1%</text>
+  <rect x="629.0" y="217" width="91.2" height="12" rx="3" fill="#4ade80"/>
+  <text x="726.2" y="227" class="m" font-size="11.5" fill="#4ade80">-11.4%</text>
+  <text x="36" y="266" class="t" font-size="13" fill="#ececef">Extreme (&gt;400k)</text>
+  <text x="36" y="281" class="t" font-size="11" fill="#5e5e68">8 sessions · avg peak 479k</text>
+  <rect x="270.0" y="255" width="4.6" height="12" rx="3" fill="#4ade80"/>
+  <text x="280.6" y="265" class="m" font-size="11.5" fill="#4ade80">-0.6%</text>
+  <rect x="629.0" y="255" width="221.0" height="12" rx="3" fill="#4ade80"/>
+  <text x="856.0" y="265" class="m" font-size="11.5" fill="#4ade80">-27.7%</text>
+  <line x1="36" y1="290" x2="924" y2="290" stroke="#222227"/>
+  <text x="36" y="304" class="t" font-size="13" fill="#ececef">Per-session median</text>
+  <text x="36" y="319" class="t" font-size="11" fill="#5e5e68">each of 65 sessions weighted equally</text>
+  <rect x="267.0" y="293" width="3.0" height="12" rx="3" fill="#f87171"/>
+  <text x="276.0" y="303" class="m" font-size="11.5" fill="#f87171">+0.1%</text>
+  <rect x="626.0" y="293" width="3.0" height="12" rx="3" fill="#f87171"/>
+  <text x="635.0" y="303" class="m" font-size="11.5" fill="#f87171">+0.1%</text>
+  <text x="36" y="342" class="t" font-size="13" fill="#ececef">Per-session mean</text>
+  <text x="36" y="357" class="t" font-size="11" fill="#5e5e68">mean of 65 session deltas</text>
+  <rect x="270.0" y="331" width="3.0" height="12" rx="3" fill="#4ade80"/>
+  <text x="279.0" y="341" class="m" font-size="11.5" fill="#4ade80">-0.3%</text>
+  <rect x="629.0" y="331" width="42.3" height="12" rx="3" fill="#4ade80"/>
+  <text x="677.3" y="341" class="m" font-size="11.5" fill="#4ade80">-5.3%</text>
+  <text x="36" y="380" class="t" font-size="13" font-weight="500" fill="#ececef">Total quota-weighted</text>
+  <text x="36" y="395" class="t" font-size="11" fill="#5e5e68">aggregate replayed / actual quota</text>
+  <rect x="270.0" y="369" width="5.6" height="12" rx="3" fill="#4ade80"/>
+  <text x="281.6" y="379" class="m" font-size="11.5" font-weight="500" fill="#4ade80">-0.7%</text>
+  <rect x="629.0" y="369" width="135.8" height="12" rx="3" fill="#4ade80"/>
+  <text x="770.8" y="379" class="m" font-size="11.5" font-weight="500" fill="#4ade80">-17.1%</text>
+  <text x="36" y="466" class="t" font-size="10.5" fill="#5e5e68">Signed quota delta (negative = less quota). Plugin prompt overhead (433 tok/turn) charged on every turn. Before and after use the same causal rollover simulator (17k cold start + 8k re-read tax).</text>
 </svg>

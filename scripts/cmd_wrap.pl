@@ -18,8 +18,10 @@ my $cat = 'generic';
 my $test_stdin = 0;
 my $test_rc = 0;
 my $orig_cmd = '';
+my $pwsh_src = '';   # '' | 'stdin' | 'b64'  (PowerShell mode, Windows)
+my $pwsh_b64 = '';
 
-# Parse CLI args: --cat <cat> [--test-stdin --test-rc N | -- <cmd>]
+# Parse CLI args: --cat <cat> [--test-stdin --test-rc N | -- <cmd> | --pwsh-stdin | --pwsh-b64 B64]
 my $i = 0;
 while ($i < @ARGV) {
     my $a = $ARGV[$i++];
@@ -29,6 +31,13 @@ while ($i < @ARGV) {
         $test_stdin = 1;
     } elsif ($a eq '--test-rc' && $i < @ARGV) {
         $test_rc = int($ARGV[$i++]);
+    } elsif ($a eq '--pwsh-stdin') {
+        $pwsh_src = 'stdin';
+    } elsif ($a eq '--pwsh-b64' && $i < @ARGV) {
+        $pwsh_src = 'b64';
+        $pwsh_b64 = $ARGV[$i++];
+    } elsif ($a eq '--pwsh-test') {
+        $pwsh_src = 'test';   # --test-stdin with PowerShell-mode output rules
     } elsif ($a eq '--') {
         $orig_cmd = join(' ', @ARGV[$i .. $#ARGV]);
         last;
@@ -40,6 +49,19 @@ $TMP_BASE =~ s{[\\/]+$}{};
 my $USER_TAG = ($^O eq 'MSWin32') ? ($ENV{USERNAME} || 'user') : $<;
 $USER_TAG =~ s/[^A-Za-z0-9_-]/_/g;
 my $SPILL_DIR = "$TMP_BASE/agy-tokensaver-$USER_TAG";
+# PowerShell mode (Windows host): the model reads spill files with Windows tools, so pointers
+# must be native Windows paths (Git/Cygwin perl sees /tmp/... or /c/...).
+my $PWSH_MODE = ($pwsh_src ne '' || $cat =~ /^(?:pwsh|script)$/) ? 1 : 0;
+sub shown_path {
+    my ($p) = @_;
+    return $p unless $PWSH_MODE;
+    if ($^O ne 'MSWin32' && $p =~ m{^/}) {
+        my $w = eval { Cygwin::posix_to_win_path($p) };
+        return $w if defined $w && $w ne '';
+    }
+    $p =~ s{/}{\\}g if $p =~ /^(?:[A-Za-z]:|\\\\)/;
+    return $p;
+}
 my $MAX_RAM   = 8 * 1024 * 1024; # 8 MB cap
 # Antigravity natively shows tool output <= ~10.1KB in full and replaces larger output with a
 # 9,896-byte head+tail preview + ~60-token truncation notice. Zero-loss rule: generic head/tail
@@ -225,6 +247,229 @@ sub dedupe_consecutive {
     return \@out;
 }
 
+# Headroom-inspired lossless repeated multi-line block folding (blocks of 2..6 lines repeated >=3x).
+sub fold_repeated_blocks {
+    my ($lines) = @_;
+    my $n = scalar(@$lines);
+    return $lines if $n < 6;
+    my @out;
+    my $i = 0;
+    while ($i < $n) {
+        my $matched_k = 0;
+        my $reps = 1;
+        for my $k (2 .. 6) {
+            last if $i + $k * 3 > $n;
+            my $ok = 1;
+            for my $j (0 .. $k - 1) {
+                if ($lines->[$i + $j] ne $lines->[$i + $k + $j] ||
+                    $lines->[$i + $j] ne $lines->[$i + 2 * $k + $j]) {
+                    $ok = 0; last;
+                }
+            }
+            if ($ok) {
+                $matched_k = $k;
+                $reps = 3;
+                while ($i + ($reps + 1) * $k <= $n) {
+                    my $more = 1;
+                    for my $j (0 .. $k - 1) {
+                        if ($lines->[$i + $j] ne $lines->[$i + $reps * $k + $j]) { $more = 0; last; }
+                    }
+                    last unless $more;
+                    $reps++;
+                }
+                last;
+            }
+        }
+        if ($matched_k) {
+            push @out, @{$lines}[$i .. $i + $matched_k - 1], "[block above (${matched_k}L) repeated x$reps]";
+            $LOSSLESS_RM += ($reps - 1) * $matched_k - 1;
+            $i += $reps * $matched_k;
+        } else {
+            push @out, $lines->[$i++];
+        }
+    }
+    return \@out;
+}
+
+# Headroom-inspired dense machine-generated line elider (minified bundles, hex/token walls).
+# Never touches code, prose, TSV, or JSON ({...}/[...]). Spills raw output whenever triggered.
+sub elide_dense_lines {
+    my ($lines) = @_;
+    my ($dense_bytes, @dense_idx) = (0);
+    for my $idx (0 .. $#$lines) {
+        my $l = $lines->[$idx];
+        my $len = length($l);
+        next if $len < 300;
+        next if index($l, "\t") >= 0;
+        next if $l =~ /^\s*[\[{]/;
+        my $sp = ($l =~ tr/ //);
+        next if ($sp / $len) >= 0.06;
+        my $ascii = ($l =~ tr/\x20-\x7e//);
+        next if ($ascii / $len) < 0.90;
+        $dense_bytes += $len;
+        push @dense_idx, $idx;
+    }
+    return $lines if $dense_bytes < 1500;
+    $LOSSY = 1;
+    my @out = @$lines;
+    for my $idx (@dense_idx) {
+        my $l = $out[$idx];
+        my $mid = length($l) - 240;
+        $out[$idx] = substr($l, 0, 160) . " ... [elided ${mid}B] ... " . substr($l, -80);
+    }
+    return \@out;
+}
+
+# Headroom-inspired SmartCrusher for JSON arrays:
+# 1) Lossless [N]{col1,col2,...} CSV+schema table (flattening uniform 1-level nested objects <=4 keys,
+#    offloading >256B opaque blobs to spillback).
+# 2) If still > $NATIVE_CAP, error-preserving adaptive sampling keeping ALL rows matching Headroom's
+#    12 non-negotiable error keywords + structural outliers + head/tail + stride samples.
+my $JSON_ERR_RE = qr/\b(?:error|exception|failed|failure|critical|fatal|crash|panic|abort|timeout|denied|rejected)\b/i;
+
+sub _csv_cell {
+    my ($v) = @_;
+    return '' unless defined $v;
+    if (ref($v) eq 'JSON::PP::Boolean') { return $v ? 'true' : 'false'; }
+    if (ref($v)) {
+        my $s = eval { JSON::PP::encode_json($v) } // '';
+        if (length($s) > 256) { $LOSSY = 1; return "[blob:" . length($s) . "B]"; }
+        $v = $s;
+    } elsif (length($v) > 256) {
+        $LOSSY = 1;
+        return "[blob:" . length($v) . "B]";
+    }
+    if ($v =~ /[,"\r\n]/) {
+        $v =~ s/"/""/g;
+        return qq{"$v"};
+    }
+    return $v;
+}
+
+sub _flatten_row {
+    my ($h) = @_;
+    my %flat;
+    for my $k (keys %$h) {
+        my $v = $h->{$k};
+        if (ref($v) eq 'HASH' && scalar(keys %$v) >= 1 && scalar(keys %$v) <= 4) {
+            my $all_scalar = 1;
+            for my $sv (values %$v) {
+                if (ref($sv) && ref($sv) ne 'JSON::PP::Boolean') { $all_scalar = 0; last; }
+            }
+            if ($all_scalar) {
+                for my $sk (keys %$v) { $flat{"$k.$sk"} = $v->{$sk}; }
+                next;
+            }
+        }
+        $flat{$k} = $v;
+    }
+    return \%flat;
+}
+
+sub crush_json_output {
+    my ($lines, $joined) = @_;
+    return undef if length($joined) < 512 || $joined !~ /\A\s*[\[{]/;
+    eval { require JSON::PP; 1 } or return undef;
+    my $data = eval { JSON::PP::decode_json($joined) };
+    return undef if $@ || !defined $data;
+
+    my ($arr, @meta_hdr);
+    if (ref($data) eq 'ARRAY') {
+        $arr = $data;
+    } elsif (ref($data) eq 'HASH') {
+        my @arr_keys = grep { ref($data->{$_}) eq 'ARRAY' && @{$data->{$_}} >= 3 } keys %$data;
+        return undef unless @arr_keys == 1;
+        my $ak = $arr_keys[0];
+        $arr = $data->{$ak};
+        for my $mk (sort keys %$data) {
+            next if $mk eq $ak;
+            my $mv = $data->{$mk};
+            next if ref($mv) && ref($mv) ne 'JSON::PP::Boolean';
+            push @meta_hdr, "# $mk: " . _csv_cell($mv);
+        }
+        push @meta_hdr, "# array: $ak";
+    } else {
+        return undef;
+    }
+
+    my $n = scalar(@$arr);
+    return undef if $n < 3;
+    my @hashes = grep { ref($_) eq 'HASH' } @$arr;
+    return undef if @hashes < $n * 0.80;
+
+    my @flat_rows = map { ref($_) eq 'HASH' ? _flatten_row($_) : { _val => $_ } } @$arr;
+    my %key_freq;
+    for my $r (@flat_rows) { $key_freq{$_}++ for keys %$r; }
+    my @cols = sort { $key_freq{$b} <=> $key_freq{$a} || $a cmp $b } keys %key_freq;
+    return undef if !@cols || @cols > 25;
+
+    my $prev_lossy = $LOSSY;
+    my @csv_rows;
+    my @row_meta;
+    for my $idx (0 .. $#flat_rows) {
+        my $r = $flat_rows[$idx];
+        my $row_str = join(',', map { _csv_cell($r->{$_}) } @cols);
+        push @csv_rows, $row_str;
+        my $is_err = ($row_str =~ $JSON_ERR_RE || (exists $r->{status} && defined $r->{status} && $r->{status} =~ /^[45]\d\d$/)) ? 1 : 0;
+        my $is_out = 0;
+        for my $rk (keys %$r) {
+            if ($key_freq{$rk} < $n * 0.20) { $is_out = 1; last; }
+        }
+        push @row_meta, [$is_err, $is_out];
+    }
+
+    my $schema_hdr = "[$n]{" . join(',', @cols) . "}";
+    my @full_out = (@meta_hdr, $schema_hdr, @csv_rows);
+    my $full_bytes = total_bytes(\@full_out);
+    my $ws_comp = json_ws_compact($lines);
+    my $ws_bytes = total_bytes($ws_comp);
+
+    # Path 1: Fits inside $NATIVE_CAP -> emit lossless CSV+schema if it saves >= 15% over compact JSON
+    if ($full_bytes <= $NATIVE_CAP) {
+        if ($full_bytes <= $ws_bytes * 0.85) {
+            return \@full_out;
+        }
+        $LOSSY = $prev_lossy;
+        return undef;
+    }
+
+    # Path 2: Still > $NATIVE_CAP -> Headroom error-preserving adaptive sampling
+    $LOSSY = 1;
+    my %keep;
+    # Head (first 3) & tail (last 2)
+    $keep{$_} = 1 for (0 .. ($n > 3 ? 2 : $n - 1));
+    $keep{$_} = 1 for (($n > 2 ? $n - 2 : 0) .. $n - 1);
+    # Non-negotiable errors + structural outliers
+    for my $idx (0 .. $#row_meta) {
+        $keep{$idx} = 1 if $row_meta[$idx][0] || $row_meta[$idx][1];
+    }
+    # Fill remaining budget up to 55 rows with even stride
+    my $budget = 55;
+    my $have = scalar(keys %keep);
+    if ($have < $budget && $n > $have) {
+        my $need = $budget - $have;
+        my $step = $n / ($need + 1);
+        for (my $k = 1; $k <= $need; $k++) {
+            my $idx = int($k * $step);
+            $idx = $n - 1 if $idx >= $n;
+            $keep{$idx} = 1;
+        }
+    }
+    my @kept_idx = sort { $a <=> $b } keys %keep;
+    my @sampled = (@meta_hdr, $schema_hdr);
+    my $prev_i = -1;
+    for my $idx (@kept_idx) {
+        if ($prev_i >= 0 && $idx > $prev_i + 1) {
+            my $gap = $idx - $prev_i - 1;
+            push @sampled, "... [$gap rows omitted]";
+        }
+        push @sampled, $csv_rows[$idx];
+        $prev_i = $idx;
+    }
+    push @sampled, "[SmartCrusher: " . scalar(@kept_idx) . "/$n rows kept; all error/outlier rows preserved]";
+    return \@sampled;
+}
+
 # Whitespace-only table compaction. Only touches lines that are unambiguously tabular so code,
 # YAML block scalars, string literals and shell operators (`a || b`) are never altered.
 my $BOX_V  = "\xe2\x94\x82";                                  # U+2502 │
@@ -284,7 +529,7 @@ sub fold_stack_frames {
     while ($k < $n) {
         my $l = $lines->[$k];
         # Python 2-3 line library frame
-        if ($l =~ /^\s+File\s+"[^"]*(?:\/site-packages\/|\/dist-packages\/|\/lib\/python3\.\d+\/|\/_pytest\/|\/pluggy\/|<frozen )/i) {
+        if ($l =~ /^\s+File\s+"[^"]*(?:\/site-packages\/|\/dist-packages\/|\/lib\/python3\.\d+\/|\/_pytest\/|\/pluggy\/|<frozen |\\(?:site|dist)-packages\\|\\Python3\d*\\Lib\\|\\_pytest\\)/i) {
             $fstart = $k if $folded == 0;
             $folded++;
             $k++;
@@ -389,6 +634,7 @@ sub tail_weighted_cap {
 # warnings, and section headers (=== X ===, ## X, [X]) so multi-section ssh/diagnostic scripts
 # never lose a section's identity. Gaps are marked with omitted-line counts.
 my $SIGNAL_RE = qr/\b(?:ERROR|FATAL|PANIC|CRITICAL|EXCEPTION|TRACEBACK|WARN(?:ING)?|FAIL(?:ED|URE)?|DENIED|REFUSED|TIMEOUT|Traceback)\b|^\s*(?:={3,}|-{3,}|#{2,}\s|\*{3,})\s*\S|^\s*\[[A-Za-z][^\]]{0,60}\]\s*$|exit (?:code|status)/i;
+our $EXTRA_SIG_RE;   # optional per-category additions (PowerShell path only; POSIX unchanged)
 sub cap_with_signal {
     my ($lines, $head, $tail, $max_sig) = @_;
     my $n = scalar(@$lines);
@@ -397,7 +643,7 @@ sub cap_with_signal {
     $bytes += length($_) + 1 for @$lines;
     return $lines if $bytes <= $NATIVE_CAP;
     $LOSSY = 1;
-    my @keep_idx = grep { $lines->[$_] =~ $SIGNAL_RE } ($head .. $n - $tail - 1);
+    my @keep_idx = grep { $lines->[$_] =~ $SIGNAL_RE || (defined $EXTRA_SIG_RE && $lines->[$_] =~ $EXTRA_SIG_RE) } ($head .. $n - $tail - 1);
     @keep_idx = @keep_idx[0 .. $max_sig - 1] if @keep_idx > $max_sig;
     my @out = @{$lines}[0 .. $head - 1];
     my $prev = $head - 1;
@@ -565,6 +811,57 @@ sub compress_git_diff {
 
     my $out_bytes = 0;
     $out_bytes += length($_) + 1 for @out;
+    # Headroom-inspired diff context trimming: when diff > $NATIVE_CAP, trim unchanged context
+    # lines inside hunks to +/-2 around +/- changes before falling back to head/tail truncation.
+    if ($out_bytes > $NATIVE_CAP) {
+        my @trimmed;
+        my @hunk;
+        my sub flush_hunk {
+            return unless @hunk;
+            my $m = scalar(@hunk);
+            my @mark = (0) x $m;
+            for my $hi (0 .. $m - 1) {
+                if ($hunk[$hi] =~ /^[+-]/ || $hunk[$hi] =~ /^@@/) {
+                    my $lo = $hi - 2; $lo = 0 if $lo < 0;
+                    my $hi2 = $hi + 2; $hi2 = $m - 1 if $hi2 >= $m;
+                    $mark[$_] = 1 for ($lo .. $hi2);
+                }
+            }
+            my $dropped = 0;
+            for my $hi (0 .. $m - 1) {
+                if ($mark[$hi]) {
+                    if ($dropped) { push @trimmed, " ... [$dropped context lines trimmed]"; $LOSSY = 1; $dropped = 0; }
+                    push @trimmed, $hunk[$hi];
+                } else {
+                    $dropped++;
+                }
+            }
+            if ($dropped) { push @trimmed, " ... [$dropped context lines trimmed]"; $LOSSY = 1; }
+            @hunk = ();
+        }
+        my $in_hunk = 0;
+        for my $x (@out) {
+            if ($x =~ /^@@ /) {
+                flush_hunk();
+                $in_hunk = 1;
+                push @hunk, $x;
+            } elsif ($x =~ /^(?:diff --git |--- |\+\+\+ )/) {
+                flush_hunk();
+                $in_hunk = 0;
+                push @trimmed, $x;
+            } elsif ($in_hunk) {
+                push @hunk, $x;
+            } else {
+                push @trimmed, $x;
+            }
+        }
+        flush_hunk();
+        my $tb = 0; $tb += length($_) + 1 for @trimmed;
+        if ($tb < $out_bytes) {
+            @out = @trimmed;
+            $out_bytes = $tb;
+        }
+    }
     if (@out > 420 && $out_bytes > $NATIVE_CAP) {
         my @hdr = ("[Diff summary: " . scalar(@file_stats) . " files]");
         push @hdr, @file_stats[0 .. ($#file_stats > 29 ? 29 : $#file_stats)];
@@ -627,7 +924,8 @@ sub compress_search {
     for my $l (@$lines) {
         # Cap minified single-line matches (> 360 chars)
         $l = cap_line_len($l, 360, 320);
-        if ($l =~ /^([^\s:][^:]*):(\d+)([:-])(.*)$/ && $1 !~ /^\d+$/) {
+        # Windows-safe path:line: anchor (handles C:\path\file.py:42: without matching bare 3:2024-11-01)
+        if ($l =~ m{^((?:[A-Za-z]:[\\/])?[^\s:][^:]*):(\d+)([:-])(.*)$} && $1 !~ /^\d+$/) {
             my ($f, $ln, $sep, $txt) = ($1, $2, $3, $4);
             $file_counts{$f}++;
             if ($f ne $cur_file) {
@@ -730,7 +1028,12 @@ sub compress_http {
         push @kept, $l;
     }
     my $joined = join("\n", @kept);
-    return tail_weighted_cap(\@kept, 60, 40) if $joined =~ /\A\s*[\[{]/;
+    # JSON body: Headroom SmartCrusher (lossless CSV+schema / error-preserving sampling), else ws-compact
+    if ($joined =~ /\A\s*[\[{]/) {
+        my $crushed = crush_json_output(\@kept, $joined);
+        return $crushed if defined $crushed;
+        return tail_weighted_cap(json_ws_compact(\@kept), 60, 40);
+    }
     # Strip HTML script/style/svg/comments if HTML response > 4KB
     if (length($joined) > 4096 && $joined =~ /<(?:!doctype\s+html|html\b)/i) {
         $joined =~ s/<(script|style|svg)\b[^>]*>.*?<\/\1>//gis;
@@ -739,8 +1042,9 @@ sub compress_http {
         my @hl = grep { /\S/ } map { s/[ \t]+/ /g; s/^\s+|\s+$//g; $_ } split(/\n/, $joined);
         return tail_weighted_cap(\@hl, 60, 40);
     }
-    my @capped = map { cap_line_len($_, 500, 460) } @kept;
-    return tail_weighted_cap(dedupe_consecutive(\@capped), 60, 40);
+    my $ed = elide_dense_lines(\@kept);
+    my @capped = map { cap_line_len($_, 500, 460) } @$ed;
+    return tail_weighted_cap(fold_repeated_blocks(dedupe_consecutive(\@capped)), 60, 40);
 }
 
 sub compress_archive {
@@ -796,17 +1100,34 @@ sub total_bytes { my $b = 0; $b += length($_) + 1 for @{$_[0]}; return $b; }
 
 sub compress_logs {
     my ($lines, $rc) = @_;
-    # <= native cap: model would see every line -> lossless exact-duplicate merge only
-    return dedupe_consecutive($lines) if total_bytes($lines) <= $NATIVE_CAP;
-    my $dedup = dedupe_log_templates(fold_stack_frames($lines));
+    my $b = fold_repeated_blocks(dedupe_consecutive($lines));
+    # <= native cap: lossless exact-duplicate & repeated-block folding (+ dense-line elide if huge blob wall)
+    return elide_dense_lines($b) if total_bytes($b) <= $NATIVE_CAP;
+    my $dedup = dedupe_log_templates(fold_stack_frames(elide_dense_lines($b)));
     return cap_with_signal($dedup, 25, 80, 50);
 }
 
 sub compress_ssh {
     my ($lines, $rc) = @_;
-    # Remote output the model asked for: <= native cap stays complete (lossless transforms only)
-    return collapse_table_padding(dedupe_consecutive($lines)) if total_bytes($lines) <= $NATIVE_CAP;
-    my $t = collapse_table_padding(dedupe_log_templates(fold_stack_frames($lines)));
+    my $joined = join("\n", @$lines);
+    if ($joined =~ /\A\s*[\[{]/ && length($joined) >= 512) {
+        my $crushed = crush_json_output($lines, $joined);
+        return $crushed if defined $crushed;
+    }
+    # Remote grep/rg output: hoist repeated file paths losslessly when >=6 grep-like hits
+    my ($non_empty, $grep_hits) = (0, 0);
+    for my $l (@$lines) {
+        next unless $l =~ /\S/;
+        $non_empty++;
+        $grep_hits++ if $l =~ m{^(?:/|[A-Za-z]:[\\/]|[\w.-]+/)[^\s:]+:\d+[:-]};
+    }
+    if ($grep_hits >= 6 && $non_empty > 0 && ($grep_hits / $non_empty) >= 0.30) {
+        return compress_search($lines, $rc);
+    }
+    my $base = collapse_table_padding(fold_repeated_blocks(dedupe_consecutive($lines)));
+    # Remote output <= native cap stays complete (lossless transforms + dense-line elide for huge minified blobs)
+    return elide_dense_lines($base) if total_bytes($base) <= $NATIVE_CAP;
+    my $t = dedupe_log_templates(fold_stack_frames(elide_dense_lines($base)));
     return $rc != 0 ? cap_with_signal($t, 40, 110, 60) : cap_with_signal($t, 35, 85, 60);
 }
 
@@ -836,8 +1157,13 @@ sub compress_table {
 
 sub compress_cloud {
     my ($lines, $rc) = @_;
-    return tail_weighted_cap($lines, 50, 60) if @$lines && $lines->[0] =~ /^\s*[\[{]/;
-    my $t = collapse_table_padding(dedupe_log_templates(fold_stack_frames($lines)));
+    if (@$lines && $lines->[0] =~ /^\s*[\[{]/) {
+        my $joined = join("\n", @$lines);
+        my $crushed = crush_json_output($lines, $joined);
+        return $crushed if defined $crushed;
+        return tail_weighted_cap(json_ws_compact($lines), 50, 60);
+    }
+    my $t = collapse_table_padding(fold_repeated_blocks(dedupe_log_templates(fold_stack_frames(elide_dense_lines($lines)))));
     my @capped = map { cap_line_len($_, 400, 360) } @$t;
     return tail_weighted_cap(\@capped, 50, 60);
 }
@@ -848,6 +1174,195 @@ sub compress_chain {
     my @kept = grep { $_ !~ $noise || $_ =~ /FAIL|ERROR|WARN|PANIC/i } @$lines;
     my $f = fold_stack_frames(dedupe_consecutive(\@kept));
     return tail_weighted_cap($f, 50, 110);
+}
+
+# --- PowerShell output (Windows) ---
+# Format-Table output is padded to fixed column spans (from the "----  ---" separator row) and
+# to the console width; Format-List pads names before " : "; Get-ChildItem -Recurse repeats a
+# "Directory:" banner + identical header per folder. All compactions below are whitespace or
+# exact-repeat removals: every cell value is kept verbatim (lossless).
+sub ps_table_compact {
+    my ($lines) = @_;
+    my @out;
+    my $n = scalar(@$lines);
+    my %seen_hdr;
+    my $k = 0;
+    while ($k < $n) {
+        my $l = $lines->[$k];
+        # "    Directory: C:\x" (localized: Verzeichnis/Répertoire/...) -> "Directory: C:\x"
+        if ($l =~ /^ {2,}([^\s:][^:]{0,30}): +((?:[A-Za-z]:|\\\\|[\w.]+::).*)$/) {
+            push @out, "$1: $2";
+            $k++;
+            next;
+        }
+        my $sep = $k + 1 < $n ? $lines->[$k + 1] : '';
+        if ($l =~ /\S/ && $sep =~ /^ *-+(?: +-+)* *$/ && $l !~ /^ *-+(?: +-+)* *$/) {
+            my @spans;
+            while ($sep =~ /(-+)/g) { push @spans, [$-[1], $+[1]]; }
+            my $last_st = $spans[-1][0];
+            # Only padding runs (3+ spaces) before the last column shrink; the last column
+            # (usually Name/path, may hold any spacing) stays verbatim. Pure whitespace edits.
+            my $split = sub {
+                my ($row) = @_;
+                my ($pre, $suf) = length($row) > $last_st ? (substr($row, 0, $last_st), substr($row, $last_st)) : ($row, '');
+                $pre =~ s/(?<=\S) {3,}/  /g;   # interior padding only (indentation kept)
+                my $r = $pre . $suf;
+                $r =~ s/\s+$//;
+                return $r;
+            };
+            my $h = $split->($l);
+            if (@spans >= 2) {
+                (my $s2 = $sep) =~ s/-{4,}/---/g;
+                $s2 =~ s/(?<=-) {2,}/  /g;
+                $s2 =~ s/\s+$//;
+                if ($seen_hdr{"$h\n$s2"}++) {
+                    $LOSSLESS_RM += 2;          # identical header already shown above
+                    while (@out >= 2 && $out[-1] eq '' && $out[-2] =~ /^[^\s:][^:]{0,30}: /) { pop @out; $LOSSLESS_RM++; }
+                } else {
+                    push @out, $h, $s2;
+                }
+                $k += 2;
+                while ($k < $n && $lines->[$k] =~ /\S/) {
+                    my $r = $split->($lines->[$k]);
+                    last unless defined $r;
+                    push @out, $r;
+                    $k++;
+                }
+                next;
+            }
+        }
+        # Format-List block: >= 2 consecutive "Name<pad> : value" lines
+        if ($l =~ /^([A-Za-z_][\w .\-]{0,40}?) +: /) {
+            my $j = $k;
+            $j++ while $j < $n && ($lines->[$j] =~ /^[A-Za-z_][\w .\-]{0,40}? +: / || ($j > $k && $lines->[$j] =~ /^ {8,}\S/));
+            if ($j - $k >= 2) {
+                for my $q ($k .. $j - 1) {
+                    my $x = $lines->[$q];
+                    $x =~ s/^([A-Za-z_][\w .\-]{0,40}?) +: /$1 : / or $x =~ s/^ {8,}/  /;
+                    push @out, $x;
+                }
+                $k = $j;
+                next;
+            }
+        }
+        push @out, $l;
+        $k++;
+    }
+    return \@out;
+}
+
+# Pretty-printed JSON (indent=2/4, GitHub API, json.dumps(indent=..)): re-indent with one space
+# per level and put arrays of plain scalars on one line. Whitespace-only => lossless.
+my $JSON_SCALAR_RE = qr/(?:"(?:[^"\\]|\\.)*"|-?\d[\d.eE+\-]*|true|false|null)/;
+sub json_ws_compact {
+    my ($lines) = @_;
+    my @out;
+    my $n = scalar(@$lines);
+    my $k = 0;
+    while ($k < $n) {
+        my $l = $lines->[$k];
+        if ($l =~ /^( *)(?:\S.*[:\s])?[\[{]$/ || $l =~ /^( *)[\[{]$/) {
+            my $i0 = length($1);
+            my $j = $k + 1;
+            my $unit = 0;
+            my $ok = 1;
+            while ($j < $n) {
+                my $x = $lines->[$j];
+                last if $x =~ /^ {$i0}[\]}],?$/;
+                my ($ind) = $x =~ /^( *)/;
+                if (length($ind) <= $i0 || $x !~ /^ *(?:"(?:[^"\\]|\\.)*"\s*:\s*|)(?:$JSON_SCALAR_RE,?|[\[{]|[\]}],?|\[\],?|\{\},?)$/) { $ok = 0; last; }
+                my $d = length($ind) - $i0;
+                $unit = $d if !$unit || $d < $unit;
+                $j++;
+            }
+            if ($ok && $j < $n && $j - $k >= 3 && $unit >= 2) {
+                my @blk = @{$lines}[$k .. $j];
+                for my $x (@blk[1 .. $#blk - 1]) {
+                    my ($ind) = $x =~ /^( *)/;
+                    my $lvl = int((length($ind) - $i0) / $unit);
+                    $x = (' ' x ($i0 + $lvl)) . substr($x, length($ind));
+                }
+                # Arrays of scalars -> one line (<= 200 chars)
+                my @m;
+                for (my $q = 0; $q < @blk; $q++) {
+                    my $x = $blk[$q];
+                    if ($x =~ /\[$/) {
+                        my $e = $q + 1;
+                        my @items;
+                        while ($e < @blk && $blk[$e] =~ /^ *($JSON_SCALAR_RE),?$/) { push @items, $1; $e++; }
+                        if (@items >= 2 && $e < @blk && $blk[$e] =~ /^ *\](,?)$/) {
+                            my $one = $x . join(', ', @items) . "]$1";
+                            if (length($one) <= 200) {
+                                push @m, $one;
+                                $LOSSLESS_RM += $e - $q;
+                                $q = $e;
+                                next;
+                            }
+                        }
+                    }
+                    push @m, $x;
+                }
+                push @out, @m;
+                $k = $j + 1;
+                next;
+            }
+        }
+        push @out, $l;
+        $k++;
+    }
+    return \@out;
+}
+
+# Byte-budgeted signal-preserving cap for output above Antigravity's native cap: the model
+# natively gets a ~9.9 KB head+tail preview; we keep head, tail and every error/warning line
+# (capped at 400 chars each) within ~5 KB, with the complete raw output spilled to disk.
+sub cap_budget {
+    my ($lines, $budget) = @_;
+    $budget //= 5000;
+    return $lines if total_bytes($lines) <= $NATIVE_CAP;
+    my @l = map { cap_line_len($_, 400, 360) } @$lines;
+    for my $ht ([40, 60], [25, 40], [15, 25], [8, 15], [4, 8]) {
+        my $c = cap_with_signal(\@l, $ht->[0], $ht->[1], 60);
+        return $c if total_bytes($c) <= $budget;
+    }
+    return cap_with_signal(\@l, 4, 8, 60);
+}
+
+sub ps_paths_group {
+    my ($lines) = @_;
+    my $np = grep { /^(?:[A-Za-z]:\\|\\\\)[^\t]*$/ } @$lines;
+    return undef if @$lines < 46 || $np < @$lines * 0.9;
+    my (%by_dir, @dir_order, @other);
+    for my $l (@$lines) {
+        my ($d, $f) = ($l =~ /^((?:[A-Za-z]:\\|\\\\).*)\\([^\\]+)$/) ? ($1, $2) : (undef, undef);
+        if (!defined $d) { push @dir_order, "\0$l"; next; }
+        push @dir_order, $d unless exists $by_dir{$d};
+        push @{$by_dir{$d}}, $f;
+    }
+    my @out;
+    for my $d (@dir_order) {
+        if ($d =~ /^\0(.*)$/s) { push @out, $1; next; }
+        my $line = "$d\\:";
+        my $first = 1;
+        for my $f (@{$by_dir{$d}}) {
+            if (!$first && length($line) + length($f) > 236) { push @out, $line; $line = "  "; $first = 1; }
+            $line .= ($first ? ' ' : ', ') . $f;
+            $first = 0;
+        }
+        push @out, $line;
+    }
+    return @out < @$lines * 0.75 ? \@out : undef;
+}
+
+sub compress_pwsh {
+    my ($lines, $rc) = @_;
+    my $t = dedupe_consecutive(json_ws_compact(ps_table_compact($lines)));
+    return $t if total_bytes($t) <= $NATIVE_CAP;
+    my $g = ps_paths_group($t);
+    return $g if defined $g && total_bytes($g) <= $NATIVE_CAP;
+    # Python/.NET/PowerShell error lines (ValueError: x, System.IO.IOException: x, + CategoryInfo)
+    local $EXTRA_SIG_RE = qr/^\s*[\w.]*(?:Error|Exception)\b\s*:|^\s*\+ (?:CategoryInfo|FullyQualifiedErrorId)\b|^\s*At line:\d/;
+    return cap_budget(fold_stack_frames($g // $t), 5000);
 }
 
 my %DISPATCH = (
@@ -871,6 +1386,9 @@ my %DISPATCH = (
     table     => \&compress_table,
     cloud     => \&compress_cloud,
     chain     => \&compress_chain,
+    pwsh      => \&compress_pwsh,   # PowerShell cmdlet tables/lists (Get-ChildItem, Get-Process, ...)
+    script    => \&compress_pwsh,   # python -c / node -e / *.py script output on Windows
+    raw       => sub { $_[0] },     # sanitize only (diagnostics / equivalence tests)
 );
 
 sub process_output {
@@ -884,7 +1402,7 @@ sub process_output {
     my $n_clean = scalar(@clean_lines);
 
     # Fast passthrough for tiny outputs unless table/search/git_net can compress losslessly
-    if ($clean_bytes <= 900 && $n_clean <= 20 && $cat !~ /^(?:search|table|ps|git_net)$/) {
+    if ($clean_bytes <= 900 && $n_clean <= 20 && $cat !~ /^(?:search|table|ps|git_net|pwsh)$/) {
         log_telemetry($cat, $total_raw_bytes, length($safe), $rc);
         return $safe;
     }
@@ -926,7 +1444,7 @@ sub process_output {
     my $l_info = defined $existing_spill
         ? int($total_raw_bytes / 1024) . "KB->" . scalar(@$comp_lines) . "L"
         : "${n_clean}L->" . scalar(@$comp_lines) . "L";
-    my $note = "[$l_info; full: $spill_path]\n";
+    my $note = "[$l_info; full: " . shown_path($spill_path) . "]\n";
 
     my $final = $comp . ($comp ne '' && $comp !~ /\n\z/ ? "\n" : '') . $note;
     if (!defined $existing_spill && length($final) >= length($safe)) {
@@ -949,14 +1467,78 @@ if ($test_stdin) {
     exit $test_rc;
 }
 
+# Base64 (of the UTF-8 script) as written by cmd_hook_core.pl for non-ASCII commands
+sub b64_decode {
+    my ($s) = @_;
+    $s =~ tr{A-Za-z0-9+/}{}cd;
+    $s =~ tr{A-Za-z0-9+/}{ -_};
+    my $uu = '';
+    while ($s =~ /(.{1,60})/gs) { $uu .= chr(32 + int(length($1) * 3 / 4)) . $1 . "\n"; }
+    return unpack('u', $uu);
+}
+
+my ($rd, $wr, $pid, $own_pgrp);
+my $pipe_open = 0;
+if ($pwsh_src eq 'stdin' || $pwsh_src eq 'b64') {
+    # --- PowerShell mode: run the model's exact script text in a child Windows PowerShell ---
+    my $script;
+    if ($pwsh_src eq 'stdin') {
+        binmode(STDIN, ':raw');
+        local $/;
+        $script = <STDIN> // '';
+        $script =~ s/\r?\n\z//;      # the newline PowerShell appends when piping a string
+    } else {
+        $script = b64_decode($pwsh_b64);
+    }
+    exit 0 if $script !~ /\S/;
+    # The script travels in an env var (no command-line quoting/path-conversion can touch it) and
+    # is run by Invoke-Expression at top level (-EncodedCommand would turn stderr into CLIXML).
+    # Bootstrap = the encoding prelude Antigravity prepends to every command (UTF-8 console and
+    # native pipes) + progress bars off (never captured output). Trailer: exit status of the LAST
+    # statement as `powershell -Command` reports it, but keeping a native's own exit code.
+    # (`| Out-Default` = the one formatter a -Command script uses; it is flushed before `exit`,
+    # which would otherwise discard table output the formatter is still buffering.)
+    $ENV{AGY_TS_PS1} = $script
+        . "\n\$global:__agy_rc = if (-not \$?) { if (\$LASTEXITCODE -is [int] -and \$LASTEXITCODE -ne 0) { \$LASTEXITCODE } else { 1 } } else { 0 }\n";
+    my $boot = "try { \$OutputEncoding = [System.Text.UTF8Encoding]::new(\$false); [Console]::OutputEncoding = \$OutputEncoding } catch {}; "
+             . "\$ProgressPreference = 'SilentlyContinue'; \$__agy_ts = \$env:AGY_TS_PS1; Remove-Item Env:AGY_TS_PS1; "
+             . "Invoke-Expression \$__agy_ts | Out-Default; if (\$null -eq \$global:__agy_rc) { exit 1 }; exit \$global:__agy_rc";
+    # Child stdout is a pipe, not the console: keep Python's UTF-8 output and line ordering
+    $ENV{PYTHONIOENCODING} = 'utf-8' unless defined $ENV{PYTHONIOENCODING};
+    $ENV{PYTHONUNBUFFERED} = '1' unless defined $ENV{PYTHONUNBUFFERED};
+    my $sysroot = $ENV{SystemRoot} || $ENV{SYSTEMROOT} || $ENV{windir} || $ENV{WINDIR} || 'C:\\Windows';
+    my $ps = "$sysroot\\System32\\WindowsPowerShell\\v1.0\\powershell.exe";
+    $ps = 'powershell.exe' unless -f $ps;
+    my @ps_args = ('-NoLogo', '-NoProfile', '-NonInteractive', '-Command', $boot);
+    $own_pgrp = 0;
+    if ($^O eq 'MSWin32') {
+        $pid = open($rd, '-|', qq{"$ps" -NoLogo -NoProfile -NonInteractive -Command "$boot" 2>&1 <NUL}) or exit 1;
+        binmode($rd);
+        $pipe_open = 1;
+    } else {
+        pipe($rd, $wr) or exit 1;
+        $pid = fork();
+        exit 1 unless defined $pid;
+        if ($pid == 0) {
+            close($rd);
+            open(STDIN, '<', '/dev/null');
+            open(STDOUT, '>&', $wr) or _exit(127);
+            open(STDERR, '>&', $wr) or _exit(127);
+            close($wr);
+            exec { $ps } $ps, @ps_args;
+            exit 127;
+        }
+        close($wr);
+    }
+} else {
 exit 0 if $orig_cmd eq '';
 
 # --- Execute child in its own process group with SIGINT/SIGTERM forwarding ---
-pipe(my $rd, my $wr) or exit 1;
+pipe($rd, $wr) or exit 1;
 # If stdin is a terminal, the child must stay in the foreground process group: a new pgrp would
 # get SIGTTIN (hang forever) on any prompt/read (apt w/o -y, terraform apply, ssh/sudo password).
-my $own_pgrp = -t STDIN ? 0 : 1;
-my $pid = fork();
+$own_pgrp = -t STDIN ? 0 : 1;
+$pid = fork();
 if (!defined $pid) {
     exit 1;
 }
@@ -971,6 +1553,7 @@ if ($pid == 0) {
     exit 127;
 }
 close($wr);
+}
 
 my $caught_sig = 0;
 my $forward_sig = sub {
@@ -1023,16 +1606,15 @@ while (1) {
         }
     }
 }
-close($rd);
+my $status;
+if ($pipe_open) { close($rd); $status = $?; }   # MSWin32 piped open: close() reaps the child
+else { close($rd); waitpid($pid, 0); $status = $?; }
 close($ov_fh) if defined $ov_fh;
-
-waitpid($pid, 0);
-my $status = $?;
 my $rc = ($status == -1) ? 1 : (($status & 127) ? (128 + ($status & 127)) : ($status >> 8));
 $rc = 128 + $caught_sig if $caught_sig && $rc == 0;
 
 my $assembled = defined $ov_path
-    ? ($head_buf . "\n... [8MB RAM cap reached; full stream saved to $ov_path] ...\n" . $tail_buf)
+    ? ($head_buf . "\n... [8MB RAM cap reached; full stream saved to " . shown_path($ov_path) . "] ...\n" . $tail_buf)
     : $buf;
 
 my $out = eval { process_output($assembled, $rc, $total_read, $ov_path) };

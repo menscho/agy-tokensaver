@@ -15,9 +15,12 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
-      - name: Run regression test suite & reproducible benchmark
+      - name: Run regression test suites & reproducible benchmark
         run: |
-          bash tests/run_tests.sh
+          for t in tests/run_tests.sh tests/test_cmd_windows.sh tests/test_read.sh tests/test_rollover.sh tests/test_rules.sh tests/test_tools.sh tests/test_headroom_plexer.sh; do
+            echo "=== $t ==="
+            bash "$t"
+          done
           python3 scripts/benchmark.py --demo
       - name: Verify MCP server & installer
         run: |
@@ -85,6 +88,6 @@ jobs:
           $out = ('{"toolInput":{"Path":"' + $esc + '"},"cwd":"C:\\"}') | & perl scripts/read_hook.pl
           if ($out -notmatch '"decision":"deny"') { throw "read_hook failed on Windows path: $out" }
           $cout = '{"toolInput":{"CommandLine":"pytest $env:X"}}' | & perl scripts/cmd_hook.pl
-          if ($cout -ne '{"decision":"allow"}') { throw "cmd_hook should skip MSWin32/PowerShell: $cout" }
+          if ($cout -notmatch '--cat test --pwsh-stdin') { throw "cmd_hook should wrap PowerShell pytest: $cout" }
           python scripts/benchmark.py --demo
-          Write-Host "Windows Perl hook & benchmark checks OK"
+          Write-Host "Windows Perl hook & PowerShell wrapper checks OK"

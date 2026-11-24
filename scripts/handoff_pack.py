@@ -1,28 +1,43 @@
 #!/usr/bin/env python3
 """
 Compact session handoff packet generator for /handoff and agy-tokensaver.
-Extracts workspace git state, recent commits, touched files, recent goal, and
-the last assistant conclusion from the exact target conversation transcript
-into a compact (~400-700 token) continuation prompt.
+Extracts workspace git state (one merged status+diffstat list), recent commits, files the
+conversation edited and read, the recent goal, and the last assistant conclusion from the exact
+target conversation transcript (IDE ~/.gemini/antigravity or CLI ~/.gemini/antigravity-cli) into a
+dense (~300-600 token) continuation prompt. The packet is the real cold-start cost of a rollover,
+so every line has to earn its tokens.
+
+Read-only: git runs with --no-optional-locks (never rewrites the user's index), transcripts are only
+read. The packet is written to <tmp>/agy-tokensaver-<uid>/handoff.md.
 """
 
 from __future__ import annotations
 
 import argparse
+import ast
 import getpass
 import json
 import os
 import re
 import subprocess
-import sys
 import tempfile
 from pathlib import Path
+
+GEMINI_HOME = Path(os.environ.get("AGY_TS_GEMINI_HOME") or (Path.home() / ".gemini"))
+APP_DIRS = (GEMINI_HOME / "antigravity", GEMINI_HOME / "antigravity-cli")
+EDIT_TOOLS = ("edit_file", "write_file", "write_to_file", "replace_file_content", "multi_replace_file_content")
+READ_TOOLS = ("read_file", "view_file")
+_LINK = re.compile(r"\[([^\]]+)\]\((?:file|https?)://[^)\s]+\)")
+MAX_CHANGED = 20
+MAX_EDITED = 12
+MAX_READ = 8
 
 
 def run_git(ws: Path, args: list[str]) -> str:
     try:
-        p = subprocess.run(["git", "-C", str(ws), *args], text=True, capture_output=True, timeout=4)
-        return p.stdout.strip() if p.returncode == 0 else ""
+        p = subprocess.run(["git", "--no-optional-locks", "-C", str(ws), *args],
+                           text=True, capture_output=True, timeout=4, encoding="utf-8", errors="replace")
+        return p.stdout.rstrip() if p.returncode == 0 else ""
     except Exception:
         return ""
 
@@ -34,36 +49,75 @@ def _clean_user_text(raw: str) -> str:
 
 
 def resolve_transcript(conv_id: str = "") -> Path | None:
-    brain = Path.home() / ".gemini" / "antigravity" / "brain"
-    if not brain.is_dir():
-        return None
     cid = (conv_id or os.environ.get("ANTIGRAVITY_CONVERSATION_ID") or "").strip()
     if cid:
-        exact = brain / cid / ".system_generated" / "logs" / "transcript.jsonl"
-        if exact.is_file():
-            return exact
+        for app in APP_DIRS:
+            exact = app / "brain" / cid / ".system_generated" / "logs" / "transcript.jsonl"
+            if exact.is_file():
+                return exact
     txs = []
-    for p in brain.glob("*/.system_generated/logs/transcript.jsonl"):
-        try:
-            txs.append((p.stat().st_mtime, p))
-        except OSError:
+    for app in APP_DIRS:
+        if not (app / "brain").is_dir():
             continue
+        for p in (app / "brain").glob("*/.system_generated/logs/transcript.jsonl"):
+            try:
+                txs.append((p.stat().st_mtime, p))
+            except OSError:
+                continue
     if not txs:
         return None
     txs.sort(reverse=True)
     return txs[0][1]
 
 
-def extract_transcript_context(conv_id: str = "") -> tuple[str, str, list[str], str]:
+def _tool_calls(raw: object) -> list[dict]:
+    """Transcripts store tool_calls as a list OR as a Python-repr string; arg values are often
+    JSON-encoded strings ('"C:\\\\x"')."""
+    tc = raw
+    if isinstance(tc, str):
+        try:
+            tc = ast.literal_eval(tc)
+        except Exception:
+            try:
+                tc = json.loads(tc)
+            except Exception:
+                tc = []
+    return [c for c in (tc or []) if isinstance(c, dict)]
+
+
+def _arg(args: object, *keys: str) -> str:
+    if isinstance(args, str):
+        try:
+            args = json.loads(args)
+        except Exception:
+            return ""
+    if not isinstance(args, dict):
+        return ""
+    for k in keys:
+        v = args.get(k)
+        if v is None or v == "":
+            continue
+        s = str(v)
+        if len(s) >= 2 and s[0] == '"' and s[-1] == '"':
+            try:
+                s = str(json.loads(s))
+            except Exception:
+                s = s[1:-1]
+        return s
+    return ""
+
+
+def extract_transcript_context(conv_id: str = "") -> tuple[str, str, list[str], str, list[str]]:
     tx = resolve_transcript(conv_id)
     if tx is None:
-        return "", "", [], ""
+        return "", "", [], "", []
 
     resolved_cid = tx.parents[2].name
     last_user = ""
     last_assistant = ""
-    touched: list[str] = []
-    seen: set[str] = set()
+    edited: dict[str, int] = {}
+    read: dict[str, int] = {}
+    order = 0
 
     try:
         with tx.open("r", encoding="utf-8", errors="replace") as fh:
@@ -84,71 +138,102 @@ def extract_transcript_context(conv_id: str = "") -> tuple[str, str, list[str], 
                             continue
                         ac = str(obj.get("content") or "").strip()
                         if ac:
+                            ac = _LINK.sub(lambda m: m.group(1), ac)   # [x](file:///long/path) -> x
                             last_assistant = " ".join(ac.split())[:450]
-                        for tc in obj.get("tool_calls") or []:
-                            if not isinstance(tc, dict):
-                                continue
-                            name = tc.get("name", "")
-                            if name in ("edit_file", "write_file", "write_to_file"):
-                                args = tc.get("args") or tc.get("arguments") or {}
-                                if isinstance(args, str):
-                                    try:
-                                        args = json.loads(args)
-                                    except Exception:
-                                        args = {}
-                                fp = args.get("Path") or args.get("TargetFile") or ""
-                                if fp and fp not in seen:
-                                    seen.add(fp)
-                                    touched.append(fp)
+                        for tc in _tool_calls(obj.get("tool_calls")):
+                            name = str(tc.get("name") or "")
+                            args = tc.get("args") or tc.get("arguments") or {}
+                            order += 1
+                            if name in EDIT_TOOLS:
+                                fp = _arg(args, "TargetFile", "Path", "AbsolutePath", "path")
+                                if fp:
+                                    edited[fp] = order
+                            elif name in READ_TOOLS:
+                                fp = _arg(args, "AbsolutePath", "Path", "path")
+                                if fp:
+                                    read[fp] = order
                     except Exception:
                         pass
     except OSError:
         pass
-    return last_user, last_assistant, touched[-15:], resolved_cid
+    ed = [p for p, _ in sorted(edited.items(), key=lambda kv: kv[1])][-MAX_EDITED:]
+    ed_l = {p.lower() for p in ed}
+    rd = [p for p, _ in sorted(read.items(), key=lambda kv: kv[1]) if p.lower() not in ed_l][-MAX_READ:]
+    return last_user, last_assistant, ed, resolved_cid, rd
+
+
+def _short(p: str, ws: Path) -> str:
+    """Workspace-relative path when inside the workspace (saves tokens on every line)."""
+    try:
+        rp = Path(p).resolve()
+        return rp.relative_to(ws).as_posix()
+    except Exception:
+        return p.replace("\\", "/")
+
+
+def changed_files(ws: Path) -> list[str]:
+    """One line per changed path: `XY path (+a/-b)` - merges `status --porcelain` and `diff --numstat`."""
+    status = run_git(ws, ["status", "--porcelain", "--untracked-files=normal"])
+    if not status:
+        return []
+    num: dict[str, str] = {}
+    for line in (run_git(ws, ["diff", "HEAD", "--numstat"]) or run_git(ws, ["diff", "--numstat"])).splitlines():
+        parts = line.split("\t")
+        if len(parts) == 3:
+            num[parts[2]] = f"+{parts[0]}/-{parts[1]}" if parts[0] != "-" else "binary"
+    out = []
+    lines = status.splitlines()
+    for line in lines[:MAX_CHANGED]:
+        code, path = line[:2].strip() or "?", line[3:].strip().strip('"')
+        tail = path.split(" -> ")[-1]
+        out.append(f"{code} {path}" + (f" ({num[tail]})" if tail in num else ""))
+    if len(lines) > MAX_CHANGED:
+        out.append(f"... +{len(lines) - MAX_CHANGED} more (git status)")
+    return out
+
+
+def build_packet(ws: Path, conv_id: str = "") -> str:
+    branch = run_git(ws, ["rev-parse", "--abbrev-ref", "HEAD"])
+    commits = run_git(ws, ["log", "-n", "5", "--format=%h %s"])
+    changed = changed_files(ws)
+    last_user, last_assistant, edited, resolved_cid, read = extract_transcript_context(conv_id)
+
+    lines = [
+        "# Session Continuation Handoff",
+        f"Workspace: `{ws}`" + (f" (branch `{branch}`)" if branch else "")
+        + (f" - from conversation `{resolved_cid[:8]}`" if resolved_cid else ""),
+    ]
+    if last_user:
+        lines.append(f"Goal: {last_user[:320]}")
+    if last_assistant:
+        lines.append(f"Last state: {last_assistant[:420]}")
+    if commits:
+        lines.append("Recent commits: " + "; ".join(c[:72] for c in commits.splitlines()[:5]))
+    if changed:
+        lines.append("\n## Uncommitted changes")
+        lines.extend(f"- {c}" for c in changed)
+    if edited:
+        lines.append("\n## Edited in that conversation")
+        lines.extend(f"- {_short(p, ws)}" for p in edited)
+    if read:
+        lines.append("\n## Also consulted (re-read only if needed)")
+        lines.append(", ".join(_short(p, ws) for p in read))
+    lines.append("\nContinue from this state. Read only the exact line ranges you need from the files above before editing.")
+    return "\n".join(lines) + "\n"
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description="Generate a compact session continuation handoff packet.")
     ap.add_argument("workspace", nargs="?", default=".", help="Workspace directory path")
     ap.add_argument("--conversation-id", "-c", default="", help="Exact Antigravity conversation ID to pack")
+    ap.add_argument("--no-save", action="store_true", help="Print only; do not write handoff.md")
     args = ap.parse_args()
 
     ws = Path(args.workspace).resolve()
-    branch = run_git(ws, ["rev-parse", "--abbrev-ref", "HEAD"])
-    status = run_git(ws, ["status", "--short"])
-    diff_stat = run_git(ws, ["diff", "--stat"])
-    commits = run_git(ws, ["log", "-n", "5", "--oneline"])
-    last_user, last_assistant, touched, resolved_cid = extract_transcript_context(args.conversation_id)
-
-    lines = [
-        "# Session Continuation Handoff",
-        f"- **Workspace:** `{ws}`" + (f" (branch `{branch}`)" if branch else ""),
-    ]
-    if resolved_cid:
-        lines.append(f"- **Source Conversation:** `{resolved_cid[:8]}`")
-    if last_user:
-        lines.append(f"- **Last Goal:** {last_user[:320]}")
-    if last_assistant:
-        lines.append(f"- **Last Assistant State:** {last_assistant[:420]}")
-    if commits:
-        lines.append("\n## Recent Commits")
-        lines.extend(f"- `{c}`" for c in commits.splitlines()[:5])
-    if status:
-        lines.append("\n## Working Tree (`git status --short`)")
-        lines.extend(f"- `{s}`" for s in status.splitlines()[:25])
-    if diff_stat:
-        lines.append("\n## Uncommitted Diff Stat")
-        lines.append("```text")
-        lines.extend(diff_stat.splitlines()[:25])
-        lines.append("```")
-    if touched:
-        lines.append("\n## Recently Edited Files (from transcript)")
-        lines.extend(f"- `{p}`" for p in touched)
-
-    lines.append("\n## Instructions for New Session")
-    lines.append("Continue from the state above. Read only the exact line slices needed from the files listed above before making further edits.")
-
-    packet = "\n".join(lines) + "\n"
+    packet = build_packet(ws, args.conversation_id)
+    print(packet)
+    if args.no_save:
+        return 0
     uid = str(os.getuid()) if hasattr(os, "getuid") else re.sub(r"[^A-Za-z0-9_-]", "_", getpass.getuser() or "user")
     out_dir = Path(tempfile.gettempdir()) / f"agy-tokensaver-{uid}"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -159,8 +244,6 @@ def main() -> int:
             pass
     out_file = out_dir / "handoff.md"
     out_file.write_text(packet, encoding="utf-8")
-
-    print(packet)
     print(f"[Saved compact handoff (~{len(packet)//4} tokens) to {out_file}]")
     return 0
 

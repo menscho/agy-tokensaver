@@ -1,9 +1,8 @@
-# Token & Cache Efficiency
+# Token Saver (output = 6x input)
 
-Zero-loss defaults:
-
-1. **Minimal-anchor edits (6× output weight):** Use `edit_file` with 1–3 unique anchor lines only (never paste 15+ unchanged surrounding lines into `Target`/`Replacement`); `write_file` only for new files, <100L, or >60% rewrites; never echo edited code in chat.
-2. **Batch & combine:** Parallelize independent reads, searches, distinct-file edits, and checks in one turn; merge sequential `ssh` checks into one remote command. Call tools directly without filler narration; read target definitions before editing.
-3. **Slice & skip bloat:** Grep first; pass `StartLine`/`EndLine` on >250L files; reuse slices already in context. Skip lockfiles, vendor/build dirs, `.ipynb`/minified files, and raw `output.txt` logs (`ts_inspect.py` or grep/tail).
-4. **Delegate bulk (skip 1–2 files):** `lite-sifter` for mechanical sifting, `fast-explorer` for >=3-file scouting, `triage-scout` for >150L logs/diffs/tests, `web-scout` for docs/web, `vision-scout` for >3 images, `lean-workflow` for >=5-file audits/refactors/test loops. Run `repo_digest.py` before swarms.
-5. **Stop-on-green & cache hygiene:** Run narrowest check while iterating, full suite once at end; diagnose before retrying. Keep replies concise; suggest `/compact` or `/handoff` near 100k+ or before >2m breaks.
+1. `ArtifactMetadata` only for files in the brain artifact dir; on other paths `write_to_file`/`write_file` fails and the whole file is re-sent.
+2. Never write files via `run_command` (python -c, node -e, here-strings, base64); use file tools and fix failures, don't re-send.
+3. Edit existing files with 1-3 unique anchor lines; rewrite only if >60% changes; never echo code.
+4. Batch independent calls; grep first; slice big files; skip lockfiles, build/vendor, minified, raw logs.
+5. Delegate bulk scouting, long logs, >3 images, web research to subagents; >=5-file jobs to `lean-workflow`.
+6. Narrowest check first; diagnose before retrying; brief replies; suggest `/handoff` near 100k.

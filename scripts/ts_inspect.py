@@ -6,6 +6,7 @@ Referenced just-in-time in read_hook.pl deny reasons so huge structured/rich fil
 can be inspected cleanly at 90-99.8% fewer tokens with zero information loss.
 """
 
+import ast
 import csv
 import html.parser
 import json
@@ -243,9 +244,49 @@ def cmd_schema(path: str, args: list[str]) -> int:
     return 0
 
 
+def cmd_outline(path: str, args: list[str]) -> int:
+    """Compact structural symbol outline with exact L<start>-L<end> spans (stdlib only)."""
+    p = Path(path)
+    src = p.read_text(encoding="utf-8", errors="replace")
+    lines = src.splitlines()
+    ext = p.suffix.lower()
+    hits: list[str] = []
+    if ext == ".py":
+        try:
+            tree = ast.parse(src)
+            for node in tree.body:
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                    end = getattr(node, "end_lineno", node.lineno)
+                    kind = "class" if isinstance(node, ast.ClassDef) else ("async def" if isinstance(node, ast.AsyncFunctionDef) else "def")
+                    hits.append(f"L{node.lineno}-{end}: {kind} {node.name}")
+                    if isinstance(node, ast.ClassDef):
+                        for sub in node.body:
+                            if isinstance(sub, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                                send = getattr(sub, "end_lineno", sub.lineno)
+                                sk = "async def" if isinstance(sub, ast.AsyncFunctionDef) else "def"
+                                hits.append(f"  L{sub.lineno}-{send}: {sk} {sub.name}")
+        except SyntaxError:
+            pass
+    if not hits:
+        pat = re.compile(
+            r"^\s*(?:export\s+)?(?:default\s+)?(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?"
+            r"(?:fn|func|sub|class|struct|enum|trait|impl|interface|type|def|function|const\s+\w+\s*=\s*(?:async\s*)?\()\b"
+        )
+        for i, line in enumerate(lines, 1):
+            if pat.match(line):
+                hits.append(f"L{i}: {line.strip()[:110]}")
+    print(f"# Outline: {p.name} ({len(lines)} lines, {len(hits)} symbols)")
+    for h in hits[:120]:
+        print(" ", h)
+    if len(hits) > 120:
+        print(f"  ... (+{len(hits) - 120} more symbols)")
+    return 0
+
+
 CMDS = {
     "ipynb": cmd_ipynb, "json": cmd_json, "csv": cmd_csv, "svg": cmd_svg,
-    "har": cmd_har, "sql": cmd_sql, "sqlite": cmd_sqlite, "html": cmd_html, "schema": cmd_schema,
+    "har": cmd_har, "sql": cmd_sql, "sqlite": cmd_sqlite, "html": cmd_html,
+    "schema": cmd_schema, "outline": cmd_outline,
 }
 
 
