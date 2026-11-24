@@ -430,6 +430,44 @@ class TestMcpAppModules(unittest.TestCase):
         self.assertIn("Pass Rate", summary_txt)
         self.assertIn("LOSS >2pp", summary_txt)
 
+    def test_installer_doctor_and_perl_wiring(self) -> None:
+        sys.path.insert(0, str(ROOT))
+        import install as inst
+
+        pdir = self.tmp / "pdir"
+        (pdir / "mcp_app").mkdir(parents=True)
+        (pdir / "scripts").mkdir(parents=True)
+        (pdir / "plugin.json").write_text(json.dumps({"version": "1.2.1"}), encoding="utf-8")
+        (pdir / "mcp_app" / "server.py").write_text("# srv\n", encoding="utf-8")
+        (pdir / "scripts" / "read_hook.pl").write_text("# hook\n", encoding="utf-8")
+        (pdir / "hooks.json").write_text(
+            json.dumps({"r": {"PreToolUse": [{"matcher": "read_file", "hooks": [{"type": "command", "command": "perl ./scripts/read_hook.pl"}]}]}}),
+            encoding="utf-8",
+        )
+        # Verify _wire_hooks_perl replaces leading "perl " cleanly with explicit path
+        changed = inst._wire_hooks_perl(pdir, r"C:\Program Files\Git\usr\bin\perl.exe")
+        self.assertTrue(changed)
+        wired = json.loads((pdir / "hooks.json").read_text(encoding="utf-8"))
+        self.assertIn("Git", wired["r"]["PreToolUse"][0]["hooks"][0]["command"])
+
+        # Restore plain "perl ./scripts/..." and verify run_doctor succeeds on valid env
+        (pdir / "hooks.json").write_text(
+            json.dumps({"r": {"PreToolUse": [{"matcher": "read_file", "hooks": [{"type": "command", "command": "perl ./scripts/read_hook.pl"}]}]}}),
+            encoding="utf-8",
+        )
+        lines: list[str] = []
+        with mock.patch.object(inst, "PLUGIN_DIR", pdir), mock.patch.object(inst, "DATA_DIR", self.tmp / "pdata"):
+            rc = inst.run_doctor(log=lines.append)
+        self.assertEqual(rc, 0, "\n".join(lines))
+        self.assertTrue(any("Hook registration" in ln and "[OK  ]" in ln for ln in lines))
+
+        # Missing plugin dir causes run_doctor to return 1 with Fix guidance
+        lines_bad: list[str] = []
+        with mock.patch.object(inst, "PLUGIN_DIR", self.tmp / "missing_pdir"), mock.patch.object(inst, "DATA_DIR", self.tmp / "pdata"):
+            rc_bad = inst.run_doctor(log=lines_bad.append)
+        self.assertEqual(rc_bad, 1)
+        self.assertTrue(any("Fix:" in ln for ln in lines_bad))
+
 
 if __name__ == "__main__":
     unittest.main()

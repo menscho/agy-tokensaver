@@ -25,7 +25,7 @@ Download `agy-tokensaver-v1.2.1.zip` from **[Releases](https://github.com/mensch
 - **macOS:** `Install-TokenSaver.command`
 - **Linux / CLI:** `python3 install.py` (or `python3 install.py --remote`)
 
-Restart Antigravity and open **agy-tokensaver** in the sidebar. Uninstall with `python3 install.py --uninstall` (add `--purge-stats` to delete `~/.gemini/antigravity/plugin_data/token-saver/`).
+Restart Antigravity and open **agy-tokensaver** in the sidebar. Verify setup anytime with `python3 install.py --doctor` (auto-detects Git-for-Windows Perl on Windows), and uninstall with `python3 install.py --uninstall` (`--purge-stats` deletes `~/.gemini/antigravity/plugin_data/token-saver/`).
 
 ## Is it safe?
 
