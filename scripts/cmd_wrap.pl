@@ -784,7 +784,31 @@ sub compress_build {
         return @$d ? tail_weighted_cap($d, 25, 40) : [@{$lines}[(@$lines > 12 ? -12 : -@$lines) .. -1]];
     } else {
         my @kept = grep { $_ !~ $noise || $_ =~ /error|fail|fatal|undefined/i } @$lines;
-        return tail_weighted_cap(fold_stack_frames(dedupe_consecutive(\@kept)), 40, 120);
+        my $ded = fold_stack_frames(dedupe_consecutive(\@kept));
+        # RTK-inspired compiler error grouping when build fails with >60 diagnostic lines
+        if (@$ded > 60) {
+            my (%seen, %supp, @out);
+            for my $l (@$ded) {
+                if ($l eq '' || $l =~ /(?:aborting due to|error: could not compile|Found \d+ error|BUILD FAILED)/i) {
+                    push @out, $l;
+                    next;
+                }
+                my $k = $l; $k =~ s/^\s+//; $k =~ s/:\d+(?::\d+)?/:L/g; $k =~ s/\(\d+,\d+\)/(L)/g;
+                $seen{$k}++;
+                if ($seen{$k} <= 4) { push @out, $l; } else { $supp{$k}++; }
+            }
+            if (%supp) {
+                $LOSSY = 1;
+                push @out, '--- Repeated compiler errors collapsed ---';
+                my @top = sort { $supp{$b} <=> $supp{$a} } keys %supp;
+                for my $k (@top[0 .. ($#top > 4 ? 4 : $#top)]) {
+                    my $sk = length($k) > 110 ? substr($k, 0, 107) . '...' : $k;
+                    push @out, "  (+$supp{$k} more) $sk";
+                }
+                return tail_weighted_cap(\@out, 40, 120);
+            }
+        }
+        return tail_weighted_cap($ded, 40, 120);
     }
 }
 
@@ -1096,10 +1120,11 @@ sub compress_http {
         return $crushed if defined $crushed;
         return tail_weighted_cap(json_ws_compact(\@kept), 60, 40);
     }
-    # Strip HTML script/style/svg/comments if HTML response > 4KB
+    # Strip HTML script/style/svg/comments + inline style attrs if HTML response > 4KB
     if (length($joined) > 4096 && $joined =~ /<(?:!doctype\s+html|html\b)/i) {
         $joined =~ s/<(script|style|svg)\b[^>]*>.*?<\/\1>//gis;
         $joined =~ s/<!--.*?-->//gs;
+        $joined =~ s/\s+style="[^"]{20,}"//gi;
         $LOSSY = 1;
         my @hl = grep { /\S/ } map { s/[ \t]+/ /g; s/^\s+|\s+$//g; $_ } split(/\n/, $joined);
         return tail_weighted_cap(\@hl, 60, 40);
@@ -1616,6 +1641,10 @@ if ($pid == 0) {
     open(STDOUT, '>&', $wr) or _exit(127);
     open(STDERR, '>&', $wr) or _exit(127);
     close($wr);
+    # RTK ANSI-free env hygiene: prevent color escapes & interactive pagers at the source
+    $ENV{NO_COLOR}  = '1'    unless defined $ENV{NO_COLOR};
+    $ENV{CLICOLOR}  = '0'    unless defined $ENV{CLICOLOR};
+    $ENV{GIT_PAGER} = 'cat'  unless defined $ENV{GIT_PAGER};
     exec('bash', '-c', $orig_cmd);
     exit 127;
 }

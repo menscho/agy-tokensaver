@@ -176,18 +176,18 @@ hook cmd_hook.pl "$(tj 4)" "--cat test" "loop breaker: 1-retry escape hatch allo
 ml_cmd='echo "=== STATUS ===" && ps aux && echo "=== LOGS ===" && journalctl -n 50'
 hook cmd_hook.pl "$("$PY" -c 'import json,sys; print(json.dumps({"toolInput":{"CommandLine":sys.argv[1],"Cwd":sys.argv[2]}}))' "$ml_cmd" "$T")" "--cat chain" "multiline diagnostic banner chain wraps"
 
-# 16. 2-Mode config profile (zero_loss vs small_loss)
-"$PY" - "$ROOT/mcp_app" "$T/cfgdata" <<'PYEOF' && ok || bad "2-mode profile zero_loss vs small_loss" "failed"
+# 16. 2-Mode config profile (max default small_loss -> zero_loss -> small_loss)
+"$PY" - "$ROOT/mcp_app" "$T/cfgdata" <<'PYEOF' && ok || bad "2-mode profile default small_loss vs zero_loss" "failed"
 import os, sys
 os.environ["PLUGIN_DATA"] = sys.argv[2]
 sys.path.insert(0, sys.argv[1])
 import core
 c0 = core.load_config()
-assert c0["profile"] == "zero_loss" and c0["mode"] == "prepare_only" and not c0["compact_reads"] and not c0["concise_output"], c0
-c1 = core.save_config({"profile": "small_loss"})
-assert c1["profile"] == "small_loss" and c1["mode"] == "smart_auto" and c1["compact_reads"] and c1["concise_output"], c1
-c2 = core.save_config({"profile": "zero_loss"})
-assert c2["profile"] == "zero_loss" and c2["mode"] == "prepare_only" and not c2["compact_reads"] and not c2["concise_output"], c2
+assert c0["profile"] == "small_loss" and c0["mode"] == "smart_auto" and c0["compact_reads"] and c0["concise_output"], c0
+c1 = core.save_config({"profile": "zero_loss"})
+assert c1["profile"] == "zero_loss" and c1["mode"] == "prepare_only" and not c1["compact_reads"] and not c1["concise_output"], c1
+c2 = core.save_config({"profile": "small_loss"})
+assert c2["profile"] == "small_loss" and c2["mode"] == "smart_auto" and c2["compact_reads"] and c2["concise_output"], c2
 PYEOF
 
 # 17. Deterministic content-addressed spillback filename (arXiv:2601.06007 cache stability)
@@ -240,6 +240,27 @@ p.terminate(); p.wait(timeout=5)
 names = [t["name"] for t in r["result"]["tools"]]
 assert names == sorted(names) and len(names) >= 5, names
 PYEOF
+
+# 21. Duplicate image read guard (0% loss)
+printf '\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x01\x00\x00\x00\x01\x00\x08\x02\x00\x00\x00' > "$T/shot.png"
+o1=$(perl "$S/read_hook.pl" <<< "$(printf '{"toolInput":{"Path":"%s"},"conversationId":"imgc1","stepIdx":1}' "$T/shot.png")")
+o2=$(perl "$S/read_hook.pl" <<< "$(printf '{"toolInput":{"Path":"%s"},"conversationId":"imgc1","stepIdx":3}' "$T/shot.png")")
+[[ "$o1" == '{"decision":"allow"}' && "$o2" == *'"decision":"deny"'* ]] && ok || bad "duplicate image read guard" "o1=$o1 o2=$o2"
+
+# 22. New zero-loss command wrappers: ps -eo, ls -la && find chain, multi-cmd ssh dump
+hook cmd_hook.pl "$(printf '{"toolInput":{"CommandLine":"ps -eo pid,pcpu,args | grep python","Cwd":"%s"}}' "$T")" "--cat ps" "ps -eo wraps"
+hook cmd_hook.pl "$(printf '{"toolInput":{"CommandLine":"ls -la && find . -maxdepth 3","Cwd":"%s"}}' "$T")" "--cat find" "ls -la && find chain wraps"
+hook cmd_hook.pl "$(printf '{"toolInput":{"CommandLine":"export FOO=1 && mkdir -p dist && pytest","Cwd":"%s"}}' "$T")" "--cat test" "export + mkdir + pytest chain wraps"
+hook cmd_hook.pl "$(printf '{"toolInput":{"CommandLine":"ssh vps '\''uname -a; cat /etc/os-release; ls -la /var/log; uptime; free -m; df -h; cat /proc/meminfo'\''","Cwd":"%s"}}' "$T")" "--cat ssh" "multi-command ssh diagnostic dump wraps"
+
+# 23. RTK compiler error grouping in compress_build
+"$PY" - <<'PYEOF' > "$T/tsc.err"
+for i in range(1, 80):
+    print(f"src/app.ts:{i}:12 - error TS2322: Type 'string' is not assignable to type 'number'.")
+print("Found 79 errors in 1 file.")
+PYEOF
+o=$($W --cat build --test-stdin --test-rc 1 < "$T/tsc.err")
+[[ "$o" == *"Repeated compiler errors collapsed"* && "$o" == *"(+75 more)"* ]] && ok || bad "RTK compiler error grouping in compress_build" "$(head -c 300 <<<"$o")"
 
 printf 'PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
 [[ $FAIL -eq 0 ]]

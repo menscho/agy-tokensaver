@@ -696,8 +696,9 @@ sub classify_segment {
         $sub2 = $args[1] // '';
     }
 
-    # Silent-on-success steps that may appear inside build/test chains
-    return ('_setup', undef, undef) if ($bin eq 'cargo' && $sub eq 'fmt') || ($bin eq 'go' && $sub eq 'fmt') || $bin =~ /^(?:gofmt|rustfmt)$/ ||
+    # Silent-on-success steps that may appear inside build/test/diagnostic chains
+    return ('_setup', undef, undef) if $bin =~ /^(?:export|set|unset|mkdir|rm|cp|mv|chmod|touch|sleep|true|false|:)$/ ||
+        ($bin eq 'cargo' && $sub eq 'fmt') || ($bin eq 'go' && $sub eq 'fmt') || $bin =~ /^(?:gofmt|rustfmt)$/ ||
         ($bin eq 'git' && $sub =~ /^(?:add|commit|checkout|switch|stash|fetch|push|pull|tag|mv|rm|restore|reset)$/);
 
     # Long-running servers / watchers: output never "finishes" -> never buffer behind the wrapper
@@ -731,11 +732,13 @@ sub classify_segment {
         # Never wrap streaming follow commands inside ssh
         return ('', undef, undef) if $rem =~ /\b(?:tail|journalctl|docker\s+(?:compose\s+)?logs|kubectl\s+logs|dmesg|less)\b[^\n;|&]*(?:\s-[a-zA-Z]*[fF]\b|--follow\b)/;
         return ('', undef, undef) if $rem =~ /\b(?:watch|top|htop)\b(?![^\n;|&]*\s-b)|\bpm2\s+(?:logs|monit)\b(?![^\n;|&]*--nostream)/;
-        # Read-only / status remote commands: the model asked for exactly this content, outputs are
-        # small or would be cut by Antigravity natively; a wrap only adds the ~23-token notice.
+        # Short read-only probes (<=2 cmds, <120 chars): pass through to avoid 23-tok wrap notice.
+        # Multi-command SSH diagnostic dumps (>=3 cmds or >=120 chars) wrap via --cat ssh (9.9KB lossless guard).
         my $all_read = 1;
+        my $n_rparts = 0;
         for my $p (split(/\s*(?:&&|\|\||[;|\n])\s*/, $rem)) {
             next if $p !~ /\S/;
+            $n_rparts++;
             $p =~ s/^\s*(?:(?:sudo|env|nice|timeout\s+\d+\S*)\s+(?:-\S+\s+)*)*(?:[A-Za-z_]\w*=\S*\s+)*//;
             my ($w) = $p =~ /^(\S+)/;
             $w = base_name($w // '');
@@ -750,7 +753,7 @@ sub classify_segment {
             $all_read = 0;
             last;
         }
-        return ('', undef, undef) if $all_read;
+        return ('', undef, undef) if $all_read && $n_rparts <= 2 && length($rem) < 120;
         return ('ssh', undef, undef);
     }
 
@@ -1063,7 +1066,7 @@ sub classify_segment {
         return ('cloud', undef, undef);
     }
     if ($bin eq 'ps') {
-        return ('ps', undef, undef) if $arg_str =~ /(?:^|\s)(?:aux|-ef|-eF|-el|-e|-A|ax)(?:\s|$)/;
+        return ('ps', undef, undef) if $arg_str =~ /(?:^|\s)(?:aux|-ef|-eF|-el|-e|-A|ax|-eo|-o)(?:\s|$|=)/;
         return ('', undef, undef);
     }
     if ($bin eq 'ls') {
@@ -1206,8 +1209,8 @@ if (@segs == 1) {
             exit 0;
         }
         if ($c eq '') {
-            # Allow section-header echo/printf banners (e.g. echo "=== STATUS ===") inside multi-step chains
-            if ($target_s =~ /^(?:echo|printf)\s+.*(?:===|---)/) {
+            # Allow section-header echo/printf banners and lightweight status steps inside multi-step chains
+            if ($target_s =~ /^(?:echo|printf)\s+.*(?:===|---)/ || $target_s =~ /^(?:ls|pwd|uname|date|whoami|id)(?:\s|$)/) {
                 push @cats, '_setup';
                 push @new_segs, $s;
                 next;

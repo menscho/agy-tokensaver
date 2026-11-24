@@ -52,34 +52,34 @@ def render_two_mode(m: dict) -> str:
     a(f'  <text x="32" y="56" class="t" font-size="11.5" fill="{SUB}">python3 scripts/benchmark.py --modes · exact per-turn tokens (1× in + 0.05× cache + 6× out) · {m["overhead_tok_per_turn"]} tok/turn prompt overhead charged</text>')
 
     # Two summary cards at top
-    # Card 1: Mode 1 Zero Quality Loss
-    a(f'  <rect x="32" y="74" width="436" height="106" rx="10" fill="{CARD}" stroke="{BORDER}"/>')
-    a(f'  <text x="48" y="96" class="t" font-size="12" font-weight="500" fill="{GREEN}">MODE 1 · ZERO QUALITY LOSS (DEFAULT)</text>')
-    a(f'  <text x="452" y="96" class="m" font-size="11" fill="{GREEN}" text-anchor="end">0.0% quality loss</text>')
-    a(f'  <text x="48" y="130" class="m" font-size="22" font-weight="500" fill="{TXT}">{-m1_tot:+.1f}% avg quota</text>')
-    a(f'  <text x="452" y="128" class="m" font-size="12" fill="{SUB}" text-anchor="end">-76.4% noisy tasks</text>')
-    a(f'  <text x="48" y="152" class="t" font-size="11.5" fill="{SUB}">{base["saved_tool_tok"]:,} tool tokens removed · lossless JSON CSV, grep/SSH hoisting,</text>')
-    a(f'  <text x="48" y="168" class="t" font-size="11.5" fill="{DIM}">Merlin chunk dedupe, loop breaker, PowerShell tables, Archive-Only handoffs</text>')
+    # Card 1: Mode 2 Small Quality Loss (DEFAULT / MAX SAVINGS)
+    a(f'  <rect x="32" y="74" width="436" height="106" rx="10" fill="{CARD}" stroke="{GREEN}"/>')
+    a(f'  <text x="48" y="96" class="t" font-size="12" font-weight="500" fill="{GREEN}">MODE 2 · SMALL QUALITY LOSS (DEFAULT / MAX)</text>')
+    a(f'  <text x="452" y="96" class="m" font-size="11" fill="{AMBER}" text-anchor="end">~0.1–1.0% risk</text>')
+    a(f'  <text x="48" y="130" class="m" font-size="22" font-weight="500" fill="{TXT}">-{m2_live_c20:.1f}% to -{m2_live_c35:.1f}%</text>')
+    a(f'  <text x="452" y="128" class="m" font-size="12" fill="{SUB}" text-anchor="end">up to -{m2_ub_c35:.1f}% UB</text>')
+    a(f'  <text x="48" y="152" class="t" font-size="11.5" fill="{SUB}">{comp["saved_tool_tok"]:,} tool tok cut · Cold-Cache + Live Auto-Handoff (-{m2_live:.1f}%)</text>')
+    a(f'  <text x="48" y="168" class="t" font-size="11.5" fill="{DIM}">+ Compact Reads + Image Downscale + Concise Output (-20%..-35%*)</text>')
 
-    # Card 2: Mode 2 Small Quality Loss
+    # Card 2: Mode 1 Zero Quality Loss (Strict 1-Click Mode)
     a(f'  <rect x="492" y="74" width="436" height="106" rx="10" fill="{CARD}" stroke="{BORDER}"/>')
-    a(f'  <text x="508" y="96" class="t" font-size="12" font-weight="500" fill="{AMBER}">MODE 2 · SMALL QUALITY LOSS (OPT-IN)</text>')
-    a(f'  <text x="912" y="96" class="m" font-size="11" fill="{AMBER}" text-anchor="end">~0.1–1.0% risk</text>')
-    a(f'  <text x="508" y="130" class="m" font-size="22" font-weight="500" fill="{TXT}">-{m2_live_c20:.1f}% to -{m2_live_c35:.1f}%</text>')
-    a(f'  <text x="912" y="128" class="m" font-size="12" fill="{SUB}" text-anchor="end">up to -{m2_ub_c35:.1f}% UB</text>')
-    a(f'  <text x="508" y="152" class="t" font-size="11.5" fill="{SUB}">{comp["saved_tool_tok"]:,} tool tokens cut · Anchored Auto-Handoff (-{m2_live:.1f}% exact live)</text>')
-    a(f'  <text x="508" y="168" class="t" font-size="11.5" fill="{DIM}">+ Compact Reads (120L/140L) + Concise Output (-20%..-35% on 6× output*)</text>')
+    a(f'  <text x="508" y="96" class="t" font-size="12" font-weight="500" fill="{SUB}">MODE 1 · ZERO QUALITY LOSS (STRICT)</text>')
+    a(f'  <text x="912" y="96" class="m" font-size="11" fill="{GREEN}" text-anchor="end">0.0% quality loss</text>')
+    a(f'  <text x="508" y="130" class="m" font-size="22" font-weight="500" fill="{TXT}">{-m1_tot:+.1f}% avg quota</text>')
+    a(f'  <text x="912" y="128" class="m" font-size="12" fill="{SUB}" text-anchor="end">-76.4% noisy tasks</text>')
+    a(f'  <text x="508" y="152" class="t" font-size="11.5" fill="{SUB}">{base["saved_tool_tok"]:,} tool tok cut · JSON CSV, RTK error grouping, SSH/grep hoist,</text>')
+    a(f'  <text x="508" y="168" class="t" font-size="11.5" fill="{DIM}">Merlin chunk dedupe, image/loop guards, cache-safe prefixes, Archive Only</text>')
 
     # Horizontal comparison bars (50% max scale)
     bar_x0, bar_w, vmax = 290, 520, 50.0
     scale = bar_w / vmax
     top_y = 224
     rows = [
-        ("Mode 1 · Zero Quality Loss", f"Exact replay · 0.0% quality loss (all {m['n']} chats)", m1_tot, None, GREEN, "exact"),
+        ("Mode 1 · Zero Quality Loss", f"Exact replay · 0.0% loss (all {m['n']} chats, Archive Only)", m1_tot, None, "#86efac", "exact"),
         ("Mode 2 · Compact Reads only", "Exact replay · ~0.1–0.5% risk (Auto-Handoff OFF)", m2_cr, None, "#86efac", "exact"),
         ("Mode 2 · + Concise Output*", "Modeled -20%..-35% on 6× output · ~0.1% prose risk", round(m2_cr + c20, 1), round(m2_cr + c35, 1), AMBER, "band"),
-        ("Mode 2 · + Auto-Handoff (Live)", "Exact causal replay · ~0.5–1% mid-debug risk", m2_live, None, GREEN, "exact"),
-        ("Mode 2 · Full (Live + All)*", "Exact live handoff + Compact Reads + Concise Output", m2_live_c20, m2_live_c35, GREEN, "band"),
+        ("Mode 2 · + Cold/Live Handoff", "Exact causal replay · warm + cold-cache rollovers", m2_live, None, GREEN, "exact"),
+        ("Mode 2 · DEFAULT (Live + All)*", "Default ON: Cold/Live Handoff + Compact + Concise", m2_live_c20, m2_live_c35, GREEN, "band"),
         ("Mode 2 · Full (Upper Bound)*", "Phase-switch resets + Compact Reads + Concise Output", m2_ub_c20, m2_ub_c35, "#34d399", "band"),
     ]
 

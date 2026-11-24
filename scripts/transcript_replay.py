@@ -536,15 +536,13 @@ def quota(turns: list[tuple[int, int, int]]) -> float:
     return sum(a * W_IN + b * W_CR + c * W_OUT for a, b, c in turns)
 
 
-def settled_flags(sess: dict) -> list[bool] | None:
-    """Per-generation flags: could the LIVE rollover tick fire right after this generation?
-    (agent run finished, nothing pending in the background, user-driven chat; see core._settled_flags).
-    Aligned to the session's token turns exactly like core._build_session_record."""
+def settled_flags_and_gaps(sess: dict) -> tuple[list[bool] | None, list[float | None] | None, int]:
+    """Per-generation live-tick eligibility, inter-turn idle gaps (s), and measured TTL cliff."""
     if not hasattr(core, "_settled_flags"):
-        return None
+        return None, None, 150
     tx, _db = core._session_paths(sess["app_path"], sess["id"])
     if tx is None:
-        return [False] * len(sess["turns"])
+        return [False] * len(sess["turns"]), None, 150
     scan = core._scan_transcript(tx)
     planners = scan["planners"]
     meta: list = []
@@ -553,17 +551,29 @@ def settled_flags(sess: dict) -> list[bool] | None:
     else:
         off = len(planners) - len(sess["turns"])
         meta = [planners[r + off] if 0 <= r + off < len(planners) else None for r in range(len(sess["turns"]))]
-    meta = (meta + [None] * len(sess["turns"]))[:len(sess["turns"])]
-    return core._settled_flags(meta, scan["users"] > 0)
+    n = len(sess["turns"])
+    meta = (meta + [None] * n)[:n]
+    last_model = next((p["model"] for p in reversed(planners) if p.get("model")), "")
+    ttl_cliff = 90 if "hydrogen" in last_model.lower() else 150
+    gaps: list[float | None] = []
+    for k in range(n):
+        t0 = meta[k].get("ts") if meta[k] else None
+        t1 = meta[k + 1].get("ts") if k + 1 < n and meta[k + 1] else None
+        gaps.append(max(0.0, t1 - t0) if (t0 and t1 and t1 >= t0) else None)
+    return core._settled_flags(meta, scan["users"] > 0), gaps, ttl_cliff
+
+
+def settled_flags(sess: dict) -> list[bool] | None:
+    return settled_flags_and_gaps(sess)[0]
 
 
 def rollover_quota(turns: list[tuple[int, int, int]], policy: str = "auto", settled: list[bool] | None = None,
-                   cfg: dict | None = None) -> tuple[float, int]:
+                   cfg: dict | None = None, gaps: list[float | None] | None = None, ttl_cliff: int = 150) -> tuple[float, int]:
     """policy 'auto' = shipped adaptive policy; 'v1' = v1.0.0 behaviour (fixed 110k cap).
     settled=None -> UPPER BOUND (rollover allowed after any generation, i.e. mid agent run)."""
     cap = 110_000 if policy == "v1" else None
     try:
-        si, sc, nroll = core._simulate_rollover_session(turns, cap, settled=settled, cfg=cfg)
+        si, sc, nroll = core._simulate_rollover_session(turns, cap, settled=settled, cfg=cfg, gaps=gaps, ttl_cliff=ttl_cliff)
     except TypeError:   # v1.0.0 core: oracle simulator, no live gating
         si, sc, nroll = core._simulate_rollover_session(turns, 110_000)
     return si * W_IN + sc * W_CR + sum(t[2] for t in turns) * W_OUT, nroll
@@ -603,15 +613,15 @@ def run(detail: bool = False, json_out: str | None = None, quiet: bool = False, 
             adj, extra = apply_savings(s["turns"], r["saved_by_turn"], r["retries_by_turn"], s["checkpoints"], overhead_tok)
             q0 = quota(s["turns"])
             qh = quota(adj) + extra
-            settled = settled_flags(s)
+            settled, gaps, ttl_cliff = settled_flags_and_gaps(s)
             cfg = None
             if policy == "auto" and hasattr(core, "continuation_probability"):
                 cfg = {**core._SIM_CFG, "p_continue": core.continuation_probability(recs, exclude=s["id"])}
-            qr, nr = rollover_quota(s["turns"], policy, settled, cfg)            # live (causal, gated)
-            qhr, nhr = rollover_quota(adj, policy, settled, cfg)
+            qr, nr = rollover_quota(s["turns"], policy, settled, cfg, gaps, ttl_cliff)            # live (causal, gated + cold-cache)
+            qhr, nhr = rollover_quota(adj, policy, settled, cfg, gaps, ttl_cliff)
             qhr += extra
-            qru, _ = rollover_quota(s["turns"], policy, None, cfg)               # upper bound
-            qhru, _ = rollover_quota(adj, policy, None, cfg)
+            qru, _ = rollover_quota(s["turns"], policy, None, cfg, gaps, ttl_cliff)               # upper bound
+            qhru, _ = rollover_quota(adj, policy, None, cfg, gaps, ttl_cliff)
             qhru += extra
             rows.append({
                 "id": s["id"], "app": s["app"], "src": s["src"], "turns": len(s["turns"]),
@@ -716,11 +726,11 @@ def run_modes(policy: str = "auto", json_out: str | None = None) -> dict:
     print(f"Quota mix: Input {tot_in*W_IN/q_tot*100:.1f}% | Cache read {tot_cr*W_CR/q_tot*100:.1f}% | Output (6x) {out_share:.1f}% | Prompt overhead: {base['overhead_tok_per_turn']} tok/turn\n")
     print(f"{'Mode':46s} | {'Quality Loss':14s} | {'Tool Tok Cut':>12s} | {'Avg Quota Saved':>15s}")
     print("-" * 97)
-    print(f"{'Mode 1: Zero Quality Loss (Default ON)':46s} | {'0.0%':14s} | {base['saved_tool_tok']:9,d} tk | {b_h:+14.1f}%")
+    print(f"{'Mode 1: Zero Quality Loss (Strict Opt-in)':46s} | {'0.0%':14s} | {base['saved_tool_tok']:9,d} tk | {b_h:+14.1f}%")
     print(f"{'Mode 2a: Small Loss — Compact Reads only':46s} | {'~0.1-0.5%':14s} | {comp['saved_tool_tok']:9,d} tk | {c_h:+14.1f}%")
     print(f"{'Mode 2b: Small Loss — + Concise Output*':46s} | {'~0.1% prose':14s} | {comp['saved_tool_tok']:9,d} tk | {c_h - c20:+6.1f}%..{c_h - c35:+.1f}%")
     print(f"{'Mode 2c: Small Loss — + Auto-Handoff Live':46s} | {'~0.5-1.0%**':14s} | {comp['saved_tool_tok']:9,d} tk | {c_live:+14.1f}%")
-    print(f"{'Mode 2 (Full): Live + Compact + Concise*':46s} | {'~0.1-1.0%**':14s} | {comp['saved_tool_tok']:9,d} tk | {c_live - c20:+6.1f}%..{c_live - c35:+.1f}%")
+    print(f"{'Mode 2 (DEFAULT / Max): Live + Compact + Conc*':46s} | {'~0.1-1.0%**':14s} | {comp['saved_tool_tok']:9,d} tk | {c_live - c20:+6.1f}%..{c_live - c35:+.1f}%")
     print(f"{'Mode 2 (Upper Bound, phase resets + Concise*)':46s} | {'~0.1-1.0%**':14s} | {comp['saved_tool_tok']:9,d} tk | {c_ub - c20:+6.1f}%..{c_ub - c35:+.1f}%")
     print("-" * 97)
     print("*  Concise Output (SoT arXiv:2503.05179 + Caveman-lite) modeled on real 6x output bucket (-20%..-35% conservative band).")

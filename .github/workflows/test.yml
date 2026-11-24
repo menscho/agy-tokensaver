@@ -35,7 +35,8 @@ jobs:
               srv.stdin.write(json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "open_token_saver", "arguments": {}}}) + "\n")
               srv.stdin.flush()
               r2 = json.loads(srv.stdout.readline())
-              assert r2["result"]["structuredContent"]["config"]["mode"] == "prepare_only"
+              assert r2["result"]["structuredContent"]["config"]["mode"] == "smart_auto"
+              assert r2["result"]["structuredContent"]["config"]["profile"] == "small_loss"
           finally:
               srv.terminate(); srv.wait(timeout=5)
           with tempfile.TemporaryDirectory() as td:

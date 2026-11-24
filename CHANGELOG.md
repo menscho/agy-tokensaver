@@ -23,7 +23,12 @@ All notable changes to **agy-tokensaver** (`menscho/agy-tokensaver`) are documen
   - **Cold-Cache Auto-Handoff & Snapshot/Auto Separation:** tracks `snapshotted_convs` separately from `rolled_convs` (upgrading an already-snapshotted chat from Mode 1 → Mode 2 now auto-rolls cleanly!), expands the settled rollover window (`20–600s`), and rolls already-cold `>=75k` chats for instant Turn-1 payback (`17k` vs `100k–450k` cold rebuild).
   - **Deterministic Prefixes:** content-addressed 12-hex FNV-1a spillback filenames in `cmd_wrap.pl` (zero timestamp/PID/random entropy), alphabetically sorted MCP `tools/list` + `sort_keys=True` in `mcp_app/server.py`, and `<90s` coordinator cache-TTL pacing in `swarm_hook.pl`.
   - **Honest Output Row & Cache-Drop Forensics:** removed the misleading chronological session output comparison (`+42.5%` bug) in `mcp_app/core.py` / `dashboard.html`; added live Cold-Cache Rollover banner and idle-vs-midrun cache-drop rebuild breakdown.
-- **308 assertions across 7 test suites** (`run_tests.sh`, `test_cmd_windows.sh`, `test_read.sh`, `test_rollover.sh`, `test_rules.sh`, `test_tools.sh`, `test_headroom_plexer.sh`) verified in 3-OS CI.
+- **Max Settings ON by Default (`profile: "small_loss"`):** ships out of the box with Cold-Cache + Live Anchored Auto-Handoff (`-18.5%` exact causal live), Compact Reads + Oversized Screenshot Downscaling, and Concise Output (`-24.7%` to `-29.3%` automatic, up to `-44.5%` with phase resets across 71 real sessions; `-83.3%` on 8-step noisy demo). Strict `Zero Quality Loss` (`0.0%` loss) remains 1 click away in the HUD.
+- **New RTK, Vision & Command-Recovery Upgrades:**
+  - **RTK-inspired compressors (`scripts/cmd_wrap.pl`):** `NO_COLOR=1`/`CLICOLOR=0`/`GIT_PAGER=cat` child env injection, compiler diagnostic grouping on failed builds (`tsc`/`cargo`/`rustc`), and inline `style=""` stripping on large HTML responses.
+  - **Command coverage recovery (`scripts/cmd_hook_core.pl`):** added `ps -eo`/`-o`, `export`/`set`/`mkdir`/`rm`/`cp`/`mv`/`chmod`/`touch` chain setup steps, `ls && find` chain recovery, and multi-command `ssh` diagnostic script wrapping.
+  - **Image guards (`scripts/read_hook.pl`):** zero-loss duplicate image read dedup + pure-Perl 0.1ms PNG/JPEG header reader auto-downscaling `>1568px` screenshots to `<=1280px` cached JPEG in Mode 2 (4–8× fewer vision tiles, fail-open).
+- **314 assertions across 7 test suites** (`run_tests.sh`, `test_cmd_windows.sh`, `test_read.sh`, `test_rollover.sh`, `test_rules.sh`, `test_tools.sh`, `test_headroom_plexer.sh`) verified in 3-OS CI.
 
 ## [1.0.0] — Initial Open-Source Release
 

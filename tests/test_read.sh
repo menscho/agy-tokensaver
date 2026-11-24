@@ -76,13 +76,13 @@ hook "$(rd "$T/a.py" c10 12 ',"StartLine":1,"EndLine":200')"  "$ALLOW" "covered 
 
 # --- 5. auto-cap then unbounded re-read -> next chunk instead of a dead-end deny
 seq 1 2000 | sed 's/^/line of code number /' > "$T/big.py"
-hook "$(rd "$T/big.py" c11 10)" '"StartLine":1,"EndLine":250' "big unbounded read capped to 1-250"
-hook "$(rd "$T/big.py" c11 12)" '"StartLine":251,"EndLine":500' "repeat unbounded read serves 251-500"
-hook "$(rd "$T/big.py" c11 14 ',"StartLine":100,"EndLine":400')" "$DENY" "1-500 now covered"
+hook "$(rd "$T/big.py" c11 10)" '"StartLine":1,"EndLine":120' "big unbounded read capped to 1-120 (max default)"
+hook "$(rd "$T/big.py" c11 12)" '"StartLine":121,"EndLine":240' "repeat unbounded read serves 121-240"
+hook "$(rd "$T/big.py" c11 14 ',"StartLine":50,"EndLine":200')" "$DENY" "1-240 now covered"
 
 # --- 6. full-file read then unbounded re-read -> deny; ≤4KB never deduped
-hook "$(rd "$T/a.py" c12 10)" "$ALLOW" "full read allowed"
-hook "$(rd "$T/a.py" c12 12)" "$DENY"  "unchanged full re-read denied"
+AGY_TS_COMPACT_READS=0 hook "$(rd "$T/a.py" c12 10)" "$ALLOW" "full read allowed"
+AGY_TS_COMPACT_READS=0 hook "$(rd "$T/a.py" c12 12)" "$DENY"  "unchanged full re-read denied"
 printf 'x = 1\n%.0s' $(seq 1 100) > "$T/small.py"
 hook "$(rd "$T/small.py" c12 13)" "$ALLOW" "small file first read"
 hook "$(rd "$T/small.py" c12 14)" "$ALLOW" "small (<=4KB) re-read never denied"

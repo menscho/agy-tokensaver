@@ -66,16 +66,16 @@ def _atomic_write_json(path: Path, obj: Any) -> None:
 
 def load_config() -> dict[str, Any]:
     default = {
-        "profile": "zero_loss",        # "zero_loss" (0% quality loss) | "small_loss" (~0.1-1% risk)
+        "profile": "small_loss",       # "small_loss" (~0.1-1% risk, default max savings) | "zero_loss" (0% loss)
         "auto_rollover": True,
-        "mode": "prepare_only",        # "prepare_only" (safe default) | "smart_auto" | "off"
+        "mode": "smart_auto",          # "smart_auto" (default max savings) | "prepare_only" | "off"
         "threshold_mode": "auto",      # "auto" | "75" | "90" | "110" | "140" | "180"
         "threshold_k": 110,
         "model": "inherit",
         "min_turns": 14,
         "cooldown_min": 20,
-        "compact_reads": False,
-        "concise_output": False,
+        "compact_reads": True,
+        "concise_output": True,
         "pending_concise_sync": False,
     }
     if not CFG_FILE.is_file():
@@ -84,11 +84,11 @@ def load_config() -> dict[str, Any]:
         d = json.loads(CFG_FILE.read_text(encoding="utf-8"))
         if isinstance(d, dict):
             auto_on = bool(d.get("auto_rollover", True))
-            mode = str(d.get("mode") or ("prepare_only" if auto_on else "off"))
+            mode = str(d.get("mode") or ("smart_auto" if auto_on else "off"))
             if mode not in ("smart_auto", "prepare_only", "off"):
-                mode = "prepare_only" if auto_on else "off"
-            compact_reads = bool(d.get("compact_reads", False))
-            concise_output = bool(d.get("concise_output", False))
+                mode = "smart_auto" if auto_on else "off"
+            compact_reads = bool(d.get("compact_reads", True))
+            concise_output = bool(d.get("concise_output", True))
             profile = str(d.get("profile") or ("small_loss" if (mode == "smart_auto" or compact_reads or concise_output) else "zero_loss"))
             if profile not in ("zero_loss", "small_loss"):
                 profile = "zero_loss"
@@ -180,7 +180,7 @@ def save_config(patch: dict[str, Any]) -> dict[str, Any]:
         return clean
 
 
-_CONCISE_RULE_LINE = "7. Concise mode (SoT/Caveman-lite): skip pleasantries, preambles, and pre/post-tool chatter; keep code, diffs, paths, errors, and root-cause debugging verbatim."
+_CONCISE_RULE_LINE = "7. Concise mode (SoT/TALE/Caveman-lite): skip pleasantries, preambles, and pre/post-tool chatter; keep code, diffs, paths, errors, and root-cause debugging verbatim."
 
 
 def _should_defer_concise_sync() -> bool:
@@ -695,6 +695,8 @@ def _simulate_rollover_session(
     cfg: dict[str, Any] | None = None,
     cold_start: int = COLD_START_TOK,
     detail: bool = False,
+    gaps: list[float | None] | None = None,
+    ttl_cliff: int = 150,
 ) -> Any:
     """
     Causal counterfactual: replays the session generation by generation and lets `rollover_policy`
@@ -768,7 +770,18 @@ def _simulate_rollover_session(
         sim_cr += tc
         conv.push(int(ti), int(tc), out)
         pol = rollover_policy(conv.features(), pcfg, cold_start, rediscovery_tax)
-        if pol["roll"] and (settled is None or (idx < len(settled) and settled[idx])):
+        is_settled_now = (settled is None) or (idx < len(settled) and settled[idx])
+        # Causal Cold-Cache Auto-Handoff (CADOC arXiv:2609.37012): if a settled >=75k chat sits
+        # idle past ttl_cliff (<=600s), its KV cache already expired before the next user turn.
+        g_after = gaps[idx] if (gaps is not None and idx < len(gaps)) else None
+        cold_roll = bool(
+            is_settled_now
+            and g_after is not None
+            and ttl_cliff <= g_after <= 600
+            and conv.ctx >= 75_000
+            and conv.turns >= 6
+        )
+        if (pol["roll"] and is_settled_now) or cold_roll:
             rollovers += 1
             rolled = True
             if detail:
@@ -857,9 +870,16 @@ def _build_session_record(sid: str, app_name: str, tx: Path | None, db: Path | N
 
     feat = tracker.features()
     ttl_cliff = 90 if "hydrogen" in last_model.lower() else 150
+    gaps: list[float | None] = []
+    for k in range(turns):
+        t0 = meta[k].get("ts") if k < len(meta) and meta[k] else None
+        t1 = meta[k + 1].get("ts") if k + 1 < len(meta) and meta[k + 1] else None
+        gaps.append(max(0.0, t1 - t0) if (t0 and t1 and t1 >= t0) else None)
     sim_cfg = {**_SIM_CFG, "p_continue": _p_continue(0, 0)}     # no cross-session history: prior
-    sim_in, sim_cr, sim_rollovers = _simulate_rollover_session(turn_tuples, None, settled=settled, cfg=sim_cfg)
-    ub_in, ub_cr, ub_rollovers = _simulate_rollover_session(turn_tuples, None)
+    sim_in, sim_cr, sim_rollovers = _simulate_rollover_session(
+        turn_tuples, None, settled=settled, cfg=sim_cfg, gaps=gaps, ttl_cliff=ttl_cliff,
+    )
+    ub_in, ub_cr, ub_rollovers = _simulate_rollover_session(turn_tuples, None, gaps=gaps, ttl_cliff=ttl_cliff)
 
     actual_quota = tot_in * W_IN + tot_cr * W_CR + tot_out * W_OUT
     sim_quota = sim_in * W_IN + sim_cr * W_CR + tot_out * W_OUT
