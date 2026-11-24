@@ -1,5 +1,11 @@
 #!/usr/bin/env perl
 use strict;
+use warnings;
+BEGIN {
+    my $d = $0; $d =~ s{[^/\\]*$}{}; $d = '.' if $d eq ''; $d =~ s{[/\\]+$}{};
+    unshift @INC, "$d/lib";
+}
+use TsJson;
 
 # PostToolUse edit tracker (inspired by @plexer/cli post-tool span invalidation).
 # Fires on edit_file / write_file / replace_file_content / multi_replace_file_content / write_to_file:
@@ -7,28 +13,14 @@ use strict;
 #   2) Drops stale entries for the edited file from reads/<cid>.tsv so read_hook.pl stays exact.
 # Always emits '{}' (0 tokens injected) and fails open on any error.
 
-my $raw = do { local $/; <STDIN> };
-if (!defined $raw || $raw eq '') { print '{}'; exit 0; }
+my $raw = TsJson::read_stdin_capped();
+my $doc = TsJson::decode_hook_input($raw);
+if (!defined $doc) { print '{}'; exit 0; }
 
-sub json_unescape {
-    my ($s) = @_;
-    $s =~ s{\\(?:(["\\/bfnrt])|u([0-9a-fA-F]{4}))}{
-        defined $1 ? (
-            $1 eq 'n' ? "\n" : $1 eq 'r' ? "\r" : $1 eq 't' ? "\t" :
-            $1 eq 'b' ? "\b" : $1 eq 'f' ? "\f" : $1
-        ) : chr(hex($2))
-    }ge;
-    return $s;
-}
-
-sub json_get_str {
-    my ($src, $key) = @_;
-    return undef unless $src =~ /"\Q$key\E"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/;
-    return json_unescape($1);
-}
-
-my $cid = json_get_str($raw, 'conversationId') // '';
+my $cid = TsJson::get_str($doc, 'conversationId') // '';
 if ($cid eq '') { print '{}'; exit 0; }
+
+my $ti = TsJson::tool_input($doc);
 
 eval {
     my $plugin_root = $ENV{PLUGIN_ROOT};
@@ -54,12 +46,12 @@ eval {
     unlink("$rdir/$scid.searches", "$rdir/$scid.lastblk");
 
     # 2. Invalidate read_hook history entries for the edited file path
-    my $path = json_get_str($raw, 'Path') // json_get_str($raw, 'TargetFile') // json_get_str($raw, 'AbsolutePath') // '';
+    my $path = TsJson::get_str($ti, 'Path', 'TargetFile', 'AbsolutePath') // '';
     if ($path ne '') {
         if ($path =~ m{^~([/\\].*)?$} && $home ne '') {
             $path = $home . ($1 // '');
         } elsif ($path !~ m{^(?:/|[A-Za-z]:[/\\]|\\\\)}) {
-            my $cwd = json_get_str($raw, 'cwd') // '';
+            my $cwd = TsJson::get_str($doc, 'cwd') // TsJson::get_str($ti, 'cwd') // '';
             $path = "$cwd/$path" if $cwd ne '';
         }
         (my $pk = $path) =~ s{\\}{/}g;

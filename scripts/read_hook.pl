@@ -1,7 +1,14 @@
 #!/usr/bin/env perl
 use strict;
+use warnings;
+BEGIN {
+    my $d = $0; $d =~ s{[^/\\]*$}{}; $d = '.' if $d eq ''; $d =~ s{[/\\]+$}{};
+    unshift @INC, "$d/lib";
+}
+use TsJson;
 
-# Zero-module PreToolUse anti-bloat guard for read_file / view_file.
+# PreToolUse anti-bloat guard for read_file / view_file.
+# - Decodes payload once via JSON::PP (TsJson).
 # - Resolves relative paths via cwd, expands ~, checks symlink targets.
 # - Supports ByteOffset (2.0) and ContentOffset (IDE view_file).
 # - Tier 1: blocks unbounded lockfiles, minified/single-line bundles, sourcemaps, binaries,
@@ -9,64 +16,26 @@ use strict;
 #   .snap, .tsbuildinfo, compile_commands.json, lcov.info, .tfstate*, sqlite DBs — with
 #   ts_inspect.py hints.
 # - Tier 2: transparent auto-cap via overwrite (0 retry turns!) for unbounded & partial-bound
-#   (StartLine-only / EndLine-only / span >400) large reads, spillback output.txt logs,
-#   multi-line .svg >20KB, and 16-48KB size+line-count hybrid (strictly verifying est_lines
-#   exceeds cap + 80 to beat the ~26-token overwrite notice).
+#   large reads, spillback output.txt logs, multi-line .svg >20KB, and 16-48KB hybrid caps.
 # - Honest telemetry: caps raw_bytes at 46,080 (read_file per-call limit).
 # - Dedupe (files >4KB): unchanged (mtime+size+MD5) slices already in context are denied with a
 #   short reason; a covered prefix/suffix is trimmed via overwrite to the missing lines only.
-#   "In context" = <=16 steps & same epoch, or any distance when the transcript proves no
-#   CHECKPOINT / >40% context drop happened since (see transcript_state()).
 
-my $raw = do { local $/; <STDIN> };
-if (!defined $raw || $raw eq '') { print '{"decision":"allow"}'; exit 0; }
+my $raw = TsJson::read_stdin_capped();
+my $doc = TsJson::decode_hook_input($raw);
+if (!defined $doc) { print '{"decision":"allow"}'; exit 0; }
+
+my $ti = TsJson::tool_input($doc);
+sub json_escape { return TsJson::json_escape(@_); }
 
 # Explicit ByteOffset / ContentOffset continuation -> pass through immediately
-if ($raw =~ /"(?:ByteOffset|ContentOffset)"\s*:\s*[1-9]\d*/) {
+my $boff = TsJson::get_int($ti, 'ByteOffset', 'ContentOffset');
+if (defined $boff && $boff > 0) {
     print '{"decision":"allow"}';
     exit 0;
 }
 
-sub json_unescape {
-    my ($s) = @_;
-    # \uXXXX (incl. surrogate pairs) -> UTF-8 bytes, so rewritten args stay valid UTF-8
-    $s =~ s{\\(?:(["\\/bfnrt])|u([dD][89abAB][0-9a-fA-F]{2})\\u([dD][c-fC-F][0-9a-fA-F]{2})|u([0-9a-fA-F]{4}))}{
-        defined $1 ? (
-            $1 eq 'n' ? "\n" : $1 eq 'r' ? "\r" : $1 eq 't' ? "\t" :
-            $1 eq 'b' ? "\b" : $1 eq 'f' ? "\f" : $1
-        ) : do {
-            my $c = defined $2 ? chr(0x10000 + ((hex($2) - 0xD800) << 10) + (hex($3) - 0xDC00)) : chr(hex($4));
-            utf8::encode($c); $c
-        }
-    }ge;
-    return $s;
-}
-
-sub json_escape {
-    my ($s) = @_;
-    $s =~ s/\\/\\\\/g;
-    $s =~ s/"/\\"/g;
-    $s =~ s/\n/\\n/g;
-    $s =~ s/\r/\\r/g;
-    $s =~ s/\t/\\t/g;
-    $s =~ s/([\x00-\x1f])/sprintf('\\u%04x', ord($1))/ge;
-    return $s;
-}
-
-sub json_get_str {
-    my ($src, $key) = @_;
-    return undef unless $src =~ /"\Q$key\E"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/;
-    return json_unescape($1);
-}
-
-sub json_get_int {
-    my ($src, $key) = @_;
-    return int($1) if $src =~ /"\Q$key\E"\s*:\s*"?(-?\d+)"?/;
-    return undef;
-}
-
-my $path = json_get_str($raw, 'Path');
-$path = json_get_str($raw, 'AbsolutePath') unless defined $path && $path ne '';
+my $path = TsJson::get_str($ti, 'Path', 'AbsolutePath');
 if (!defined $path || $path eq '') { print '{"decision":"allow"}'; exit 0; }
 
 # Expand ~ and resolve relative paths against cwd (handles Unix /, Windows C:\, and UNC \\)
@@ -74,7 +43,7 @@ if ($path =~ m{^~([/\\].*)?$}) {
     my $home = $ENV{HOME} // $ENV{USERPROFILE} // '';
     $path = $home . ($1 // '') if $home ne '';
 } elsif ($path !~ m{^(?:/|[A-Za-z]:[/\\]|\\\\)}) {
-    my $cwd = json_get_str($raw, 'cwd') // '';
+    my $cwd = TsJson::get_str($doc, 'cwd') // TsJson::get_str($ti, 'cwd') // '';
     $path = "$cwd/$path" if $cwd ne '';
 }
 
@@ -130,9 +99,9 @@ sub img_dims {
 # Multimedia / document formats natively handled by read_file (NO svg — read_file returns raw XML!)
 if ($check_path =~ /\.(?:png|jpe?g|gif|webp|ico|bmp|tiff?|pdf|mp4|mov|webm|avi|mkv|mp3|wav|ogg|m4a|flac|aac)$/i) {
     if ($check_path =~ /\.(?:png|jpe?g|gif|webp)$/i) {
-        my $cid  = json_get_str($raw, 'conversationId') // '';
-        my $tx   = json_get_str($raw, 'transcriptPath') // '';
-        my $step = json_get_int($raw, 'stepIdx');
+        my $cid  = TsJson::get_str($doc, 'conversationId') // '';
+        my $tx   = TsJson::get_str($doc, 'transcriptPath') // '';
+        my $step = TsJson::get_int($doc, 'stepIdx');
         my $pr   = $ENV{PLUGIN_ROOT};
         if (!$pr) { my $s = $0; $s = "$ENV{PWD}/$s" if $s !~ m{^/} && $ENV{PWD}; $s =~ s{/[^/]+/[^/]+$}{}; $pr = $s; }
         my $agy_pd = ($ENV{HOME} // '') . "/.gemini/antigravity/plugin_data";
@@ -228,7 +197,7 @@ if ($check_path =~ /\.(?:png|jpe?g|gif|webp|ico|bmp|tiff?|pdf|mp4|mov|webm|avi|m
                     }
                 }
                 if (-s $dst) {
-                    my $key = ($raw =~ /"AbsolutePath"\s*:/) ? 'AbsolutePath' : 'Path';
+                    my $key = (defined TsJson::get_str($ti, 'AbsolutePath')) ? 'AbsolutePath' : 'Path';
                     print '{"decision":"allow","overwrite":{"' . $key . '":"' . json_escape($dst) . '"}}';
                     exit 0;
                 }
@@ -247,8 +216,8 @@ my $mtime = $st[9];
 my $base = $check_path;
 $base =~ s{^.*[/\\]}{};
 
-my $start = json_get_int($raw, 'StartLine');
-my $end   = json_get_int($raw, 'EndLine');
+my $start = TsJson::get_int($ti, 'StartLine');
+my $end   = TsJson::get_int($ti, 'EndLine');
 my $has_both = (defined $start && defined $end && $end >= $start);
 my $span     = $has_both ? ($end - $start + 1) : 0;
 
@@ -338,7 +307,7 @@ sub log_event {
         $eff_raw = 0 if $eff_raw < 0;
         my $kept = int($kept_bytes // 0);
         my $saved = $eff_raw - $kept;
-        my $cid = json_get_str($raw, 'conversationId') // '';
+        my $cid = TsJson::get_str($doc, 'conversationId') // '';
         my $rec = sprintf(
             '{"ts":%d,"session_id":"%s","source":"read_guard","category":"%s","action":"%s","raw_bytes":%d,"kept_bytes":%d,"est_tokens_saved":%d,"file_bytes":%d,"target":"%s"}',
             time(), json_escape($cid), json_escape($detail), json_escape($action),
@@ -405,8 +374,8 @@ if ($size <= 4096) {
 # truncation ceiling are recorded, so lines truncated from an earlier read are never treated as seen.
 # Outcomes: fully covered -> short deny (nothing new to show); covered prefix/suffix -> transparent
 # overwrite to the missing lines only (0 retry turns); otherwise -> untouched.
-my $dup_step = json_get_int($raw, 'stepIdx');
-my $dup_cid  = json_get_str($raw, 'conversationId') // '';
+my $dup_step = TsJson::get_int($doc, 'stepIdx');
+my $dup_cid  = TsJson::get_str($doc, 'conversationId') // '';
 my $NEAR_STEPS     = 16;     # legacy window when the transcript cannot prove "no compaction since"
 my $TRIM_MIN_BYTES = 1536;   # only trim an overlap that removes far more than the 94B notice
 my $HIST_MAX       = 300;
@@ -458,7 +427,7 @@ sub load_hist {
     my $rdir = data_dir() . "/reads";
     my $rfile = "$rdir/$scid.tsv";
     # @plexer/cli-inspired compaction reset via initialNumSteps drop
-    my $init_steps = json_get_int($raw, 'initialNumSteps');
+    my $init_steps = TsJson::get_int($doc, 'initialNumSteps');
     if (defined $init_steps && $init_steps >= 0 && $scid ne '') {
         my $ifile = "$rdir/$scid.initsteps";
         my $prev_init;
@@ -492,7 +461,7 @@ sub transcript_state {
     return @tx_state if @tx_state;
     @tx_state = (0, -1);
     eval {
-        my $tx = json_get_str($raw, 'transcriptPath') // '';
+        my $tx = TsJson::get_str($doc, 'transcriptPath') // '';
         my $f = ($tx ne '' && -f $tx) ? $tx : undef;
         if (!defined $f && $dup_cid =~ /^[A-Za-z0-9_-]+$/) {
             my $home = $ENV{HOME} // $ENV{USERPROFILE} // '';

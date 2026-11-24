@@ -1,37 +1,27 @@
 #!/usr/bin/env perl
 use strict;
+use warnings;
 use Fcntl qw(:flock);
+BEGIN {
+    my $d = $0; $d =~ s{[^/\\]*$}{}; $d = '.' if $d eq ''; $d =~ s{[/\\]+$}{};
+    unshift @INC, "$d/lib";
+}
+use TsJson;
 
-# Zero-module Stop hook (incremental byte-offset scan).
+# Stop hook (incremental byte-offset scan).
 # - Acquires flock on sessions.lock to eliminate concurrent subagent race conditions.
 # - Preserves history safely on any parse error (never wipes sessions.json).
 # - Tracks real cache_hit_rate, warm_cache_hit_rate, cache_drops, tail_2049_hits,
 #   and output_per_turn in PLUGIN_DATA/sessions.json.
 # - Always emits '{}' to stdout (0 tokens injected, never blocks stop).
 
-my $raw = do { local $/; <STDIN> };
-if (!defined $raw || $raw eq '') { print '{}'; exit 0; }
+my $raw = TsJson::read_stdin_capped();
+my $doc = TsJson::decode_hook_input($raw);
+if (!defined $doc) { print '{}'; exit 0; }
 
-sub json_unescape {
-    my ($s) = @_;
-    $s =~ s{\\(?:(["\\/bfnrt])|u([0-9a-fA-F]{4}))}{
-        defined $1 ? (
-            $1 eq 'n' ? "\n" : $1 eq 'r' ? "\r" : $1 eq 't' ? "\t" :
-            $1 eq 'b' ? "\b" : $1 eq 'f' ? "\f" : $1
-        ) : chr(hex($2))
-    }ge;
-    return $s;
-}
-
-sub json_get_str {
-    my ($src, $key) = @_;
-    return undef unless $src =~ /"\Q$key\E"\s*:\s*"((?:\\.|[^"\\])*)"/;
-    return json_unescape($1);
-}
-
-my $tx   = json_get_str($raw, 'transcriptPath') // '';
-my $cid  = json_get_str($raw, 'conversationId') // '';
-my $term = json_get_str($raw, 'terminationReason') // '';
+my $tx   = TsJson::get_str($doc, 'transcriptPath') // '';
+my $cid  = TsJson::get_str($doc, 'conversationId') // '';
+my $term = TsJson::get_str($doc, 'terminationReason') // '';
 
 if ($tx eq '' || $cid eq '' || !-f $tx) { print '{}'; exit 0; }
 

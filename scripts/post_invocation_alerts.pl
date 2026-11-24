@@ -1,52 +1,29 @@
 #!/usr/bin/env perl
 use strict;
+use warnings;
+BEGIN {
+    my $d = $0; $d =~ s{[^/\\]*$}{}; $d = '.' if $d eq ''; $d =~ s{[/\\]+$}{};
+    unshift @INC, "$d/lib";
+}
+use TsJson;
 
-# Zero-module PostInvocation hook.
+# PostInvocation hook.
 # Emits ZERO-LLM-TOKEN inline UI alerts (systemMessage: "", metadata.user_markdown)
 # when context crosses 100k / 180k / 300k tokens OR a severe >25% cache drop occurs.
 # Never injects tokens into the model prompt and never mutates the cached prefix.
 
-my $raw = do { local $/; <STDIN> };
-if (!defined $raw || $raw eq '') { print '{}'; exit 0; }
+my $raw = TsJson::read_stdin_capped();
+my $doc = TsJson::decode_hook_input($raw);
+if (!defined $doc) { print '{}'; exit 0; }
 
 # Fast-path: skip early turns (<4) where context is small and cache is warming up
-my $inv_num = ($raw =~ /"invocationNum"\s*:\s*(\d+)/) ? int($1) : 0;
+my $inv_num = TsJson::get_int($doc, 'invocationNum') // 0;
 if ($inv_num < 4) { print '{}'; exit 0; }
 
-sub json_unescape {
-    my ($s) = @_;
-    # \uXXXX (incl. surrogate pairs) -> UTF-8 bytes, so rewritten args stay valid UTF-8
-    $s =~ s{\\(?:(["\\/bfnrt])|u([dD][89abAB][0-9a-fA-F]{2})\\u([dD][c-fC-F][0-9a-fA-F]{2})|u([0-9a-fA-F]{4}))}{
-        defined $1 ? (
-            $1 eq 'n' ? "\n" : $1 eq 'r' ? "\r" : $1 eq 't' ? "\t" :
-            $1 eq 'b' ? "\b" : $1 eq 'f' ? "\f" : $1
-        ) : do {
-            my $c = defined $2 ? chr(0x10000 + ((hex($2) - 0xD800) << 10) + (hex($3) - 0xDC00)) : chr(hex($4));
-            utf8::encode($c); $c
-        }
-    }ge;
-    return $s;
-}
+sub json_escape { return TsJson::json_escape(@_); }
 
-sub json_escape {
-    my ($s) = @_;
-    $s =~ s/\\/\\\\/g;
-    $s =~ s/"/\\"/g;
-    $s =~ s/\n/\\n/g;
-    $s =~ s/\r/\\r/g;
-    $s =~ s/\t/\\t/g;
-    $s =~ s/([\x00-\x1f])/sprintf('\\u%04x', ord($1))/ge;
-    return $s;
-}
-
-sub json_get_str {
-    my ($src, $key) = @_;
-    return undef unless $src =~ /"\Q$key\E"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/;
-    return json_unescape($1);
-}
-
-my $tx   = json_get_str($raw, 'transcriptPath') // '';
-my $cid  = json_get_str($raw, 'conversationId') // '';
+my $tx   = TsJson::get_str($doc, 'transcriptPath') // '';
+my $cid  = TsJson::get_str($doc, 'conversationId') // '';
 if ($tx eq '' || $cid eq '' || !-f $tx) { print '{}'; exit 0; }
 
 # Tail-seek last 48KB of transcript (O(1) even on 50MB transcripts!)
@@ -65,16 +42,21 @@ my @turns;
 my $saw_checkpoint = 0;
 for my $line (split(/\n/, $tail)) {
     if (index($line, '"CHECKPOINT"') >= 0) {
-        $saw_checkpoint = 1;
+        my $rec = TsJson::decode_line($line);
+        if ($rec && (TsJson::get_str($rec, 'type') // '') eq 'CHECKPOINT') {
+            $saw_checkpoint = 1;
+        }
         next;
     }
     next unless index($line, '"PLANNER_RESPONSE"') >= 0;
-    my $in_t  = ($line =~ /"input_tokens"\s*:\s*(\d+)/)      ? int($1) : 0;
-    my $cr_t  = ($line =~ /"cache_read_tokens"\s*:\s*(\d+)/) ? int($1) : 0;
-    my $out_t = ($line =~ /"output_tokens"\s*:\s*(\d+)/)     ? int($1) : 0;
+    my $rec = TsJson::decode_line($line);
+    next unless $rec && (TsJson::get_str($rec, 'type') // '') eq 'PLANNER_RESPONSE';
+    my $in_t  = TsJson::get_int($rec, 'input_tokens') // 0;
+    my $cr_t  = TsJson::get_int($rec, 'cache_read_tokens') // 0;
+    my $out_t = TsJson::get_int($rec, 'output_tokens') // 0;
     next if ($in_t == 0 && $cr_t == 0 && $out_t == 0);
-    my $mdl = ($line =~ /"model"\s*:\s*"([^"]+)"/)      ? $1 : '';
-    my $ts  = ($line =~ /"created_at"\s*:\s*"([^"]+)"/) ? $1 : '';
+    my $mdl = TsJson::get_str($rec, 'model') // '';
+    my $ts  = TsJson::get_str($rec, 'created_at') // '';
     push @turns, { in => $in_t, cr => $cr_t, tot => $in_t + $cr_t, model => $mdl, ts => $ts, cp => $saw_checkpoint };
     $saw_checkpoint = 0; # a checkpoint only marks the turn immediately after it
 }

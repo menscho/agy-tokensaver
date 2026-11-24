@@ -1,38 +1,39 @@
 #!/usr/bin/env perl
 use strict;
+use warnings;
+BEGIN {
+    my $d = $0; $d =~ s{[^/\\]*$}{}; $d = '.' if $d eq ''; $d =~ s{[/\\]+$}{};
+    unshift @INC, "$d/lib";
+}
+use TsJson;
 
-# Zero-module PreToolUse hook for IDE/Cortex find_by_name / find.
+# PreToolUse hook for IDE/Cortex find_by_name / find.
 # Injects bloat Excludes only when it can actually trim results: Excludes omitted/empty, the dir
 # exists as a direct child of SearchDirectory (else the ~23-token overwrite notice is pure
 # overhead), and neither SearchDirectory nor Pattern targets that dir.
 
-local $/;
-my $raw = <STDIN>;
-if (!defined $raw || $raw eq '') { print '{"decision":"allow"}'; exit 0; }
+my $ALLOW = '{"decision":"allow"}';
+my $raw = TsJson::read_stdin_capped();
+my $doc = TsJson::decode_hook_input($raw);
+if (!defined $doc) { print $ALLOW; exit 0; }
+
+my $ti = TsJson::tool_input($doc);
 
 # If non-empty Excludes array already provided, pass through immediately
-if ($raw =~ /"Excludes"\s*:\s*\[\s*"/) {
-    print '{"decision":"allow"}';
+if (ref($ti->{Excludes}) eq 'ARRAY' && @{$ti->{Excludes}} > 0) {
+    print $ALLOW;
     exit 0;
 }
 
-sub jstr {
-    my ($k) = @_;
-    return '' unless $raw =~ /"\Q$k\E"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/;
-    my $v = $1;
-    $v =~ s/\\(["\\\/])/$1/g;
-    return $v;
-}
-
 my @excl = qw(node_modules .git dist build .next .nuxt target __pycache__ .venv venv vendor .cache coverage);
-my $sdir = jstr('SearchDirectory');
-my $pat  = jstr('Pattern');
+my $sdir = TsJson::get_str($ti, 'SearchDirectory') // '';
+my $pat  = TsJson::get_str($ti, 'Pattern') // '';
 
 # Universal doom_loop guard (OpenCode + IAL-Scan arXiv:2607.01641): block 3rd identical find_by_name
 # with no intervening edit, preserving a 1-retry escape hatch.
 {
-    my $cid = ($raw =~ /"conversationId"\s*:\s*"([^"]+)"/) ? $1 : '';
-    my $step = ($raw =~ /"stepIdx"\s*:\s*"?(-?\d+)"?/) ? int($1) : undef;
+    my $cid  = TsJson::get_str($doc, 'conversationId') // '';
+    my $step = TsJson::get_int($doc, 'stepIdx');
     if ($cid ne '' && defined $step && $sdir ne '') {
         eval {
             local $/ = "\n";
@@ -46,7 +47,8 @@ my $pat  = jstr('Pattern');
             my $sig = "find $sdir $pat";
             $sig =~ s/[\r\n\t]+/ /g;
             my $lf = "$rdir/$scid.loops";
-            my (@rows, $cnt, $last_b) = ((), 0, -999);
+            my @rows;
+            my ($cnt, $last_b) = (0, -999);
             if (-f $lf && open(my $fh, '<', $lf)) {
                 while (my $ln = <$fh>) {
                     chomp $ln;
@@ -76,13 +78,13 @@ my $pat  = jstr('Pattern');
 }
 my $home = $ENV{HOME} // $ENV{USERPROFILE} // '';
 $sdir = $home . ($1 // '') if $sdir =~ m{^~([/\\].*)?$} && $home ne '';
-if ($sdir eq '' || !-d $sdir) { print '{"decision":"allow"}'; exit 0; }
+if ($sdir eq '' || !-d $sdir) { print $ALLOW; exit 0; }
 
 my @use = grep {
     my $d = $_;
     index($sdir, $d) < 0 && index($pat, $d) < 0 && -d "$sdir/$d"
 } @excl;
-if (!@use) { print '{"decision":"allow"}'; exit 0; }
+if (!@use) { print $ALLOW; exit 0; }
 
 my $arr = join(',', map { "\"$_\"" } @use);
 print '{"decision":"allow","overwrite":{"Excludes":[' . $arr . ']}}';

@@ -1,61 +1,35 @@
 #!/usr/bin/env perl
 use strict;
+use warnings;
+BEGIN {
+    my $d = $0; $d =~ s{[^/\\]*$}{}; $d = '.' if $d eq ''; $d =~ s{[/\\]+$}{};
+    unshift @INC, "$d/lib";
+}
+use TsJson;
 
 # Core classifier for the run_command / shell_exec PreToolUse hook (see cmd_hook.pl).
+# - Decodes payload once via JSON::PP (TsJson).
 # - Quote-aware metacharacter safety check & &&-chain classifier.
 # - Auto-injects --exclude-dir/-I on recursive grep, -prune on find, -I on tree.
-# - Wraps high-ROI noisy categories (incl. ssh, test, pkg, build, lint, git_diff,
-#   git_log, git_net, search, http, archive, iac, k8s_yaml, cloud, logs, ps, table,
-#   cat_large, container, find, chain) via zero-module Perl cmd_wrap.pl.
+# - Wraps high-ROI noisy categories via cmd_wrap.pl.
 # - Strict fail-open on any edge case or error.
 
-# Loaded via `do` from cmd_hook.pl (front stub) only when the keyword fast path matches;
-# can also run standalone (reads stdin).
 our $RAW;
-my $raw = $RAW;
-if (!defined $raw) { $raw = do { local $/; <STDIN> }; }
-if (!defined $raw || $raw eq '') { print '{"decision":"allow"}'; exit 0; }
+my $raw = defined $RAW ? $RAW : TsJson::read_stdin_capped();
+my $doc = TsJson::decode_hook_input($raw);
+if (!defined $doc) { print '{"decision":"allow"}'; exit 0; }
 
-sub json_unescape {
-    my ($s) = @_;
-    # \uXXXX (incl. surrogate pairs) -> UTF-8 bytes, so rewritten args stay valid UTF-8
-    $s =~ s{\\(?:(["\\/bfnrt])|u([dD][89abAB][0-9a-fA-F]{2})\\u([dD][c-fC-F][0-9a-fA-F]{2})|u([0-9a-fA-F]{4}))}{
-        defined $1 ? (
-            $1 eq 'n' ? "\n" : $1 eq 'r' ? "\r" : $1 eq 't' ? "\t" :
-            $1 eq 'b' ? "\b" : $1 eq 'f' ? "\f" : $1
-        ) : do {
-            my $c = defined $2 ? chr(0x10000 + ((hex($2) - 0xD800) << 10) + (hex($3) - 0xDC00)) : chr(hex($4));
-            utf8::encode($c); $c
-        }
-    }ge;
-    return $s;
-}
-
-sub json_escape {
-    my ($s) = @_;
-    $s =~ s/\\/\\\\/g;
-    $s =~ s/"/\\"/g;
-    $s =~ s/\n/\\n/g;
-    $s =~ s/\r/\\r/g;
-    $s =~ s/\t/\\t/g;
-    $s =~ s/([\x00-\x1f])/sprintf('\\u%04x', ord($1))/ge;
-    return $s;
-}
-
-sub json_get_str {
-    my ($src, $key) = @_;
-    return undef unless $src =~ /"\Q$key\E"\s*:\s*"([^"\\]*(?:\\.[^"\\]*)*)"/;
-    return json_unescape($1);
-}
+my $ti = TsJson::tool_input($doc);
+sub json_escape { return TsJson::json_escape(@_); }
 
 # Never wrap background daemons
-if ($raw =~ /"IsDaemon"\s*:\s*true\b/) { print '{"decision":"allow"}'; exit 0; }
+if (TsJson::get_bool($ti, 'IsDaemon')) { print '{"decision":"allow"}'; exit 0; }
 
 my $cmd_key;
-my $cmd = json_get_str($raw, 'CommandLine');
+my $cmd = TsJson::get_str($ti, 'CommandLine');
 if (defined $cmd) { $cmd_key = 'CommandLine'; }
 else {
-    $cmd = json_get_str($raw, 'command');
+    $cmd = TsJson::get_str($ti, 'command');
     $cmd_key = 'command' if defined $cmd;
 }
 if (!defined $cmd || $cmd eq '') { print '{"decision":"allow"}'; exit 0; }
@@ -65,13 +39,15 @@ if ($cmd =~ /cmd_wrap\.(?:pl|py)\S*\s+--cat\b/) { print '{"decision":"allow"}'; 
 
 # Windows host => Antigravity executes the command line in Windows PowerShell 5.1 (ConPTY).
 # The POSIX path below (bash -c) must never run there; use the PowerShell wrapper instead.
+my $top_cwd = TsJson::get_str($doc, 'cwd') // '';
+my $ti_cwd  = TsJson::get_str($ti, 'Cwd', 'cwd');
+my $raw_cwd = defined $ti_cwd ? $ti_cwd : $top_cwd;
 our $PWSH;
 if (!defined $PWSH) {
     my $sh = lc($ENV{AGY_TS_SHELL} // '');
-    my $cw = json_get_str($raw, 'Cwd') // json_get_str($raw, 'cwd') // '';
-    $PWSH = ($sh =~ /^(?:pwsh|powershell)$/ || ($sh !~ /^(?:posix|bash|sh|off)$/ && $^O =~ /^(?:MSWin32|cygwin|msys)$/ &&
-             ($cw eq '' || $cw =~ /^(?:[A-Za-z]:(?:\\|$)|\\\\)/ || ($cw =~ m{^[A-Za-z]:/} && $raw !~ m{"cwd"\s*:\s*"/})))) ? 1 : 0;
     if ($sh eq 'off') { print '{"decision":"allow"}'; exit 0; }
+    $PWSH = ($sh =~ /^(?:pwsh|powershell)$/ || ($sh !~ /^(?:posix|bash|sh)$/ && $^O =~ /^(?:MSWin32|cygwin|msys)$/ &&
+             ($raw_cwd eq '' || $raw_cwd =~ /^(?:[A-Za-z]:(?:\\|$)|\\\\)/ || ($raw_cwd =~ m{^[A-Za-z]:/} && $top_cwd !~ m{^/})))) ? 1 : 0;
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -373,7 +349,7 @@ if ($cmd !~ /\b(?:ssh|python3?|pytest|jest|vitest|mocha|ava|playwright|cypress|b
     exit 0;
 }
 
-my $cwd = json_get_str($raw, 'Cwd') // json_get_str($raw, 'cwd') // '';
+my $cwd = $raw_cwd;
 $cwd = ($ENV{HOME} // '') . $1 if $cwd =~ m{^~(/.*)?$} && defined $ENV{HOME};
 # Single-arg wrapped command near ARG_MAX/MAX_ARG_STRLEN (128KB) would fail with E2BIG
 if (length($cmd) > 60000) { print '{"decision":"allow"}'; exit 0; }
@@ -1266,8 +1242,8 @@ if (!$plugin_root) {
 if ($final_cat =~ /^(?:search|find|git_diff|test|build|lint)$/) {
     my $is_loop_cat = ($final_cat =~ /^(?:test|build|lint)$/) ? 1 : 0;
     my $min_prior   = $is_loop_cat ? 2 : 1;
-    my $cid  = json_get_str($raw, 'conversationId') // '';
-    my $step = ($raw =~ /"stepIdx"\s*:\s*"?(-?\d+)"?/) ? int($1) : undef;
+    my $cid  = TsJson::get_str($doc, 'conversationId') // '';
+    my $step = TsJson::get_int($doc, 'stepIdx');
     if ($cid ne '' && defined $step) {
         eval {
             local $/ = "\n";
@@ -1336,8 +1312,9 @@ my $new_cmd = "perl '$ew' --cat $final_cat -- '$ec'";
 
 # @plexer/cli-inspired WaitMsBeforeAsync floor bump on fast read-only queries to avoid unnecessary backgrounding
 my $extra_ov = '';
+my $wait_ms = TsJson::get_int($ti, 'WaitMsBeforeAsync');
 if ($final_cat =~ /^(?:search|find|git_diff|git_log|ps|table)$/ &&
-    $raw =~ /"WaitMsBeforeAsync"\s*:\s*(\d+)/ && $1 > 0 && $1 < 3000) {
+    defined $wait_ms && $wait_ms > 0 && $wait_ms < 3000) {
     $extra_ov = ',"WaitMsBeforeAsync":5000';
 }
 
