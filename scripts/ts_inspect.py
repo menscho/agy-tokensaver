@@ -10,9 +10,11 @@ import ast
 import csv
 import html.parser
 import json
+import os
 import re
 import sqlite3
 import sys
+import time
 from pathlib import Path
 
 
@@ -331,6 +333,59 @@ def cmd_query(path: str, args: list[str]) -> int:
     return 0
 
 
+def default_spill_dir() -> Path:
+    override = os.environ.get("AGY_TS_SPILL_DIR", "").strip()
+    if override:
+        return Path(override)
+    tmp_base = (
+        os.environ.get("TMPDIR")
+        or os.environ.get("TEMP")
+        or os.environ.get("TMP")
+        or "/tmp"
+    ).rstrip("/\\")
+    if os.name == "nt":
+        tag = re.sub(r"[^A-Za-z0-9_-]", "_", os.environ.get("USERNAME") or "user")
+    else:
+        tag = str(os.getuid())
+    return Path(tmp_base) / f"agy-tokensaver-{tag}"
+
+
+def cmd_purge(args: list[str]) -> int:
+    """Purge spill files from the per-user spill directory (optionally older than --days N)."""
+    days = 0.0
+    spill_dir = default_spill_dir()
+    i = 0
+    while i < len(args):
+        if args[i] == "--days" and i + 1 < len(args):
+            days = float(args[i + 1])
+            i += 2
+        elif args[i] == "--dir" and i + 1 < len(args):
+            spill_dir = Path(args[i + 1])
+            i += 2
+        else:
+            i += 1
+    if not spill_dir.is_dir():
+        print(f"Purged 0 spill files (0 B) — directory not present: {spill_dir}")
+        return 0
+    cutoff = (time.time() - days * 86400.0) if days > 0 else None
+    removed = 0
+    removed_bytes = 0
+    for entry in spill_dir.iterdir():
+        if entry.is_symlink() or not entry.is_file():
+            continue
+        try:
+            st = entry.stat()
+            if cutoff is not None and st.st_mtime >= cutoff:
+                continue
+            entry.unlink()
+            removed += 1
+            removed_bytes += st.st_size
+        except OSError:
+            pass
+    print(f"Purged {removed} spill files ({removed_bytes:,} B) from {spill_dir}")
+    return 0
+
+
 CMDS = {
     "ipynb": cmd_ipynb, "json": cmd_json, "csv": cmd_csv, "svg": cmd_svg,
     "har": cmd_har, "sql": cmd_sql, "sqlite": cmd_sqlite, "html": cmd_html,
@@ -339,8 +394,11 @@ CMDS = {
 
 
 def main() -> int:
+    if len(sys.argv) >= 2 and sys.argv[1] == "purge":
+        return cmd_purge(sys.argv[2:])
     if len(sys.argv) < 3 or sys.argv[1] not in CMDS:
-        print(f"Usage: {Path(sys.argv[0]).name} <{'|'.join(sorted(CMDS))}> <file> [opts]")
+        all_cmds = "|".join(sorted([*CMDS.keys(), "purge"]))
+        print(f"Usage: {Path(sys.argv[0]).name} <{all_cmds}> <file|opts>")
         return 1
     return CMDS[sys.argv[1]](sys.argv[2], sys.argv[3:])
 

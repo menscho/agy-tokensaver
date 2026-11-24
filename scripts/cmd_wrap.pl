@@ -1,5 +1,6 @@
 #!/usr/bin/env perl
 use strict;
+use Fcntl qw(O_WRONLY O_CREAT O_TRUNC);
 
 # Zero-module Perl CLI output compressor (stdlib only, no CPAN/external modules).
 # Invariants:
@@ -48,7 +49,7 @@ my $TMP_BASE = $ENV{TMPDIR} || $ENV{TEMP} || $ENV{TMP} || '/tmp';
 $TMP_BASE =~ s{[\\/]+$}{};
 my $USER_TAG = ($^O eq 'MSWin32') ? ($ENV{USERNAME} || 'user') : $<;
 $USER_TAG =~ s/[^A-Za-z0-9_-]/_/g;
-my $SPILL_DIR = "$TMP_BASE/agy-tokensaver-$USER_TAG";
+my $SPILL_DIR = $ENV{AGY_TS_SPILL_DIR} || "$TMP_BASE/agy-tokensaver-$USER_TAG";
 # PowerShell mode (Windows host): the model reads spill files with Windows tools, so pointers
 # must be native Windows paths (Git/Cygwin perl sees /tmp/... or /c/...).
 my $PWSH_MODE = ($pwsh_src ne '' || $cat =~ /^(?:pwsh|script)$/) ? 1 : 0;
@@ -77,25 +78,42 @@ my $LOSSLESS_RM = 0;
 my $LOCKFILE_DIFF_RE = qr{(?:^|/)(?:(?:vendor|third_party)/[^/]+\.(?:js|mjs|cjs|css|json)|package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml|Cargo\.lock|poetry\.lock|composer\.lock|Gemfile\.lock|go\.sum|uv\.lock|bun\.lockb?|Pipfile\.lock|flake\.lock|Podfile\.lock|packages\.lock\.json|paket\.lock|mix\.lock|pubspec\.lock|Package\.resolved|gradle\.lockfile|conda-lock\.yml|pdm\.lock|pixi\.lock|renv\.lock|deno\.lock|vcpkg-lock\.json|conan\.lock|Chart\.lock|MODULE\.bazel\.lock|shard\.lock|[^/]+\.(?:min\.(?:js|mjs|cjs|css)|(?:bundle|chunk)\.(?:js|mjs|cjs|css)|map|ipynb|svg|snap|snapshot|golden|tsbuildinfo|tfstate(?:\.backup)?)|[^/]+(?:_pb2(?:_grpc)?\.pyi?|\.pb\.(?:go|gw\.go|cc|h|ts|rs|dart)|_pb\.js|_(?:gen|generated)\.go|\.(?:generated|gen)\.(?:ts|tsx|js)|\.g\.dart|\.freezed\.dart|\.mocks\.dart))$}i;
 
 sub ensure_spill_dir {
+    return 0 if -l $SPILL_DIR;
+    my $created = 0;
     if (!-d $SPILL_DIR) {
-        mkdir($SPILL_DIR, 0700);
+        $created = mkdir($SPILL_DIR, 0700) ? 1 : 0;
     }
-    # Security check: ensure owned by current UID
+    return 0 unless -d $SPILL_DIR && !-l $SPILL_DIR;
+    if ($^O eq 'MSWin32') {
+        if ($created && defined $ENV{USERNAME} && $ENV{USERNAME} ne '') {
+            # Restrict spill directory ACL to current user on native Windows (fail-open)
+            my $wdir = $SPILL_DIR;
+            $wdir =~ s{/}{\\}g;
+            eval { system('icacls', $wdir, '/inheritance:r', '/grant:r', "$ENV{USERNAME}:(OI)(CI)F", '/Q'); };
+        }
+        return 1;
+    }
+    chmod(0700, $SPILL_DIR);
     my @st = stat($SPILL_DIR);
-    return (-d $SPILL_DIR && @st && $st[4] == $<);
+    return (@st && $st[4] == $<) ? 1 : 0;
 }
 
 sub cleanup_spill_dir {
-    return unless int(rand(16)) == 0;
+    my $force = ($ENV{AGY_TS_SPILL_CLEANUP} // '') eq '1';
+    return unless $force || int(rand(16)) == 0;
     return unless opendir(my $dh, $SPILL_DIR);
-    my $cutoff = time() - 86400;
+    my $days = (defined $ENV{AGY_TS_SPILL_DAYS} && $ENV{AGY_TS_SPILL_DAYS} =~ /\A\d+(?:\.\d+)?\z/)
+        ? ($ENV{AGY_TS_SPILL_DAYS} + 0)
+        : 7;
+    my $cutoff = $days > 0 ? (time() - int($days * 86400)) : 0;
     my @files;
     while (my $f = readdir($dh)) {
         next if $f eq '.' || $f eq '..';
         my $p = "$SPILL_DIR/$f";
+        next if -l $p;
         my @st = stat($p);
         next unless @st && -f $p;
-        if ($st[9] < $cutoff) {
+        if ($cutoff > 0 && $st[9] < $cutoff) {
             unlink($p);
         } else {
             push @files, [$st[9], $p];
@@ -132,13 +150,17 @@ sub write_spillback {
     cleanup_spill_dir();
     my $hex = content_hash12($text);
     my $fp = "$SPILL_DIR/$hex.log";
+    return '' if -l $fp;
     if (-f $fp && (stat($fp))[7] == length($text)) {
+        chmod(0600, $fp) unless $^O eq 'MSWin32';
         utime(undef, undef, $fp);
         return $fp;
     }
-    if (open my $fh, '>:raw', $fp) {
+    if (sysopen(my $fh, $fp, O_WRONLY | O_CREAT | O_TRUNC, 0600)) {
+        binmode($fh, ':raw');
         print $fh $text;
         close $fh;
+        chmod(0600, $fp) unless $^O eq 'MSWin32';
         return $fp;
     }
     return '';
@@ -1527,8 +1549,8 @@ sub process_output {
         }
     }
 
-    # Never drop content without a recoverable full log
-    my $spill_path = defined $existing_spill ? $existing_spill : write_spillback($safe);
+    # Never drop content without a byte-exact recoverable raw log
+    my $spill_path = defined $existing_spill ? $existing_spill : write_spillback($raw);
     if ($spill_path eq '') {
         log_telemetry($cat, $total_raw_bytes, length($safe), $rc);
         return $safe;
@@ -1699,7 +1721,9 @@ while (1) {
             if (ensure_spill_dir()) {
                 my $hex = sprintf('%06x', (time() ^ ($$ << 8) ^ int(rand(0xffffff))) & 0xffffff);
                 $ov_path = "$SPILL_DIR/ov-$hex.log";
-                if (open($ov_fh, '>:raw', $ov_path)) {
+                if (!-l $ov_path && sysopen($ov_fh, $ov_path, O_WRONLY | O_CREAT | O_TRUNC, 0600)) {
+                    binmode($ov_fh, ':raw');
+                    chmod(0600, $ov_path) unless $^O eq 'MSWin32';
                     print $ov_fh $buf;
                 }
             }

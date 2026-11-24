@@ -18,7 +18,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Run regression test suites & reproducible benchmark
         run: |
-          for t in tests/run_tests.sh tests/test_cmd_windows.sh tests/test_read.sh tests/test_rollover.sh tests/test_rules.sh tests/test_tools.sh tests/test_headroom_plexer.sh tests/test_json_parsing.sh tests/test_failopen.sh tests/test_cmd_semantics.sh; do
+          for t in tests/run_tests.sh tests/test_cmd_windows.sh tests/test_read.sh tests/test_rollover.sh tests/test_rules.sh tests/test_tools.sh tests/test_headroom_plexer.sh tests/test_json_parsing.sh tests/test_failopen.sh tests/test_cmd_semantics.sh tests/test_spill_safety.sh; do
             echo "=== $t ==="
             bash "$t"
           done
