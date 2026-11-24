@@ -1,14 +1,15 @@
 """Session discovery, protobuf/transcript parsing, VirtualFS, and prompt-overhead accounting."""
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import os
 import re
 import sqlite3
 import subprocess
-import sys
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = ROOT / 'scripts'
@@ -69,11 +70,11 @@ def db_turns(db: Path) -> list[tuple[int, int, int]]:
         top = _pb_fields(bytes(data or b"")) or []
         usage: dict[int, int] = {}
         for f, w, v in top:
-            if f == 1 and w == 2:
+            if f == 1 and w == 2 and isinstance(v, bytes):
                 for f2, w2, v2 in _pb_fields(v) or []:
-                    if f2 == 4 and w2 == 2:
+                    if f2 == 4 and w2 == 2 and isinstance(v2, bytes):
                         for f3, w3, v3 in _pb_fields(v2) or []:
-                            if w3 == 0:
+                            if w3 == 0 and isinstance(v3, int):
                                 usage[f3] = int(v3)
                         break
                 break
@@ -309,8 +310,10 @@ def plugin_overhead_bytes() -> int:
     return tot
 
 
+replay_ext: Any = None
 try:  # optional replay handlers for additional tools (see scripts/replay_ext.py)
-    import replay_ext  # type: ignore  # noqa: E402
+    import replay_ext as _replay_ext  # noqa: E402
+    replay_ext = _replay_ext
 except Exception:  # pragma: no cover
     replay_ext = None
 

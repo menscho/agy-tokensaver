@@ -96,7 +96,7 @@ def rollover_policy(feat: dict[str, Any] | None, cfg: dict[str, Any] | None = No
     cfg = cfg or _SIM_CFG
     f = feat or {}
     cost = rollover_cost_tok(f, cold_start, rediscovery_tax)
-    min_turns = int(cfg.get("min_turns", 14))
+    min_turns = int(str(cfg.get("min_turns", 14)))
     tmode = str(cfg.get("threshold_mode", "auto"))
     drops = int(f.get("drops", 0))
     warm_turns = int(f.get("warm_turns", 0))
@@ -217,7 +217,7 @@ def _simulate_rollover_session(
                     else:
                         wm = real.warm_miss
                         miss = wm[j - 1] if 1 <= j <= len(wm) and j <= WARMUP_TURNS else 0.0
-                        ti = min(sim_ctx, min(inp, sim_ctx) + miss * old)
+                        ti = int(min(sim_ctx, min(inp, sim_ctx) + miss * old))
                         tc = sim_ctx - ti
         sim_in += ti
         sim_cr += tc

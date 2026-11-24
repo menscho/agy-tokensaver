@@ -165,7 +165,7 @@ def main() -> int:
         print(f"   Est. direct tok saved  : ~{fmt_num(total_saved_tok)} tokens")
         print(f"   Est. w/ 6x turn replay : ~{fmt_num(replay_est)} context tokens avoided\n")
 
-        by_key = collections.defaultdict(lambda: {"count": 0, "raw": 0, "kept": 0, "tok": 0})
+        by_key: dict[str, dict[str, int]] = collections.defaultdict(lambda: {"count": 0, "raw": 0, "kept": 0, "tok": 0})
         for e in events:
             k = f"{e.get('source', '?')}:{e.get('category', '?')} ({e.get('action', '?')})"
             b = by_key[k]

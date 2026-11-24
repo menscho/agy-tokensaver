@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import collections
 import json
-import time
 from typing import Any
 
 from config import EVENTS_FILE, W_CR, W_IN, W_OUT
@@ -41,11 +40,8 @@ def load_events_summary() -> dict[str, Any]:
     except OSError:
         pass
 
-    top = sorted(
-        [{"name": k, "n": v["n"], "tok": v["tok"]} for k, v in by_cat.items()],
-        key=lambda x: x["tok"],
-        reverse=True,
-    )[:8]
+    top_items: list[dict[str, Any]] = [{"name": k, "n": v["n"], "tok": v["tok"]} for k, v in by_cat.items()]
+    top = sorted(top_items, key=lambda x: int(x["tok"]), reverse=True)[:8]
     summary = {"events": cnt, "saved_tok": saved_tok, "replay_tok": saved_tok * 6, "by_cat": top}
     _ev_cache = (st.st_mtime, st.st_size, summary)
     return summary

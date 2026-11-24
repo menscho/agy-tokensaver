@@ -54,7 +54,7 @@ def _sync_concise_rule(enabled: bool) -> None:
         agents_md = PLUGIN_ROOT / "rules" / "AGENTS.md"
         if not agents_md.is_file():
             return
-        lines = [l for l in agents_md.read_text(encoding="utf-8").splitlines() if not l.startswith("7. Concise mode")]
+        lines = [ln for ln in agents_md.read_text(encoding="utf-8").splitlines() if not ln.startswith("7. Concise mode")]
         if enabled:
             lines.append(_CONCISE_RULE_LINE)
         agents_md.write_text("\n".join(lines) + "\n", encoding="utf-8")

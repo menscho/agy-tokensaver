@@ -11,6 +11,37 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  lint-and-coverage:
+    name: Lint, Types & Coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dev-only linters (runtime stays 0-dep)
+        run: |
+          python3 -m pip install -q ruff mypy coverage
+          sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck libperl-critic-perl
+      - name: Python lint (ruff) and type check (mypy)
+        run: |
+          ruff check mcp_app scripts/*.py eval/*.py install.py tests/test_python_unit.py
+          mypy mcp_app scripts/*.py eval/*.py install.py tests/test_python_unit.py
+      - name: Perl lint (perl -c + perlcritic severity 4)
+        run: |
+          for f in scripts/*.pl scripts/lib/*.pm scripts/lib/*.pl scripts/compressors/*.pl; do
+            perl -Iscripts/lib -c "$f"
+          done
+          perlcritic --profile .perlcriticrc --severity 4 scripts/*.pl scripts/lib/*.pm scripts/lib/*.pl scripts/compressors/*.pl
+      - name: Shell lint (shellcheck)
+        run: |
+          shellcheck -S error tests/*.sh install.sh Install-TokenSaver.command
+      - name: Python unit coverage (mcp_app >= 80%)
+        run: |
+          coverage run --source=mcp_app,scripts -m unittest tests/test_python_unit.py
+          coverage report --include="mcp_app/*.py" --fail-under=80
+
   unix-suite:
     name: Full Suite (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

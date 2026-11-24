@@ -83,7 +83,7 @@ def _tool_calls(raw: object) -> list[dict]:
                 tc = json.loads(tc)
             except Exception:
                 tc = []
-    return [c for c in (tc or []) if isinstance(c, dict)]
+    return [c for c in tc if isinstance(c, dict)] if isinstance(tc, list) else []
 
 
 def _arg(args: object, *keys: str) -> str:
@@ -261,7 +261,7 @@ def _edited_symbols(edited: list[str], ws: Path, budget: int = 1200) -> list[str
             r = subprocess.run([sys.executable, str(insp), "outline", str(fp)], text=True, capture_output=True, timeout=2)
             if r.returncode != 0:
                 continue
-            syms = [l.strip() for l in r.stdout.splitlines()[1:9] if l.strip()]
+            syms = [ln.strip() for ln in r.stdout.splitlines()[1:9] if ln.strip()]
             if not syms:
                 continue
             entry = f"- `{_short(p, ws)}`: " + "; ".join(syms[:6])

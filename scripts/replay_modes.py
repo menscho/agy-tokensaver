@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import statistics
 from pathlib import Path
+from typing import Any
 
 def run_modes(policy: str = "auto", json_out: str | None = None, report: bool = False,
               weights: tuple[float, float, float] | None = None) -> dict:
@@ -88,7 +89,7 @@ def run_modes(policy: str = "auto", json_out: str | None = None, report: bool = 
     ]
 
     # Per-session-type breakdown
-    by_type = []
+    by_type: list[dict[str, Any]] = []
     for stype in ("test-heavy", "log-heavy", "plain-editing"):
         b_sub = [r for r in base["rows"] if r["session_type"] == stype]
         c_sub = [r for r in comp["rows"] if r["session_type"] == stype]
@@ -118,7 +119,7 @@ def run_modes(policy: str = "auto", json_out: str | None = None, report: bool = 
     ]
     if (wi, wc, wo) not in [w for _, w in regimes]:
         regimes.append((f"Custom ({wi:g} / {wc:g} / {wo:g})", (wi, wc, wo)))
-    sensitivity = []
+    sensitivity: list[dict[str, Any]] = []
     for rname, (rwi, rwc, rwo) in regimes:
         def _qsum(rows_list: list[dict], tok_key: str) -> float:
             return sum(r[tok_key][0] * rwi + r[tok_key][1] * rwc + r[tok_key][2] * rwo for r in rows_list)

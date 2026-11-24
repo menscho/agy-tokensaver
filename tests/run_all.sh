@@ -32,6 +32,12 @@ for t in "${SUITES[@]}"; do
   fi
 done
 
+echo "=== tests/test_python_unit.py ==="
+if ! "$PY" -m unittest tests/test_python_unit.py; then
+  echo "SUITE FAILED: tests/test_python_unit.py"
+  FAILED=$((FAILED + 1))
+fi
+
 echo "=== vendor SHA-256 check ==="
 "$PY" - <<'PYEOF' || FAILED=$((FAILED + 1))
 import hashlib, re

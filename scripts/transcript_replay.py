@@ -32,18 +32,15 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import ast
 import collections
-import hashlib
 import json
 import os
 import re
-import sqlite3
 import statistics
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = ROOT / "scripts"
@@ -63,12 +60,14 @@ APP_DIRS = [GEMINI / "antigravity", GEMINI / "antigravity-cli"]
 
 
 from replay_io import (  # noqa: E402, F401
-    VirtualFS, _b, _cmd_output, _frontmatter, _pb_fields, _run_perl, _rv, _tool_calls,
+    NUM_LINE, VirtualFS, _b, _cmd_output, _frontmatter, _pb_fields, _run_perl, _rv, _tool_calls,
     db_turns, discover_sessions, load_session, plugin_overhead_bytes,
 )
 from replay_modes import run_modes  # noqa: E402, F401
+replay_ext: Any = None
 try:
-    import replay_ext  # type: ignore  # noqa: E402
+    import replay_ext as _replay_ext  # noqa: E402
+    replay_ext = _replay_ext
 except Exception:
     replay_ext = None
 

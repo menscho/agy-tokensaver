@@ -4,8 +4,6 @@ from __future__ import annotations
 import datetime
 import json
 import os
-import re
-import shutil
 import subprocess
 import sys
 import threading
@@ -14,11 +12,11 @@ from pathlib import Path
 from typing import Any
 
 from config import (
-    APP_DIRS, COLD_START_TOK, MOMENTUM_MIN_TURNS, MOMENTUM_WINDOW_SEC, PLUGIN_ROOT,
+    APP_DIRS, COLD_START_TOK, PLUGIN_ROOT,
     _load_rollover_state, _save_rollover_state, _state_lock, append_rollover_history,
     load_config, load_rollover_history,
 )
-from rollover import compute_adaptive_threshold, continuation_probability, rollover_policy
+from rollover import compute_adaptive_threshold, continuation_probability
 from rules_sync import flush_pending_concise_sync
 from telemetry import compute_savings_analytics, load_events_summary
 from transcript_io import _session_paths, discover_session_sources, parse_session_cached

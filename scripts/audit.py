@@ -52,7 +52,7 @@ def expanded_rule_bytes(p: Path) -> int:
 
 
 def resolve_plugins(cfg_dir: Path, ws: Path) -> list[dict]:
-    overrides = {}
+    overrides: dict[str, object] = {}
     cfg_json = cfg_dir / "config.json"
     if cfg_json.is_file():
         try:
@@ -216,7 +216,8 @@ def inspect_skills_and_agents(roots: list[Path]) -> tuple[int, list[str]]:
 
 
 def inspect_workspace(ws: Path) -> tuple[list[dict], list[str]]:
-    traps, ig_warns = [], []
+    traps: list[dict[str, object]] = []
+    ig_warns: list[str] = []
     if not ws.is_dir():
         return traps, ig_warns
     has_git = (ws / ".git").exists()
@@ -248,7 +249,7 @@ def inspect_workspace(ws: Path) -> tuple[list[dict], list[str]]:
                 traps.append({"path": str(p), "type": "large_svg", "bytes": sz})
             elif sz > 150_000 and suf in {".json", ".sql", ".csv", ".log", ".xml", ".js", ".map", ".snap"}:
                 traps.append({"path": str(p), "type": "large_dump", "bytes": sz})
-    return sorted(traps, key=lambda x: x["bytes"], reverse=True)[:15], ig_warns
+    return sorted(traps, key=lambda x: int(x["bytes"]) if isinstance(x["bytes"], int) else 0, reverse=True)[:15], ig_warns
 
 
 def discover_transcript_leaks(max_sessions: int = 30) -> tuple[dict[str, int], list[tuple[str, int, int]], list[tuple[str, int]]]:

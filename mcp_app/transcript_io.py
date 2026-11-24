@@ -2,10 +2,7 @@
 from __future__ import annotations
 
 import json
-import os
 import re
-import sqlite3
-import time
 from pathlib import Path
 from typing import Any
 
@@ -302,8 +299,10 @@ def _build_session_record(sid: str, app_name: str, tx: Path | None, db: Path | N
     ttl_cliff = 90 if "hydrogen" in last_model.lower() else 150
     gaps: list[float | None] = []
     for k in range(turns):
-        t0 = meta[k].get("ts") if k < len(meta) and meta[k] else None
-        t1 = meta[k + 1].get("ts") if k + 1 < len(meta) and meta[k + 1] else None
+        m0 = meta[k] if k < len(meta) else None
+        m1 = meta[k + 1] if k + 1 < len(meta) else None
+        t0 = m0.get("ts") if isinstance(m0, dict) else None
+        t1 = m1.get("ts") if isinstance(m1, dict) else None
         gaps.append(max(0.0, t1 - t0) if (t0 and t1 and t1 >= t0) else None)
     sim_cfg = {**_SIM_CFG, "p_continue": _p_continue(0, 0)}     # no cross-session history: prior
     sim_in, sim_cr, sim_rollovers = _simulate_rollover_session(

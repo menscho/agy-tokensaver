@@ -107,7 +107,7 @@ def cmd_csv(path: str, args: list[str]) -> int:
     with p.open("r", encoding="utf-8", errors="replace", newline="") as fh:
         reader = csv.reader(fh, delimiter=delim)
         header = next(reader, [])
-        samples = []
+        samples: list[list[str]] = []
         total = 0
         for row in reader:
             total += 1
