@@ -109,12 +109,33 @@ sub cleanup_spill_dir {
     }
 }
 
+sub content_hash12 {
+    my ($text) = @_;
+    # Pure-Perl zero-module dual 32-bit FNV-1a content hash -> deterministic 12-hex spill name
+    # (arXiv:2601.06007: zero random/timestamp entropy in tool outputs for stable KV prefixes)
+    my $h1 = 2166136261;
+    my $h2 = 3735928559;
+    my $len = length($text);
+    my $step = $len > 65536 ? int($len / 16384) : 1;
+    for (my $i = 0; $i < $len; $i += $step) {
+        my $b = ord(substr($text, $i, 1));
+        $h1 = (($h1 ^ $b) * 16777619) & 0xffffffff;
+        $h2 = (($h2 ^ ($b + ($i & 0xff))) * 16777619) & 0xffffffff;
+    }
+    $h2 = (($h2 ^ ($len & 0xffffffff)) * 16777619) & 0xffffffff;
+    return sprintf('%08x%04x', $h1, $h2 & 0xffff);
+}
+
 sub write_spillback {
     my ($text) = @_;
     return '' unless ensure_spill_dir();
     cleanup_spill_dir();
-    my $hex = sprintf('%06x', (time() ^ ($$ << 8) ^ int(rand(0xffffff))) & 0xffffff);
+    my $hex = content_hash12($text);
     my $fp = "$SPILL_DIR/$hex.log";
+    if (-f $fp && (stat($fp))[7] == length($text)) {
+        utime(undef, undef, $fp);
+        return $fp;
+    }
     if (open my $fh, '>:raw', $fp) {
         print $fh $text;
         close $fh;

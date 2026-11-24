@@ -32,10 +32,12 @@ GITHUB_RELEASES_URL = f"https://github.com/{GITHUB_REPO}/releases"
 GEMINI_HOME = Path(os.environ.get("AGY_TS_GEMINI_HOME") or (Path.home() / ".gemini"))
 APP_DIRS = (GEMINI_HOME / "antigravity", GEMINI_HOME / "antigravity-cli")   # IDE + CLI (read-only)
 BRAIN_DIR = GEMINI_HOME / "antigravity" / "brain"
-DATA_DIR = Path(
-    os.environ.get("PLUGIN_DATA")
-    or (Path.home() / ".gemini" / "antigravity" / "plugin_data" / "token-saver")
-)
+_DEFAULT_DATA_DIR = Path.home() / ".gemini" / "antigravity" / "plugin_data" / "token-saver"
+DATA_DIR = Path(os.environ.get("PLUGIN_DATA") or _DEFAULT_DATA_DIR)
+
+
+def _is_sandbox_data_dir() -> bool:
+    return bool(os.environ.get("PLUGIN_DATA")) and DATA_DIR.resolve() != _DEFAULT_DATA_DIR.resolve()
 
 CFG_FILE = DATA_DIR / "hud_config.json"
 ROLLOVER_STATE_FILE = DATA_DIR / "rollover_state.json"
@@ -74,6 +76,7 @@ def load_config() -> dict[str, Any]:
         "cooldown_min": 20,
         "compact_reads": False,
         "concise_output": False,
+        "pending_concise_sync": False,
     }
     if not CFG_FILE.is_file():
         return default
@@ -104,6 +107,7 @@ def load_config() -> dict[str, Any]:
                 "cooldown_min": max(5, min(120, int(d.get("cooldown_min", 20)))),
                 "compact_reads": compact_reads,
                 "concise_output": concise_output,
+                "pending_concise_sync": bool(d.get("pending_concise_sync", False)),
             }
     except Exception:
         pass
@@ -152,6 +156,11 @@ def save_config(patch: dict[str, Any]) -> dict[str, Any]:
         else:
             merged["threshold_k"] = max(60, min(300, int(merged.get("threshold_k", 110))))
 
+        concise_changed = bool(merged.get("concise_output", False)) != bool(cur.get("concise_output", False))
+        defer_sync = False
+        if concise_changed and _should_defer_concise_sync():
+            defer_sync = True
+
         clean = {
             "profile": merged.get("profile", "zero_loss"),
             "auto_rollover": bool(merged["auto_rollover"]),
@@ -163,20 +172,57 @@ def save_config(patch: dict[str, Any]) -> dict[str, Any]:
             "cooldown_min": max(5, min(120, int(merged.get("cooldown_min", 20)))),
             "compact_reads": bool(merged.get("compact_reads", False)),
             "concise_output": bool(merged.get("concise_output", False)),
+            "pending_concise_sync": defer_sync or (bool(cur.get("pending_concise_sync", False)) and not concise_changed),
         }
         _atomic_write_json(CFG_FILE, clean)
-        _sync_concise_rule(clean["concise_output"])
+        if not clean["pending_concise_sync"]:
+            _sync_concise_rule(clean["concise_output"])
         return clean
 
 
 _CONCISE_RULE_LINE = "7. Concise mode (SoT/Caveman-lite): skip pleasantries, preambles, and pre/post-tool chatter; keep code, diffs, paths, errors, and root-cause debugging verbatim."
 
 
+def _should_defer_concise_sync() -> bool:
+    """Protect active warm KV caches (>30k tokens, idle <150s) from mid-session system-prompt edits (arXiv:2601.06007)."""
+    if _is_sandbox_data_dir() or os.environ.get("AGY_TS_SYNC_RULES") == "1":
+        return False
+    try:
+        cands = discover_session_sources()
+        if not cands:
+            return False
+        now = time.time()
+        _mt, sid, tx, db = cands[0]
+        if now - _mt > 180:
+            return False
+        rec = parse_session_cached(sid, tx, db)
+        if not rec:
+            return False
+        age = max(0, int(now - rec["last_ts"]))
+        return rec["cur_tot"] >= 30_000 and age < rec.get("ttl_cliff_sec", 150)
+    except Exception:
+        return False
+
+
+def flush_pending_concise_sync(force: bool = False) -> bool:
+    """Apply deferred Concise Output rule once active warm cache cools or before spawning a fresh chat."""
+    with _cfg_lock:
+        cfg = load_config()
+        if not cfg.get("pending_concise_sync"):
+            return False
+        if not force and _should_defer_concise_sync():
+            return False
+        _sync_concise_rule(bool(cfg.get("concise_output", False)))
+        cfg["pending_concise_sync"] = False
+        _atomic_write_json(CFG_FILE, cfg)
+        return True
+
+
 def _sync_concise_rule(enabled: bool) -> None:
     """Opt-in Caveman-lite output rule synced to rules/AGENTS.md only on explicit user toggle."""
     try:
         # Never mutate repo rules/AGENTS.md when running under an isolated test PLUGIN_DATA dir
-        if DATA_DIR.resolve() != (PLUGIN_ROOT / ".data").resolve() and os.environ.get("AGY_TS_SYNC_RULES") != "1":
+        if _is_sandbox_data_dir() and os.environ.get("AGY_TS_SYNC_RULES") != "1":
             return
         agents_md = PLUGIN_ROOT / "rules" / "AGENTS.md"
         if not agents_md.is_file():
@@ -191,25 +237,38 @@ def _sync_concise_rule(enabled: bool) -> None:
 
 def _load_rollover_state() -> dict[str, Any]:
     if not ROLLOVER_STATE_FILE.is_file():
-        return {"rolled_convs": {}, "last_rollover_ts": 0}
+        return {"rolled_convs": {}, "snapshotted_convs": {}, "last_rollover_ts": 0}
     try:
         d = json.loads(ROLLOVER_STATE_FILE.read_text(encoding="utf-8"))
         if isinstance(d, dict):
+            rc = dict(d.get("rolled_convs") or {})
+            sc = dict(d.get("snapshotted_convs") or {})
+            # Backward-compatible migration: entries previously recorded under Archive Only ("snapshot")
+            # must NOT block upgrading that same chat to Mode 2 ("smart_auto") later.
+            if rc and "snapshotted_convs" not in d:
+                hist = load_rollover_history()
+                auto_prefixes = {h.get("from_conv", "") for h in hist if h.get("kind") in ("auto", "manual")}
+                snap_prefixes = {h.get("from_conv", "") for h in hist if h.get("kind") == "snapshot"}
+                for cid in list(rc.keys()):
+                    p8 = cid[:8]
+                    if p8 not in auto_prefixes and (p8 in snap_prefixes or not auto_prefixes):
+                        sc[cid] = rc.pop(cid)
             return {
-                "rolled_convs": dict(d.get("rolled_convs") or {}),
+                "rolled_convs": rc,
+                "snapshotted_convs": sc,
                 "last_rollover_ts": int(d.get("last_rollover_ts") or 0),
             }
     except Exception:
         pass
-    return {"rolled_convs": {}, "last_rollover_ts": 0}
+    return {"rolled_convs": {}, "snapshotted_convs": {}, "last_rollover_ts": 0}
 
 
 def _save_rollover_state(st: dict[str, Any]) -> None:
-    # Keep last 200 rolled convs so file never grows unbounded
-    rc = st.get("rolled_convs") or {}
-    if len(rc) > 200:
-        newest = sorted(rc.items(), key=lambda kv: kv[1], reverse=True)[:150]
-        st["rolled_convs"] = dict(newest)
+    # Keep last 200 entries so state file never grows unbounded
+    for key in ("rolled_convs", "snapshotted_convs"):
+        m = st.get(key) or {}
+        if len(m) > 200:
+            st[key] = dict(sorted(m.items(), key=lambda kv: kv[1], reverse=True)[:150])
     _atomic_write_json(ROLLOVER_STATE_FILE, st)
 
 
@@ -759,18 +818,28 @@ def _build_session_record(sid: str, app_name: str, tx: Path | None, db: Path | N
     fallback_ts = max(_fsig(tx)[0], _fsig(db)[0], _fsig(Path(str(db) + "-wal") if db else None)[0])
     tracker = RolloverTracker()
     tot_in = tot_cr = tot_out = drops = tail_2049 = 0
-    prev_cr = 0
+    drop_rebuild_tok = idle_drop_tok = midrun_drop_tok = 0
+    prev_cr = prev_tot = 0
     for i, (inp, cr, out) in enumerate(turn_tuples):
         tracker.push(inp, cr, out)
         tot_in += inp
         tot_cr += cr
         tot_out += out
+        tot_i = inp + cr
         if i > 0:
             if prev_cr >= 4000 and cr < prev_cr * 0.8:
                 drops += 1
+            if prev_tot >= 20000 and inp >= 20000 and (cr == 0 or cr < prev_tot * 0.5) and not (tot_i < prev_tot * 0.85):
+                drop_rebuild_tok += inp
+                pm = meta[i - 1] if i - 1 < len(meta) else None
+                if pm and pm.get("final"):
+                    idle_drop_tok += inp
+                else:
+                    midrun_drop_tok += inp
             if 2048 <= inp <= 2060 and cr >= 4000:
                 tail_2049 += 1
         prev_cr = cr
+        prev_tot = tot_i
     turns = len(turn_tuples)
     last_model = next((p["model"] for p in reversed(planners) if p.get("model")), "")
     stamps = [m["ts"] for m in meta if m and m.get("ts")]
@@ -813,6 +882,9 @@ def _build_session_record(sid: str, app_name: str, tx: Path | None, db: Path | N
         "out_per_turn": tot_out // turns,
         "warm_hit_pct": round((sum(t[1] for t in turn_tuples[1:]) / wden) * 100, 1) if wden else 0.0,
         "drops": drops,
+        "drop_rebuild_tok": drop_rebuild_tok,
+        "idle_drop_tok": idle_drop_tok,
+        "midrun_drop_tok": midrun_drop_tok,
         "tail_2049": tail_2049,
         "img_reads": scan["img_reads"],
         "first_ts": first_ts,
@@ -962,6 +1034,7 @@ def compute_savings_analytics(
     all_sessions: list[dict[str, Any]],
     hooks: dict[str, Any],
     history: list[dict[str, Any]],
+    cfg: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Honest, exact token & quota savings breakdown across all tracked sessions:
@@ -988,26 +1061,18 @@ def compute_savings_analytics(
     logged_in_saved = sum(int(h.get("est_input_saved") or 0) for h in logged_rollovers)
     logged_cr_saved = sum(int(h.get("est_cache_saved") or 0) for h in logged_rollovers)
 
-    # Output comparison: compare newer Token-Saver sessions (post-install or handoff-era) vs older baseline
-    # Split chronologically: older half vs newer half (or sessions with/without concise rule)
-    chrono = sorted(all_sessions, key=lambda s: s["last_ts"])
+    # Honest output row: hooks never alter model output in Mode 1, and we never compare
+    # unrelated historical sessions by task size (which produced misleading +/-% swings).
+    concise_on = bool((cfg or {}).get("concise_output", False))
     out_saved_tok = 0
     out_saved_pct = 0.0
-    out_note = "Measured across all turns"
-    if len(chrono) >= 6:
-        # Compare last 10 sessions (with Token Saver active) against prior baseline
-        recent_slice = chrono[-min(12, len(chrono) // 2):]
-        older_slice = chrono[:-len(recent_slice)]
-        older_turns = sum(s["turns"] for s in older_slice)
-        recent_turns = sum(s["turns"] for s in recent_slice)
-        if older_turns > 0 and recent_turns > 0:
-            old_avg_out = sum(s["tot_out"] for s in older_slice) / older_turns
-            new_avg_out = sum(s["tot_out"] for s in recent_slice) / recent_turns
-            if old_avg_out > 0:
-                delta_per_turn = old_avg_out - new_avg_out
-                out_saved_pct = round((delta_per_turn / old_avg_out) * 100.0, 1)
-                out_saved_tok = int(max(0.0, delta_per_turn * recent_turns))
-                out_note = f"{int(new_avg_out)} vs {int(old_avg_out)} tok/turn baseline"
+    out_note = "Concise ON (est. -20%..-35% on new chats)" if concise_on else "Unchanged in Zero Quality Loss mode"
+
+    # Prompt-cache drop forensics across all sessions (arXiv:2601.06007)
+    rebuild_tok_total = sum(int(s.get("drop_rebuild_tok") or 0) for s in all_sessions)
+    idle_drop_tok_total = sum(int(s.get("idle_drop_tok") or 0) for s in all_sessions)
+    midrun_drop_tok_total = sum(int(s.get("midrun_drop_tok") or 0) for s in all_sessions)
+    rebuild_quota_pct = round((rebuild_tok_total * W_IN / actual_quota) * 100.0, 1) if actual_quota > 0 else 0.0
 
     # Smart rollover counterfactual across all sessions (what Smart Auto saves on long sessions)
     sim_in_total = sum(s["sim_in"] for s in all_sessions)
@@ -1130,6 +1195,12 @@ def compute_savings_analytics(
         },
         "tiers": tiers,
         "logged_rollovers_count": len(logged_rollovers),
+        "cache_health": {
+            "rebuild_tokens": rebuild_tok_total,
+            "idle_drop_tokens": idle_drop_tok_total,
+            "midrun_drop_tokens": midrun_drop_tok_total,
+            "rebuild_quota_pct": rebuild_quota_pct,
+        },
     }
 
 
@@ -1182,6 +1253,7 @@ def perform_rollover(
     to_conv = ""
     raw_out = ""
     if spawn_chat:
+        flush_pending_concise_sync(force=True)
         base_cmd = _find_agentapi_cmd()
         if not base_cmd:
             return {"ok": False, "error": "agentapi binary unavailable; handoff saved to archive instead."}
@@ -1261,17 +1333,21 @@ def build_state(conv_id: str = "") -> dict[str, Any]:
 
     if active:
         age = max(0, int(now - active["last_ts"]))
+        ttl_cliff = int(active.get("ttl_cliff_sec") or 150)
+        is_cold = age >= ttl_cliff
         recent_10m = sum(1 for t in active.get("turn_timestamps", []) if (now - t) <= 600)
         active = {
             **{k: v for k, v in active.items() if k != "turn_timestamps"},
             "idle_sec": age,
-            "ttl_remaining_sec": max(0, active["ttl_cliff_sec"] - age),
+            "ttl_remaining_sec": max(0, ttl_cliff - age),
+            "is_cold": is_cold,
+            "cold_rebuild_save_est": max(0, int(active["cur_tot"]) - COLD_START_TOK) if is_cold else 0,
             "recent_turns_10m": recent_10m,
         }
 
     hooks = load_events_summary()
     history = load_rollover_history()
-    savings = compute_savings_analytics(all_sessions, hooks, history)
+    savings = compute_savings_analytics(all_sessions, hooks, history, cfg)
 
     recent_clean = [
         {k: v for k, v in s.items() if k != "turn_timestamps"}
@@ -1574,8 +1650,10 @@ def apply_update() -> dict[str, Any]:
 
 
 def run_smart_rollover_tick() -> None:
-    """Single anti-spam adaptive rollover evaluation tick."""
+    """Single anti-spam adaptive + cold-cache rollover evaluation tick (CADOC arXiv:2609.37012)."""
     global _last_auto_event
+    # Apply any deferred rules/AGENTS.md sync as soon as no warm large cache is active
+    flush_pending_concise_sync(force=False)
     cfg = load_config()
     mode = cfg.get("mode", "smart_auto")
     if mode == "off" or not cfg.get("auto_rollover", True):
@@ -1590,38 +1668,48 @@ def run_smart_rollover_tick() -> None:
     cap_k = st["adaptive"]["cap_k"]
     now = int(time.time())
 
-    # Anti-spam & break-even guardrails:
-    # 1+2. Shared policy (same function the counterfactual uses): context >= adaptive cap and
-    #      >= min_turns in THIS conversation.
-    if not st["adaptive"].get("roll"):
-        return
     # Only IDE chats (agentapi spawns IDE conversations); never a CLI session from here.
     if act.get("app") and act.get("app") != "antigravity":
         return
-    # Agent run must be finished: last generation had no tool calls, no background task/subagent
-    # pending, and the chat is user-driven (subagent chats have no USER_INPUT). Spawning a new chat
-    # mid-run would NOT stop the old one - both would keep burning quota.
+    # Agent run must be finished: spawning a new chat mid-run would NOT stop the old one.
     if not act.get("last_settled"):
         return
-    # 3. Must have active momentum (>=3 turns in last 10m) — avoids spawning when user is already done!
-    if act.get("recent_turns_10m", 0) < 3:
-        return
-    # 4. Settled idle window (20s..90s): don't interrupt active turn, don't touch old chats
-    if not (20 <= act["idle_sec"] <= 90):
-        return
+
+    # Cold-cache trigger (arXiv:2609.37012 / arXiv:2607.19214): once a >=75k chat's KV cache has
+    # ALREADY expired (idle >= ttl_cliff), resuming it pays cur_tot uncached vs 17k fresh handoff
+    # (instant Turn-1 payback, zero warm cache wasted).
+    is_cold_payback = bool(
+        act.get("is_cold")
+        and act.get("cur_tot", 0) >= 75_000
+        and act.get("turns", 0) >= 6
+        and act.get("idle_sec", 0) <= 600
+    )
+
+    if not is_cold_payback:
+        # Warm-chat guardrails: shared causal policy + active momentum + settled window
+        if not st["adaptive"].get("roll"):
+            return
+        if act.get("recent_turns_10m", 0) < 3:
+            return
+        if not (20 <= act["idle_sec"] <= 600):
+            return
+
+    spawn = (mode == "smart_auto") and st.get("can_new_chat", False)
+    bucket_key = "rolled_convs" if spawn else "snapshotted_convs"
 
     with _state_lock:
         rstate = _load_rollover_state()
-        if cid in rstate["rolled_convs"]:
+        # Mode 1 ("snapshot") NEVER blocks upgrading the same chat to Mode 2 ("smart_auto") later!
+        if cid in rstate[bucket_key]:
             return
         cooldown_sec = cfg.get("cooldown_min", 20) * 60
-        if now - rstate.get("last_rollover_ts", 0) < cooldown_sec:
+        if spawn and now - rstate.get("last_rollover_ts", 0) < cooldown_sec:
             return
-        rstate["rolled_convs"][cid] = now
-        rstate["last_rollover_ts"] = now
+        rstate[bucket_key][cid] = now
+        if spawn:
+            rstate["last_rollover_ts"] = now
         _save_rollover_state(rstate)
 
-    spawn = (mode == "smart_auto") and st.get("can_new_chat", False)
     kind = "auto" if spawn else "snapshot"
     res = perform_rollover(
         ws=st["workspace"],

@@ -343,7 +343,7 @@ def _handle_tool_call(name: str, args: dict[str, Any]) -> dict[str, Any]:
 
 
 def _send(msg: dict[str, Any]) -> None:
-    line = json.dumps(msg, separators=(",", ":"), ensure_ascii=False) + "\n"
+    line = json.dumps(msg, separators=(",", ":"), sort_keys=True, ensure_ascii=False) + "\n"
     with _stdout_lock:
         sys.stdout.write(line)
         sys.stdout.flush()
@@ -387,7 +387,7 @@ def _dispatch(req: dict[str, Any]) -> None:
             return
 
         if method == "tools/list":
-            _send_result(req_id, {"tools": TOOLS})
+            _send_result(req_id, {"tools": sorted(TOOLS, key=lambda t: t["name"])})
             return
 
         if method == "tools/call":

@@ -49,7 +49,7 @@ if (!defined $brief || $brief eq '' || index($brief, '[token-saver]') >= 0) {
     exit 0;
 }
 
-my $footer = "\n\n[token-saver] Read only assigned file:line slices via grep first (no unbounded repo cold-reads); batch parallel tool calls; use minimal-anchor edit_file; keep board updates brief (never paste full logs).";
+my $footer = "\n\n[token-saver] Read only assigned file:line slices via grep first (no unbounded repo cold-reads); batch parallel tool calls; use minimal-anchor edit_file; keep turns fast (<90s) and board updates brief (never paste full logs) so coordinator KV cache stays warm.";
 my $new_brief = $brief . $footer;
 
 print '{"decision":"allow","overwrite":{"brief":"' . json_escape($new_brief) . '"}}';

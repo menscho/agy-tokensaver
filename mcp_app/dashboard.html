@@ -480,6 +480,7 @@
             <span class="ctx-stats" id="ctx-stats">—</span>
           </div>
           <div class="bar"><div class="bar-fill" id="ctx-bar"></div></div>
+          <div class="row-desc" id="cold-banner" style="display:none;margin-top:8px;color:var(--warn)"></div>
         </div>
 
         <div class="row">
@@ -741,12 +742,17 @@
     document.getElementById('bd-cr-used').textContent = fmtK(crB.used || 0);
 
     const outB = bd.output || {};
-    const outPct = Number(outB.saved_pct || 0);
+    const conciseOn = !!cfg.concise_output;
     document.getElementById('bd-out-note').textContent = `(${fmtK(outB.avg_per_turn || 0)} / turn)`;
-    document.getElementById('bd-out-saved').textContent = fmtK(outB.saved || 0);
+    document.getElementById('bd-out-saved').textContent = conciseOn ? '—' : fmtK(outB.saved || 0);
     const outEl = document.getElementById('bd-out-pct');
-    outEl.textContent = (outPct >= 0 ? '-' : '+') + Math.abs(outPct) + '%';
-    outEl.className = 'num ' + (outPct >= 0 ? 'ok' : 'muted');
+    if (conciseOn) {
+      outEl.textContent = cfg.pending_concise_sync ? 'Queued (cache-safe)' : 'Concise ON (-20..-35%*)';
+      outEl.className = 'num ok';
+    } else {
+      outEl.textContent = '0%';
+      outEl.className = 'num muted';
+    }
     document.getElementById('bd-out-used').textContent = fmtK(outB.used || 0);
 
     const qB = bd.quota || {};
@@ -754,8 +760,12 @@
     document.getElementById('bd-q-pct').textContent = `-${qB.saved_pct ?? 0}% (+${qB.more_capacity_pct ?? 0}% usage)`;
     document.getElementById('bd-q-used').textContent = `${fmtK(qB.used_units || 0)} units`;
 
+    const ch = sav.cache_health || {};
+    const chExtra = (ch.rebuild_tokens || 0) > 0
+      ? ` Cache drops rebuilt ${fmtK(ch.rebuild_tokens)} uncached (${ch.rebuild_quota_pct ?? 0}% of quota: ${fmtK(ch.idle_drop_tokens || 0)} idle gaps, ${fmtK(ch.midrun_drop_tokens || 0)} tool/swarm waits).`
+      : '';
     document.getElementById('cache-footnote').textContent =
-      `Prompt caching also avoids ${tot.cache_discount_pct ?? 0}% of cold-input cost (${sav.drops_total ?? 0} cache drops recorded).`;
+      `Prompt caching avoids ${tot.cache_discount_pct ?? 0}% of cold-input cost (${sav.drops_total ?? 0} drops).${chExtra}`;
 
     // Active session
     const a = s.active;
@@ -779,7 +789,14 @@
       } else if (a.ttl_remaining_sec > 0) {
         dot.className = 'dot warn'; tt.textContent = `Cache cooling (${a.ttl_remaining_sec}s)`;
       } else {
-        dot.className = 'dot bad'; tt.textContent = `Idle ${a.idle_sec}s`;
+        dot.className = 'dot bad'; tt.textContent = `Cache COLD (idle ${a.idle_sec}s)`;
+      }
+      const cb = document.getElementById('cold-banner');
+      if (a.is_cold && a.cur_tot >= 60000) {
+        cb.style.display = 'block';
+        cb.textContent = `Cache COLD (${a.idle_sec}s idle > ${a.ttl_cliff_sec || 150}s TTL) — next reply rebuilds ~${fmtK(a.cur_tot)} uncached. Click "Archive & New Chat" to pay ~17k instead (saves ~${fmtK(a.cold_rebuild_save_est || 0)} immediately).`;
+      } else {
+        cb.style.display = 'none';
       }
     }
 
@@ -947,7 +964,9 @@
     const res = await callTool('ts_save_settings', { profile, threshold_mode });
     if (res && res.state) {
       render(res.state);
-      setStatus(profile === 'small_loss' ? 'Small Quality Loss mode enabled.' : 'Zero Quality Loss mode enabled.');
+      const pending = !!(res.config && res.config.pending_concise_sync);
+      const baseMsg = profile === 'small_loss' ? 'Small Quality Loss mode enabled.' : 'Zero Quality Loss mode enabled.';
+      setStatus(pending ? `${baseMsg} Concise rule queued until warm cache cools (protects KV cache).` : baseMsg);
     } else {
       setStatus('Failed to save settings.');
     }

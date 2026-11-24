@@ -18,7 +18,12 @@ All notable changes to **agy-tokensaver** (`menscho/agy-tokensaver`) are documen
   - **TokenEconomizer** (`arXiv:2610.22732`): 3× consecutive identical `test`/`build`/`lint` failure-loop breaker in `cmd_hook_core.pl` (with 1-retry escape hatch, cleared on any edit).
   - **Factory.ai Anchored Handoff:** `handoff_pack.py` now includes a `## Recent errors / ruled-out` section extracted from recent tool failures.
   - **Diagnostic chains & zero-loss tools:** expanded chain wrapping to 16 segments + section-header `echo`/`printf` banners (`===`/`---`), POSIX `ffmpeg` banner/progress filtering, read-only `python3 -c` inspection wrapping (`>=80 B`), JSON/table compaction inside `compress_logs`, and pre-drop idle cache-rebuild cost warnings in `post_invocation_alerts.pl`.
-- **304 assertions across 7 test suites** (`run_tests.sh`, `test_cmd_windows.sh`, `test_read.sh`, `test_rollover.sh`, `test_rules.sh`, `test_tools.sh`, `test_headroom_plexer.sh`) verified in 3-OS CI.
+- **Prompt-Cache Maxxing (`arXiv:2601.06007`, `2607.15516`, `2607.19214`, `2609.37012`) & HUD Fixes:**
+  - **Cache-Safe Deferred Rule Sync:** toggling `Small Quality Loss` while an active `>=30k` chat has a warm cache (`<150s`) queues the `rules/AGENTS.md` update until the cache cools or rolls over — preventing accidental 100k–400k mid-session prefix invalidations.
+  - **Cold-Cache Auto-Handoff & Snapshot/Auto Separation:** tracks `snapshotted_convs` separately from `rolled_convs` (upgrading an already-snapshotted chat from Mode 1 → Mode 2 now auto-rolls cleanly!), expands the settled rollover window (`20–600s`), and rolls already-cold `>=75k` chats for instant Turn-1 payback (`17k` vs `100k–450k` cold rebuild).
+  - **Deterministic Prefixes:** content-addressed 12-hex FNV-1a spillback filenames in `cmd_wrap.pl` (zero timestamp/PID/random entropy), alphabetically sorted MCP `tools/list` + `sort_keys=True` in `mcp_app/server.py`, and `<90s` coordinator cache-TTL pacing in `swarm_hook.pl`.
+  - **Honest Output Row & Cache-Drop Forensics:** removed the misleading chronological session output comparison (`+42.5%` bug) in `mcp_app/core.py` / `dashboard.html`; added live Cold-Cache Rollover banner and idle-vs-midrun cache-drop rebuild breakdown.
+- **308 assertions across 7 test suites** (`run_tests.sh`, `test_cmd_windows.sh`, `test_read.sh`, `test_rollover.sh`, `test_rules.sh`, `test_tools.sh`, `test_headroom_plexer.sh`) verified in 3-OS CI.
 
 ## [1.0.0] — Initial Open-Source Release
 

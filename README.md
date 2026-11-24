@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://github.com/menscho/agy-tokensaver/releases"><img src="https://img.shields.io/badge/release-v1.0.0-4ade80?style=flat-square&labelColor=0d0d11" alt="Release v1.0.0"/></a>
-  <a href="https://github.com/menscho/agy-tokensaver/actions/workflows/test.yml"><img src="https://img.shields.io/badge/tests-304%20passing-4ade80?style=flat-square&labelColor=0d0d11" alt="304 Tests Passing"/></a>
+  <a href="https://github.com/menscho/agy-tokensaver/actions/workflows/test.yml"><img src="https://img.shields.io/badge/tests-308%20passing-4ade80?style=flat-square&labelColor=0d0d11" alt="308 Tests Passing"/></a>
   <a href="https://github.com/menscho/agy-tokensaver/actions/workflows/test.yml"><img src="https://img.shields.io/badge/CI-Ubuntu%20%7C%20macOS%20%7C%20Windows-8e8e98?style=flat-square&labelColor=0d0d11" alt="3-OS CI"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-8e8e98?style=flat-square&labelColor=0d0d11" alt="MIT License"/></a>
 </p>
@@ -143,7 +143,7 @@ Every technique in `agy-tokensaver` is grounded in 2024–2026 coding-agent effi
   - **Merlin** (`arXiv:2605.09990`): byte-exact non-adjacent chunk deduplication (`cmd_wrap.pl` `merlin_dedupe_chunks`, 24–80% reduction on repeated log/SSH diagnostics with 0% info loss).
   - **TokenEconomizer** (`arXiv:2610.22732`): failure-loop breaker stopping 3× identical failing `test`/`build`/`lint` runs with no intervening edits (18–31% cost cut + Pass@1 gain).
   - **SkillReducer** (`arXiv:2603.29919`) & **Same Task, Different Work** (`arXiv:2608.01347`): tightened always-loaded prompt/skill descriptions from `906 → 383 tok/turn` (-58%) plus bounded-scope stop rules.
-  - **Don't Break the Cache** (`arXiv:2601.06007`): strictly append-only prefix hygiene + pre-drop idle cache-rebuild cost warnings.
+  - **Don't Break the Cache** (`arXiv:2601.06007`), **CAPC** (`arXiv:2607.15516`), **Keeping the Cache Warm** (`arXiv:2607.19214`), & **CADOC** (`arXiv:2609.37012`): strictly append-only prefixes, deterministic content-addressed spillback filenames (zero timestamp/PID entropy), alphabetically sorted MCP tool schemas, cache-safe deferred `rules/AGENTS.md` sync (never mutating rules while a warm `>30k` cache is active), swarm worker `<90s` pacing, cold-cache auto-handoff (instant Turn-1 payback when resuming expired `>=75k` chats), and live HUD cache-drop forensics (idle gaps vs tool/swarm waits).
 - **Small-Loss Research (`~0.1%–1.0%` risk, opt-in Mode 2):**
   - **The Complexity Trap** (JetBrains, NeurIPS 2025, `arXiv:2508.21433`) & **Focus** (`arXiv:2601.07190`) & **Factory.ai Anchored Summarization**: threshold-based Anchored Handoff packets with ruled-out errors (23–50% cost cut, `0%` to `+1.4 pp` at phase boundaries).
   - **Sketch-of-Thought** (`arXiv:2503.05179`), **TALE-EP** (`arXiv:2412.18547`), & **[Caveman](https://github.com/JuliusBrussee/caveman):** Concise Output rule cutting `6×`-weighted prose chatter while keeping code, diffs, paths, and root-cause debugging verbatim.
@@ -165,7 +165,7 @@ for t in tests/run_tests.sh tests/test_*.sh; do bash "$t"; done
 python3 scripts/benchmark.py --demo --modes
 ```
 
-Verified in [`.github/workflows/test.yml`](.github/workflows/test.yml) across **Ubuntu, macOS, and Native Windows** (`304` assertions across 7 test suites + MCP/installer/PowerShell/demo checks).
+Verified in [`.github/workflows/test.yml`](.github/workflows/test.yml) across **Ubuntu, macOS, and Native Windows** (`308` assertions across 7 test suites + MCP/installer/PowerShell/demo checks).
 
 ## License
 

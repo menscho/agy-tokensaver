@@ -190,5 +190,56 @@ c2 = core.save_config({"profile": "zero_loss"})
 assert c2["profile"] == "zero_loss" and c2["mode"] == "prepare_only" and not c2["compact_reads"] and not c2["concise_output"], c2
 PYEOF
 
+# 17. Deterministic content-addressed spillback filename (arXiv:2601.06007 cache stability)
+"$PY" -c 'for i in range(400): print(f"INFO line {i} payload_data_block_0123456789abcdef")' > "$T/spill_in.log"
+s1=$($W --cat logs --test-stdin < "$T/spill_in.log" | grep -oE '[0-9a-f]{12}\.log' | head -n 1)
+s2=$($W --cat logs --test-stdin < "$T/spill_in.log" | grep -oE '[0-9a-f]{12}\.log' | head -n 1)
+[[ -n "$s1" && "$s1" == "$s2" ]] && ok || bad "deterministic content-addressed spillback path" "s1=$s1 s2=$s2"
+
+# 18. Honest output breakdown (0% unchanged, no bogus +/-% from task size) + cache_health forensics
+"$PY" - "$ROOT/mcp_app" "$T/cfgdata2" <<'PYEOF' && ok || bad "honest output breakdown + cache_health" "failed"
+import os, sys
+os.environ["PLUGIN_DATA"] = sys.argv[2]
+sys.path.insert(0, sys.argv[1])
+import core
+mk = lambda ts, ot, rb: {
+    "turns": 10, "tot_in": 50000, "tot_cr": 200000, "tot_out": ot, "drops": 1,
+    "drop_rebuild_tok": rb, "idle_drop_tok": rb, "midrun_drop_tok": 0,
+    "actual_quota": 50000 + 200000*0.05 + ot*6, "uncached_baseline_quota": 250000 + ot*6,
+    "sim_in": 50000, "sim_cr": 200000, "sim_quota": 50000 + 200000*0.05 + ot*6,
+    "peak_ctx": 40000, "last_ts": ts,
+}
+sessions = [mk(i, 5000 if i < 4 else 15000, 30000) for i in range(8)]
+sav = core.compute_savings_analytics(sessions, {}, [], {"concise_output": False})
+assert sav["breakdown"]["output"]["saved_pct"] == 0.0 and sav["breakdown"]["output"]["saved"] == 0, sav["breakdown"]["output"]
+assert sav["cache_health"]["rebuild_tokens"] == 240000 and sav["cache_health"]["idle_drop_tokens"] == 240000, sav["cache_health"]
+PYEOF
+
+# 19. Snapshot-only rollover state migrates to snapshotted_convs and does NOT block Mode 2 smart_auto
+"$PY" - "$ROOT/mcp_app" "$T/cfgdata3" <<'PYEOF' && ok || bad "snapshot vs smart_auto rollover separation" "failed"
+import json, os, sys
+from pathlib import Path
+os.environ["PLUGIN_DATA"] = sys.argv[2]
+sys.path.insert(0, sys.argv[1])
+import core
+d = Path(sys.argv[2]); d.mkdir(parents=True, exist_ok=True)
+(d / "rollover_history.json").write_text(json.dumps([{"from_conv": "abcd1234", "kind": "snapshot"}]))
+(d / "rollover_state.json").write_text(json.dumps({"rolled_convs": {"abcd1234-rest": 1700000000}, "last_rollover_ts": 1700000000}))
+rs = core._load_rollover_state()
+assert "abcd1234-rest" not in rs["rolled_convs"] and "abcd1234-rest" in rs["snapshotted_convs"], rs
+PYEOF
+
+# 20. Deterministic alphabetically sorted MCP tool list (arXiv:2601.06007)
+"$PY" - "$ROOT/mcp_app/server.py" "$T/cfgdata4" <<'PYEOF' && ok || bad "alphabetically sorted MCP tools/list" "failed"
+import json, os, subprocess, sys
+env = dict(os.environ, PLUGIN_DATA=sys.argv[2])
+p = subprocess.Popen([sys.executable, sys.argv[1]], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, env=env)
+p.stdin.write(json.dumps({"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}) + "\n"); p.stdin.flush()
+r = json.loads(p.stdout.readline())
+p.terminate(); p.wait(timeout=5)
+names = [t["name"] for t in r["result"]["tools"]]
+assert names == sorted(names) and len(names) >= 5, names
+PYEOF
+
 printf 'PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
 [[ $FAIL -eq 0 ]]
