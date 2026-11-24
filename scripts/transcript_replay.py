@@ -578,7 +578,8 @@ TIERS = [
 ]
 
 
-def run(detail: bool = False, json_out: str | None = None, quiet: bool = False, policy: str = "auto") -> dict:
+def run(detail: bool = False, json_out: str | None = None, quiet: bool = False, policy: str = "auto",
+        extra_env: dict[str, str] | None = None) -> dict:
     sessions = discover_sessions()
     # Live auto policy learns p_continue from this machine's OTHER chats (core.continuation_probability)
     recs = []
@@ -588,7 +589,7 @@ def run(detail: bool = False, json_out: str | None = None, quiet: bool = False, 
             r0 = core.parse_session_cached(s["id"], tx, db, s["app"])
             if r0:
                 recs.append(r0)
-    perl_env = {**os.environ}
+    perl_env = {**os.environ, **(extra_env or {})}
     rows = []
     cats_all: collections.Counter = collections.Counter()
     catn_all: collections.Counter = collections.Counter()
@@ -688,13 +689,60 @@ def run(detail: bool = False, json_out: str | None = None, quiet: bool = False, 
     return summary
 
 
+def run_modes(policy: str = "auto") -> dict:
+    """Compare every mode separately on the exact same real local sessions."""
+    base = run(quiet=True, policy=policy, extra_env={"AGY_TS_COMPACT_READS": "0"})
+    comp = run(quiet=True, policy=policy, extra_env={"AGY_TS_COMPACT_READS": "1"})
+
+    # Compute exact output share of total quota across the same sessions for Concise Output sensitivity
+    sessions = discover_sessions()
+    tot_in = sum(t[0] for s in sessions for t in s["turns"])
+    tot_cr = sum(t[1] for s in sessions for t in s["turns"])
+    tot_out = sum(t[2] for s in sessions for t in s["turns"])
+    q_tot = tot_in * W_IN + tot_cr * W_CR + tot_out * W_OUT
+    out_share = (tot_out * W_OUT / q_tot * 100.0) if q_tot else 0.0
+
+    # Conservative Caveman/CoD-SWE output reduction sensitivity (-20% conservative, -35% moderate)
+    c20 = round(out_share * 0.20, 1)
+    c35 = round(out_share * 0.35, 1)
+
+    b_h = -base["q_hooks"]["total"]
+    c_h = -comp["q_hooks"]["total"]
+    b_live = -base["q_both"]["total"]
+    c_live = -comp["q_both"]["total"]
+    b_ub = -base["q_both_ub"]["total"]
+    c_ub = -comp["q_both_ub"]["total"]
+
+    print(f"=== Mode-by-Mode Comparison ({base['n']} real sessions, {base['turns']:,} turns, {q_tot/1e6:.1f}M quota units) ===")
+    print(f"Real quota mix: Input {tot_in*W_IN/q_tot*100:.1f}% | Cache read {tot_cr*W_CR/q_tot*100:.1f}% | Output (6x) {out_share:.1f}%\n")
+    print(f"{'Mode Configuration':44s} | {'Quality Risk':14s} | {'Tool Tok Cut':>12s} | {'Total Quota':>11s}")
+    print("-" * 91)
+    print(f"{'1. Zero-Loss Hooks (Default ON, HO OFF)':44s} | {'0% (exact)':14s} | {base['saved_tool_tok']:9,d} tk | {b_h:+10.1f}%")
+    print(f"{'2. + Compact Reads (Opt-In, HO OFF)':44s} | {'~0.1-0.5%':14s} | {comp['saved_tool_tok']:9,d} tk | {c_h:+10.1f}%")
+    print(f"{'3. + Concise Output -20% (Opt-In, modeled*)':44s} | {'~0.1% prose':14s} | {base['saved_tool_tok']:9,d} tk | {b_h - c20:+10.1f}%")
+    print(f"{'4. + Concise Output -35% (Opt-In, modeled*)':44s} | {'~0.1% prose':14s} | {base['saved_tool_tok']:9,d} tk | {b_h - c35:+10.1f}%")
+    print(f"{'5. + Auto-Handoff Live (Opt-In, Default Rds)':44s} | {'Fresh chat**':14s} | {base['saved_tool_tok']:9,d} tk | {b_live:+10.1f}%")
+    print(f"{'6. + Auto-Handoff Live + Compact + Concise*':44s} | {'Combined**':14s} | {comp['saved_tool_tok']:9,d} tk | {c_live - c20:+10.1f}% .. {c_live - c35:+.1f}%")
+    print(f"{'7. + Auto-Handoff UB + Compact + Concise*':44s} | {'Upper bound**':14s} | {comp['saved_tool_tok']:9,d} tk | {c_ub - c20:+10.1f}% .. {c_ub - c35:+.1f}%")
+    print("-" * 91)
+    print("*  Concise Output (Caveman-lite / CoD-SWE) is a modeled sensitivity on your real 6x output bucket")
+    print("   (live generation cannot be replayed without re-calling the LLM; conservative -20%..-35% vs published -45%..-65%).")
+    print("** Auto-Handoff starts a fresh chat with a structured packet (goal, branch, commits, edited files, last summary);")
+    print("   earlier dead-end trial logs are left in the archive.")
+    return {"base": base, "compact_reads": comp, "out_share_pct": round(out_share, 1), "concise_20_pct": c20, "concise_35_pct": c35}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--detail", action="store_true")
     ap.add_argument("--json", default=None)
+    ap.add_argument("--modes", action="store_true", help="compare Zero-Loss, Compact Reads, Concise Output, and Auto-Handoff separately")
     ap.add_argument("--policy", choices=("auto", "v1"), default="auto",
                     help="rollover policy to simulate: shipped adaptive 'auto' or v1.0.0 fixed 110k cap")
     a = ap.parse_args()
+    if a.modes:
+        run_modes(policy=a.policy)
+        return 0
     s = run(a.detail, a.json, policy=a.policy)
     return 0 if s["n"] else 1
 

@@ -137,5 +137,19 @@ EOF
 o=$("$PY" "$S/ts_inspect.py" outline "$T/sample.rs")
 [[ "$o" == *"L1: pub struct Cache"* && "$o" == *"L2: pub async fn evict_lru"* ]] && ok || bad "ts_inspect outline Rust regex" "$o"
 
+# 11. Opt-in Compact Reads mode (default OFF vs ON)
+"$PY" -c 'print(("def fn_item(x): return x * 42  # realistic source code line\n") * 260, end="")' > "$T/mid15k.py"
+o=$(AGY_TS_COMPACT_READS=0 perl "$S/read_hook.pl" <<< "$(printf '{"toolInput":{"Path":"%s"}}' "$T/mid15k.py")")
+[[ "$o" == '{"decision":"allow"}' ]] && ok || bad "compact_reads OFF leaves 15KB code uncapped" "$o"
+o=$(AGY_TS_COMPACT_READS=1 perl "$S/read_hook.pl" <<< "$(printf '{"toolInput":{"Path":"%s"}}' "$T/mid15k.py")")
+[[ "$o" == *'"EndLine":120'* ]] && ok || bad "compact_reads ON caps 15KB code to 120L" "$o"
+o=$(AGY_TS_COMPACT_READS=1 perl "$S/read_hook.pl" <<< "$(printf '{"toolInput":{"Path":"%s","StartLine":50,"EndLine":220}}' "$T/mid15k.py")")
+[[ "$o" == '{"decision":"allow"}' ]] && ok || bad "compact_reads ON leaves bounded slice untouched" "$o"
+
+# 12. POSIX ffmpeg & read-only python3 -c inspection wrapping
+hook cmd_hook.pl "$(printf '{"toolInput":{"CommandLine":"ffmpeg -y -i in.mp4 out.mp4","Cwd":"%s"}}' "$T")" "--cat build" "ffmpeg wraps on POSIX"
+hook cmd_hook.pl "$(printf '{"toolInput":{"CommandLine":"python3 -c '\''import json; data = [dict(i=x, v=x*2) for x in range(1000)]; print(json.dumps(data))'\''","Cwd":"%s"}}' "$T")" "--cat logs" "long read-only python3 -c wraps"
+hook cmd_hook.pl "$(printf '{"toolInput":{"CommandLine":"python3 -c \"open(\\\"x.txt\\\", \\\"w\\\").write(\\\"a\\\"*500)\"","Cwd":"%s"}}' "$T")" "$ALLOW" "writing python3 -c skipped"
+
 printf 'PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
 [[ $FAIL -eq 0 ]]

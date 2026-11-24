@@ -12,7 +12,11 @@ All notable changes to **agy-tokensaver** (`menscho/agy-tokensaver`) are documen
 - **Headroom-inspired stdlib compressors (`scripts/cmd_wrap.pl`):** lossless JSON `[N]{cols}` CSV+schema compaction (with 1-level nested flattening, `>256 B` blob offload, and error/outlier-preserving `SmartCrusher` sampling past 9.9 KB), dense machine-generated line elision, repeated multi-line block folding, large-diff `±2` context trimming, Windows-safe grep path hoisting, and SSH remote grep path hoisting (`+45%` more SSH tokens removed on real-session replay).
 - **`@plexer/cli`-inspired lifecycle guards (`scripts/post_edit_hook.pl`, `cmd_hook_core.pl`, `read_hook.pl`, `ts_inspect.py`):** `PostToolUse` edit tracker (`editseq` bump + immediate `read_hook.pl` entry invalidation), duplicate search / unchanged `git diff` dedup with a 1-retry escape hatch, `WaitMsBeforeAsync` floor bump (`5000 ms`) on fast read-only queries, `initialNumSteps` drop compaction reset in `read_hook.pl`, and stdlib AST/regex `ts_inspect.py outline`.
 - **Prompt overhead 906 → 433 tok/turn:** ~0.7 KB rules (new: no file writes via `run_command`, no `ArtifactMetadata` outside the brain dir), 3 scouts instead of 5 (`scout` replaces `fast-explorer`/`triage-scout`/`web-scout`), short skill descriptions.
-- **291 assertions across 7 test suites** (`run_tests.sh`, `test_cmd_windows.sh`, `test_read.sh`, `test_rollover.sh`, `test_rules.sh`, `test_tools.sh`, `test_headroom_plexer.sh`) verified in 3-OS CI.
+- **Opt-in high-leverage modes (toggleable in the HUD & benchmarked separately via `benchmark.py --modes`):**
+  - **Compact Reads (`compact_reads` / `AGY_TS_COMPACT_READS=1`):** tighter unbounded caps (120L code / 140L docs / 80L data; bounded slices untouched) — cuts +48% more real tool tokens (`216k → 322k` on 66 sessions).
+  - **Concise Output (`concise_output`, Caveman-lite / CoD-SWE):** strips pleasantries, preambles, and pre/post-tool chatter to cut `6×`-weighted output tokens while keeping code, diffs, paths, and errors verbatim.
+- **Zero-loss additions:** POSIX `ffmpeg` banner/progress filtering, read-only `python3 -c` inspection wrapping (`>=80 B`), JSON/table compaction inside `compress_logs`, and pre-drop idle cache-rebuild cost warnings in `post_invocation_alerts.pl`.
+- **297 assertions across 7 test suites** (`run_tests.sh`, `test_cmd_windows.sh`, `test_read.sh`, `test_rollover.sh`, `test_rules.sh`, `test_tools.sh`, `test_headroom_plexer.sh`) verified in 3-OS CI.
 
 ## [1.0.0] — Initial Open-Source Release
 

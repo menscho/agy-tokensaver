@@ -712,11 +712,11 @@ sub compress_pkg {
 
 sub compress_build {
     my ($lines, $rc) = @_;
-    my $noise = qr{^\s*(?:Compiling\s+\S+|Downloading\s+\S+|Fresh\s+\S+|#\d+\s+(?:CACHED|DONE|transferring|load metadata|load build definition|\[internal\]|sha256:)|--->\s+(?:Using cache|Running in|[0-9a-f]{12})|>\s*Task\s+:\S+\s+(?:UP-TO-DATE|NO-SOURCE|FROM-CACHE)|\[INFO\]\s*(?:Downloading|Downloaded|---|Building|Scanning|Skipping|Copying)|make\[\d+\]:\s*(?:Entering|Leaving) directory|(?:gcc|g\+\+|clang|clang\+\+|cc|c\+\+|rustc|ar|ranlib)\s+.*(?:-c\s|-o\s)|\[\s*\d+%\]\s+(?:Building|Scanning|Linking))};
+    my $noise = qr{^\s*(?:Compiling\s+\S+|Downloading\s+\S+|Fresh\s+\S+|#\d+\s+(?:CACHED|DONE|transferring|load metadata|load build definition|\[internal\]|sha256:)|--->\s+(?:Using cache|Running in|[0-9a-f]{12})|>\s*Task\s+:\S+\s+(?:UP-TO-DATE|NO-SOURCE|FROM-CACHE)|\[INFO\]\s*(?:Downloading|Downloaded|---|Building|Scanning|Skipping|Copying)|make\[\d+\]:\s*(?:Entering|Leaving) directory|(?:gcc|g\+\+|clang|clang\+\+|cc|c\+\+|rustc|ar|ranlib)\s+.*(?:-c\s|-o\s)|\[\s*\d+%\]\s+(?:Building|Scanning|Linking)|frame=\s*\d+\s+fps=|configuration:\s+--|lib(?:avutil|avcodec|avformat|avdevice|avfilter|swscale|swresample|postproc)\s+\d)};
     if ($rc == 0) {
         my @kept = grep {
             $_ !~ $noise &&
-            $_ =~ /(?:warning\b|warn\b|error\b|Finished\b|BUILD SUCCESS|Successfully (?:built|tagged)|writing image|naming to|dist\/|Compiled successfully|Built in\b|Route \(|Size\s+First Load)/i
+            $_ =~ /(?:warning\b|warn\b|error\b|Finished\b|BUILD SUCCESS|Successfully (?:built|tagged)|writing image|naming to|dist\/|Compiled successfully|Built in\b|Route \(|Size\s+First Load|video:\d+kB|Output #0)/i
         } @$lines;
         my $d = dedupe_consecutive(\@kept);
         return @$d ? tail_weighted_cap($d, 25, 40) : [@{$lines}[(@$lines > 12 ? -12 : -@$lines) .. -1]];
@@ -1100,8 +1100,13 @@ sub total_bytes { my $b = 0; $b += length($_) + 1 for @{$_[0]}; return $b; }
 
 sub compress_logs {
     my ($lines, $rc) = @_;
-    my $b = fold_repeated_blocks(dedupe_consecutive($lines));
-    # <= native cap: lossless exact-duplicate & repeated-block folding (+ dense-line elide if huge blob wall)
+    my $joined = join("\n", @$lines);
+    if ($joined =~ /\A\s*[\[{]/ && length($joined) >= 512) {
+        my $crushed = crush_json_output($lines, $joined);
+        return $crushed if defined $crushed;
+    }
+    my $b = collapse_table_padding(fold_repeated_blocks(dedupe_consecutive($lines)));
+    # <= native cap: lossless exact-duplicate, table & block folding (+ dense-line elide if huge blob wall)
     return elide_dense_lines($b) if total_bytes($b) <= $NATIVE_CAP;
     my $dedup = dedupe_log_templates(fold_stack_frames(elide_dense_lines($b)));
     return cap_with_signal($dedup, 25, 80, 50);

@@ -2,13 +2,12 @@
 
 <p align="center">
   <a href="https://github.com/menscho/agy-tokensaver/releases"><img src="https://img.shields.io/badge/release-v1.0.0-4ade80?style=flat-square&labelColor=0d0d11" alt="Release v1.0.0"/></a>
-  <a href="https://github.com/menscho/agy-tokensaver/actions/workflows/test.yml"><img src="https://github.com/menscho/agy-tokensaver/actions/workflows/test.yml/badge.svg" alt="Tests CI"/></a>
+  <a href="https://github.com/menscho/agy-tokensaver/actions/workflows/test.yml"><img src="https://img.shields.io/badge/tests-297%20passing-4ade80?style=flat-square&labelColor=0d0d11" alt="297 Tests Passing"/></a>
+  <a href="https://github.com/menscho/agy-tokensaver/actions/workflows/test.yml"><img src="https://img.shields.io/badge/CI-Ubuntu%20%7C%20macOS%20%7C%20Windows-8e8e98?style=flat-square&labelColor=0d0d11" alt="3-OS CI"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-8e8e98?style=flat-square&labelColor=0d0d11" alt="MIT License"/></a>
 </p>
 
-A local token, cache, and quota optimizer plugin for **Google Antigravity**.
-
-Coding agents burn quota by pulling large noisy command logs, lockfiles, and repeated file slices into context — where every byte gets replayed on later turns — and by letting long sessions grow past 200k–500k tokens where idle pauses trigger full uncached cache rebuilds. `agy-tokensaver` filters noisy tool I/O locally with fail-open Perl hooks, keeps raw outputs on disk, and provides an optional full-page dashboard (`agy-tokensaver`) for tracking usage and archiving compact handoffs.
+A local token, cache, and quota optimizer for **Google Antigravity** (CLI & IDE), with a full-page native HUD (`agy-tokensaver`).
 
 ---
 
@@ -26,26 +25,84 @@ curl -fsSL https://raw.githubusercontent.com/menscho/agy-tokensaver/main/install
 irm https://raw.githubusercontent.com/menscho/agy-tokensaver/main/install.ps1 | iex
 ```
 
-**Updates:** open **`agy-tokensaver`** in the Antigravity sidebar → **Updates** tab → **Install Update** (or re-run the installer). Updates pull **only from tagged GitHub Releases** after checking **`SHA256SUMS.txt`** from the same release (catches corrupted downloads; not a separate cryptographic signature). Local stats, settings, and archived handoffs live in `~/.gemini/antigravity/plugin_data/token-saver/` and are never overwritten.
+**Updates:** open **`agy-tokensaver`** in the Antigravity sidebar → **Updates** → **Install Update**. Updates install only from tagged GitHub Releases after checking `SHA256SUMS.txt` from the same release (catches corrupted downloads; not a separate cryptographic signature). Local stats, settings, and archived handoffs in `~/.gemini/antigravity/plugin_data/token-saver/` are never overwritten.
 
-*(Requires Python 3.9+ stdlib only; on Windows, `install.py` pins the active Python path in `mcp_config.json` to avoid the Microsoft Store `python3` stub. Perl 5 is required for the hooks.)*
+*(Requires Python 3.9+ stdlib and Perl 5 stdlib — zero external packages or API keys.)*
 
 ---
 
-## Reproducible Benchmarks
+## Where Your Antigravity Quota Actually Goes (Why Hooks Alone Look Small)
 
-Every number below is produced directly by [`scripts/benchmark.py`](scripts/benchmark.py) — no hand-estimated multipliers.
+Across **66 real Antigravity sessions (3,648 turns, 101.3M weighted quota units)** measured with `scripts/benchmark.py --modes`, quota breaks down into three almost-equal buckets:
 
-### 1. Measured Before / After Task (Auto-Handoff OFF — Hooks Only)
+- **37.5% — Uncached Input (`1×` weight):** over **half (`19.1M` tokens = `19%` of total quota)** came from just **109 prompt-cache drops** (idle pauses `>2 min` on 150k–450k chats forcing a full uncached rebuild).
+- **31.6% — Cache Reads (`0.05×` weight):** replaying a growing 150k–500k context window across dozens of turns ($O(T^2)$ growth).
+- **30.9% — Model Output (`6×` weight):** every generated token costs 6× an uncached input token and 120× a cached token.
 
-Reproduce locally in ~1 second (also verified in CI):
+**This explains a hard truth about every coding-agent token plugin (confirmed independently by JetBrains SkillsBench on RTK):** pure shell/file hooks only touch *new tool outputs* (~4–5% of total session quota on clean chats, though **-76%** on noisy logs/tests/JSON). To cut **15–40% of real total quota**, you have to attack **output tokens (6×)** and **long-session context / cache drops** too — which is why `agy-tokensaver` separates **Zero-Loss Core Hooks** from **three opt-in modes**, each benchmarked independently below.
+
+---
+
+## Mode-by-Mode Real-Session Benchmark (66 Sessions / 3,648 Turns)
+
+Reproduce on your own Antigravity history:
 ```bash
-python3 scripts/benchmark.py --demo
+python3 scripts/benchmark.py --modes    # compares every mode separately
+python3 scripts/benchmark.py --replay   # full tier-by-tier breakdown
 ```
 
-Runs a deterministic 8-step noisy-task fixture through `read_hook.pl`, `cmd_hook.pl`, and `cmd_wrap.pl`. Each command step inspects `cmd_hook.pl`'s actual rewrite output (failing if a command is not wrapped on POSIX) and verifies the target signal survives compression. Baseline counts are capped at Antigravity's native limits (`46,080 B` for `read_file`, `10,136 B` for `run_command`), and post-hook counts include the `94 B` PreToolUse overwrite notice.
+| Mode Configuration | Quality Risk | Tool Tokens Cut | Total Quota Delta |
+|---|---|---:|---:|
+| **1. Zero-Loss Hooks** *(Default ON, Auto-Handoff OFF)* | **0%** (exact replay) | 216,758 tok | **-0.7%** |
+| **2. + Compact Reads** *(Opt-in, Auto-Handoff OFF)* | **~0.1–0.5%** (exact replay) | 321,950 tok | **-1.0%** |
+| **3. + Concise Output (`-20%` conservative)** *(Opt-in, Auto-Handoff OFF)* | **~0.1%** prose only *(modeled\*)* | 216,758 tok | **-6.9%** |
+| **4. + Concise Output (`-35%` moderate)** *(Opt-in, Auto-Handoff OFF)* | **~0.1%** prose only *(modeled\*)* | 216,758 tok | **-11.5%** |
+| **5. + Smart Auto-Handoff (Live-Reachable)** *(Opt-in, default reads)* | Fresh chat\*\* (causal replay) | 216,758 tok | **-17.6%** |
+| **6. + Auto-Handoff Live + Compact Reads + Concise Output\*** | Combined\*\* | 321,950 tok | **-24.1% to -28.7%** |
+| **7. + Auto-Handoff Upper Bound + Compact + Concise\*** | Upper bound\*\* | 321,950 tok | **-39.8% to -44.4%** |
 
-| Task Step | Without Plugin | With Plugin | Saved | Result |
+*\* **Concise Output** cannot be replayed on past transcripts without re-calling the LLM; rows 3, 4, 6, 7 apply conservative `-20%` and `-35%` output reductions to the real `30.9%` (`6×`-weighted) output bucket (published benchmarks report `-45%` on SWE-bench for Chain-of-Draft and `-65%` prose reduction for Caveman). Rows 1, 2, and 5 are exact deterministic replays charging retries, follow-up reads, and the plugin's `433 tok/turn` prompt overhead.*  
+*\*\* **Live-Reachable** only triggers Auto-Handoff between finished agent runs where the background tick can actually fire; **Upper Bound (UB)** shows the ceiling if rolling over at any turn.*
+
+<p align="center">
+  <img src="docs/assets/benchmark-chart.svg" alt="Real-session replay across local Antigravity sessions" width="100%"/>
+</p>
+
+### Pros & Cons of Every Mode (All Toggleable in the `agy-tokensaver` HUD)
+
+| Mode | Default | Pros | Cons / Trade-Offs |
+|---|---|---|---|
+| **Zero-Loss Hooks** | **ON** | **0% quality loss.** Blocks lockfiles/binaries, crushes JSON arrays to lossless `[N]{cols}` CSV+schema, hoists repeated grep/SSH paths, folds repeated log blocks, dedupes unchanged reads/searches (1-retry escape hatch), pins errors & spills raw logs to temp dir. | Modest aggregate impact (`-0.7%`) on short, clean chats; short sessions still pay `433 tok/turn` for always-loaded rules/skills. |
+| **Compact Reads** (`compact_reads`) | **OFF** | Cuts **+48% more tool tokens** (`216k → 322k`) by capping large unbounded code reads to `120 L` and unbounded docs `>12 KB` to `140 L`. Bounded `StartLine..EndLine` slices stay untouched. | **~0.1–0.5% risk:** if the needed function is below line 120 in an unbounded read, the agent spends 1 extra targeted read turn (already charged in row 2 above). |
+| **Concise Output** (`concise_output`) | **OFF** | Attacks the `30.9%` (`6×` weight) output bucket directly (**`-6.9%` to `-11.5%` total quota even with Auto-Handoff OFF**). Strips pleasantries, preambles, and pre/post-tool chatter; code, diffs, paths, and errors stay 100% verbatim. | **~0.1% prose risk:** replies are terse and skip narrative explanations. Change only between sessions to keep prompt-cache prefixes intact. |
+| **Smart Auto-Handoff** (`smart_auto`) | **Archive Only** | Biggest real savings on long chats: **`-17.6%` live-reachable** overall (`-27.7%` on `>400k` chats), preventing both $O(T^2)$ cache replay and 200k-token idle cache-drop rebuilds. | Starts a fresh chat with a structured handoff packet — see exact quality & memory explanation right below. |
+
+---
+
+## What Auto-Handoff Actually Does (And Does the Model Forget Everything?)
+
+This is the most common question, so here is the plain, honest answer:
+
+1. **What it does:** When a long conversation crosses the adaptive threshold (~110k–180k tokens), `handoff_pack.py` generates a compact (~500-token) structured continuation packet from your workspace and transcript:
+   - Your **current goal** and the **assistant's last conclusion**
+   - **Git branch, recent commits, diff stat, and exact list of edited files**
+   - Relevant workspace state
+   It saves this snapshot to the **Archive** tab. If you select **`Smart Auto`**, it also opens a fresh chat seeded with that packet (~17k starting tokens instead of 250k–500k).
+2. **Does the model forget stuff?** **Yes — selectively.**
+   - **What is kept:** your goal, edited file list, git state, last conclusion, and every file on disk (which the agent can still read at any time).
+   - **What is dropped:** old terminal logs, dead-end debugging attempts from 60 turns ago, and earlier file slices that are no longer needed (the full original chat stays untouched in your Antigravity history and Archive tab).
+3. **What is the real quality loss?**
+   - **At a phase switch** (finished feature A → starting feature B, finished planning → implementing, or before taking a `>2 min` break): **near-0% quality loss** — and often *better* focus, because JetBrains' NeurIPS 2025 study (*The Complexity Trap*, `arXiv:2508.21433`) showed removing stale observation bloat improves or matches SWE-bench solve rates while cutting cost ~50%.
+   - **Mid-debugging a subtle multi-file bug** where 5 hypotheses were already ruled out: **real risk** — the fresh chat may re-read 1–2 files or re-try a ruled-out path unless that summary was recorded in the last turn.
+4. **Why the default is `Archive Only`:** Auto-Handoff does **not** automatically spawn new chats out of the box. It silently archives handoff snapshots and warns you before huge idle cache drops so *you* can click **Archive & New Chat** (or type `/handoff`) right at natural boundaries. Switch to **`Smart Auto`** only if you want hands-off resets on marathon sessions.
+
+---
+
+## 8-Step Noisy-Task Demo (`python3 scripts/benchmark.py --demo`)
+
+Runs a deterministic 8-step noisy coding fixture directly through `read_hook.pl`, `cmd_hook.pl`, and `cmd_wrap.pl` (baseline capped at Antigravity's native limits: `46,080 B` read / `10,136 B` command; post-hook includes the `94 B` overwrite notice; median hook latency **~8 ms**):
+
+| Task Step | Without | With | Saved | Result |
 |---|---:|---:|---:|---|
 | 1. `read_file` `package-lock.json` (unbounded) | 11,520 tok | 41 tok | -99.6% | blocked (hint emitted) |
 | 2. `read_file` `service.py` (900L unbounded) | 11,520 tok | 4,844 tok | -58.0% | capped to lines 1–250 |
@@ -55,81 +112,51 @@ Runs a deterministic 8-step noisy-task fixture through `read_hook.pl`, `cmd_hook
 | 6. `run_command` server log (900L + 1 ERROR) | 2,534 tok | 1,550 tok | -38.8% | `--cat logs`: `ERROR` pinned + raw saved |
 | 7. `run_command` `curl` JSON API (120 rows) | 2,534 tok | 940 tok | -62.9% | `--cat http`: CSV+schema & error row kept |
 | 8. `run_command` `ssh` remote grep (74 hits) | 1,847 tok | 959 tok | -48.1% | `--cat ssh`: lossless path hoisting |
-| **Total direct tool tokens added to context** | **36,383 tok** | **8,588 tok** | **-76.4%** | **27,795 tokens avoided** |
-| **15-turn weighted quota (`1×` in + `14×0.05×` cache)** | **61,851 qu** | **14,599 qu** | **-76.4%** | **47,252 quota units avoided** |
+| **Total direct tool tokens** | **36,383 tok** | **8,588 tok** | **-76.4%** | **27,795 tokens avoided** |
+| **15-turn weighted quota (`1×` in + `14×0.05×` cr)** | **61,851 qu** | **14,599 qu** | **-76.4%** | **47,252 quota units avoided** |
 
-Measured median `PreToolUse` hook wall-clock time across the 8 calls: **~8 ms** (including process spawn). This demo is a noisy-task fixture (lockfile, 900-line file, 300-test run, lockfile diff, 900-line log, 120-row JSON API, 74-hit remote grep); typical sessions with small clean reads and short commands will save much less.
-
-### 2. Real-Session Replay (all local Antigravity sessions — IDE + CLI)
-
-Reproduce on your own data:
-```bash
-python3 scripts/benchmark.py --replay --json after.json      # = scripts/transcript_replay.py
-python3 scripts/make_benchmark_chart.py --after after.json [--before before.json]
-```
-
-<p align="center">
-  <img src="docs/assets/benchmark-chart.svg" alt="Real-session replay across 65 local Antigravity sessions" width="100%"/>
-</p>
-
-`transcript_replay.py` loads every local session (`~/.gemini/antigravity` and `~/.gemini/antigravity-cli`), takes **exact per-turn tokens** from the transcript or, when the transcript has none, from `conversations/<id>.db` (`gen_metadata`), and **replays every recorded tool call and its recorded result through the real hooks** (read guard on a reconstructed virtual file, `cmd_hook.pl` → `cmd_wrap.pl --test-stdin` on the recorded output, find/grep guards). Removed bytes leave the context of every later turn until the next compaction; denials that force a retry, doc caps that force a follow-up read, and the plugin's own always-loaded prompt (`433 tok/turn`, cut down from `906 tok/turn`) are **charged**. Auto-Handoff is simulated causally (no future knowledge) and separated into **live-reachable** (only between agent runs where the live tick can fire) vs. **upper bound** (any generation).
-
-Measured across **65 real sessions / 3,602 turns** (`4,944,854` recorded tool-result tokens; `213,975` removed by hooks = `4.3%`):
-
-| Session Length | n | Avg Peak | Hooks Only | Handoff (Live) | Hooks + Handoff (Live) | Handoff (UB) | Hooks + Handoff (UB) |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| **Short (`<75k`)** | 19 | 41k | +0.1% | 0.0% | +0.1% | 0.0% | +0.1% |
-| **Medium (`75k–110k`)** | 7 | 91k | +0.1% | +0.7% | +0.8% | -1.8% | -1.8% |
-| **Long (`110k–200k`)** | 9 | 157k | 0.0% | -2.2% | -2.2% | -14.0% | -14.0% |
-| **Very long (`200k–400k`)** | 22 | 297k | -1.1% | -10.5% | -11.4% | -34.9% | -35.2% |
-| **Extreme (`>400k`)** | 8 | 479k | -0.6% | -27.3% | -27.7% | -38.7% | -38.9% |
-| **Per-session median** | **65** | — | **+0.1%** | **0.0%** | **+0.1%** | **-7.5%** | **-8.5%** |
-| **Per-session mean** | **65** | — | **-0.3%** | **-5.1%** | **-5.3%** | **-15.7%** | **-15.7%** |
-| **Total quota-weighted** | **65** | — | **-0.7%** | **-16.5%** | **-17.1%** | **-32.8%** | **-33.0%** |
-
-*(Negative = less quota used; positive = more quota used. Improved sessions hooks-only: 27/65; regressed: 37/65 — mostly short chats paying the 433-token prompt overhead without hitting a guard. Regressed sessions on live Auto-Handoff alone: 4/65.)*
-
-**Honest reading:** on typical multi-turn sessions, model output (`6×` weight) and first-time reads of code files dominate quota, so hooks alone save `-0.7%` aggregate (`-1.1%` on 200k–400k sessions, while removing `213.9k` noisy tool tokens). Where real quota drops steeply is long multi-run sessions (`200k–400k+`) with causal Auto-Handoff enabled (`-17.1%` live-reachable aggregate; `-27.7%` on `>400k` sessions). Blocked reads can also cost an extra turn if the model tries to work around a denial, which is why the replay charges retry turns and duplicate searches include a 1-retry escape hatch.
+*(This fixture represents a noisy test/log/JSON/diff workflow; clean small-file sessions save much less with hooks alone, as shown in the 66-session replay above.)*
 
 ---
 
 ## Native HUD
 
-Opens from **`agy-tokensaver`** under **Plugins** in Antigravity's left sidebar. Internal dashboard tools use `visibility: ["app"]` so they are hidden from the model prompt.
+Opens from **`agy-tokensaver`** under **Plugins** in Antigravity's left sidebar. Internal dashboard tools use `visibility: ["app"]` so they add zero tokens to the model prompt.
 
 <p align="center">
   <img src="docs/assets/hud-preview.svg" alt="agy-tokensaver HUD Preview" width="100%"/>
 </p>
 
-- **Overview:** Input/Cache/Output/Quota breakdown, live context meter, rollover mode selector (`Archive Only` default / `Smart Auto` / `Off`), and manual actions.
-- **Archive:** readable history of saved compact handoffs (workspace, branch, commits, diff stat, touched files, last goal, and last assistant summary).
-- **Updates:** tagged GitHub Release check, local requirement checks, changelog, and SHA-256 verified 1-click updates.
+- **Overview:** Input/Cache/Output/Quota breakdown, live context meter, Rollover Mode (`Archive Only` / `Smart Auto` / `Off`), opt-in **Compact Reads** & **Concise Output** toggles, and manual actions.
+- **Archive:** Saved compact handoff packets (goal, branch, commits, diff stat, edited files, last summary).
+- **Updates:** Tagged GitHub Release check, local requirement checks, changelog, and SHA-256 verified 1-click updates.
 
 ---
 
-## Architecture & Safety Invariants
+## Research & Open-Source Foundations
 
-- **Shell hooks (`scripts/cmd_hook.pl`, `cmd_hook_core.pl`, `cmd_wrap.pl`):** Stdlib Perl (zero external modules). Skips redirects, heredocs, command substitutions, `tee`, `-f`/`--follow`, background jobs, interactive TTYs, and unknown chain segments. Includes lossless JSON CSV+schema compaction (`[N]{cols}` + blob offload + error-preserving SmartCrusher sampling past 9.9 KB), dense minified-line elision, repeated multi-line block folding, large-diff `±2` context trimming, Windows-safe & SSH remote grep path hoisting, duplicate search / unchanged `git diff` dedup (with a 1-retry escape hatch), and a `WaitMsBeforeAsync` floor bump (`5000 ms`) on fast read-only queries. Every lossy cut spills the unmodified output to the OS temp directory (`agy-tokensaver-<uid>`).
-- **Read, Write, Edit, Find & Grep guards (`read_hook.pl`, `write_hook.pl`, `post_edit_hook.pl`, `find_hook.pl`, `grep_hook.pl`, `ts_inspect.py`):** Blocks binaries, SQLite DBs, lockfiles, sourcemaps, minified bundles, and unchanged re-reads (verified against transcript compaction checkpoints, `initialNumSteps` drops, `mtime`, `size`, MD5, and `PostToolUse` edit invalidation; partial overlaps trim to missing lines only). Auto-caps unbounded data (`>8 KB`) and code (`>16 KB`) files while leaving prose docs up to 46 KB uncapped. `ts_inspect.py outline` provides stdlib AST/regex `L<start>-L<end>` symbol outlines. `grep_hook.pl` fixes Windows single-file `grep_search`. `write_hook.pl` only blocks full overwrites that shrink a `>150`-line file by `≥40%` with lazy omission placeholders.
-- **Rules & Scouts (`rules/AGENTS.md`, `agents/*.md`, `workflows/*.py`):** Compact ~0.7 KB ruleset (`433 tok/turn` total prompt overhead including skills/agents), 3 Flash/Flash-Lite scouts (`scout`, `lite-sifter`, `vision-scout`), and 3 isolated `/lean-workflow` scripts.
+Techniques implemented in `agy-tokensaver` are grounded in published coding-agent efficiency research and verified open-source tools (while deliberately excluding techniques shown to hurt cost or quality):
 
-### Compatibility & Limitations
-- **Antigravity IDE vs. CLI hooks:** Hooks fire reliably in Antigravity 2.0 and the `agy` CLI (verify in 5 seconds via `/hooks` or by checking whether hook events increment in the `agy-tokensaver` HUD). Some older desktop IDE builds may not invoke plugin lifecycle hooks yet — on those builds `rules/AGENTS.md`, skills, scouts, `ts_inspect.py`, `handoff_pack.py`, and the HUD still work, while automatic hook filtering stays inactive.
-- **Antigravity internals:** Hooks and live MCP refresh depend on Antigravity's current hook events (`PreToolUse`, `PostToolUse`, `PostInvocation`, `Stop`), payload fields, and local `RefreshMcpServers` RPC. If payload shapes change, hooks fail open to pass-through without breaking tool calls.
-- **Cross-platform (Windows PowerShell + POSIX):** On Windows (`MSWin32`, or Git/MSYS Perl with a drive-letter `Cwd`), `cmd_hook.pl` wraps noisy PowerShell commands through a child `powershell.exe` with exact exit codes, lossless table/header compaction, and raw spill to `%TEMP%` (`AGY_TS_SHELL=off|posix|pwsh` overrides). POSIX `bash -c` wrapping runs on Linux, macOS, and WSL.
+- **[headroomlabs-ai/headroom](https://github.com/headroomlabs-ai/headroom):** ported lossless JSON `[N]{cols}` CSV+schema compaction, nested flattening, `>256 B` blob offload, 12-keyword error-preserving SmartCrusher sampling, dense minified-line elision, repeated multi-line block folding, large-diff `±2` context trimming, and Windows-safe grep path hoisting into zero-dependency Perl (`cmd_wrap.pl`).
+- **[@plexer/cli](https://www.npmjs.com/package/@plexer/cli):** ported `PostToolUse` edit invalidation (`post_edit_hook.pl`), duplicate search / unchanged `git diff` dedup with a 1-retry escape hatch, `WaitMsBeforeAsync` floor bump (`5000 ms`) on fast read-only queries, `initialNumSteps` compaction reset, and stdlib AST/regex symbol outlining (`ts_inspect.py outline`).
+- **JetBrains *The Complexity Trap* (`arXiv:2508.21433`, NeurIPS 2025) & *Don't Break the Cache* (`arXiv:2601.06007`):** motivates keeping prompt prefixes strictly append-only (never mutating history mid-turn — which `arXiv:2611.22238` showed increases cost 38–116% by breaking KV caches!) and instead using coarse threshold handoffs + pre-drop idle warnings.
+- **[Caveman](https://github.com/JuliusBrussee/caveman) & *Chain of Draft for Software Engineering* (`arXiv:2506.10987`):** motivates the opt-in **Concise Output** mode targeting the `6×`-weighted output bucket without touching code, paths, or errors.
+- **Deliberately excluded anti-patterns:** lexical code minification (`arXiv:2606.01326`: causes a 12-point SWE-bench drop), per-turn sliding history mutation (`arXiv:2611.22238`: breaks prefix cache), and unsolicited Turn-0 snippet pre-injection (`arXiv:2611.22238`: +33–42% net cost).
 
 ---
 
-## Tests
+## Compatibility, Limitations & Tests
+
+- **Antigravity IDE vs. CLI hooks:** Hooks fire reliably in Antigravity 2.0 and the `agy` CLI (verify via `/hooks` or by watching hook events increment in the HUD). Older desktop IDE builds that don't fire plugin hooks yet still benefit from `rules/AGENTS.md`, skills, scouts, `ts_inspect.py`, `handoff_pack.py`, and the HUD.
+- **Cross-platform:** Full CLI wrapping runs on Linux, macOS, WSL, **and native Windows PowerShell** (`cmd_wrap.pl --pwsh-stdin` via child `powershell.exe` with exact exit codes, table compaction, and `%TEMP%` spillback; `AGY_TS_SHELL=off|posix|pwsh` overrides).
+- **Fail-open invariant:** Every hook fails open (`{"decision":"allow"}` / `{}`) on any malformed input or Antigravity payload change, and every lossy compression spills the unmodified raw output to disk first.
 
 ```bash
 for t in tests/run_tests.sh tests/test_*.sh; do bash "$t"; done
-python3 scripts/benchmark.py --demo
+python3 scripts/benchmark.py --demo --modes
 ```
 
-Verified on Ubuntu and macOS (`291` assertions across 7 test suites + MCP/installer/demo checks) and native Windows (Python smoke + `C:\` Perl hook + PowerShell + demo checks) in [`.github/workflows/test.yml`](.github/workflows/test.yml).
-
----
+Verified in [`.github/workflows/test.yml`](.github/workflows/test.yml) across **Ubuntu, macOS, and Native Windows** (`297` assertions across 7 test suites + MCP/installer/PowerShell/demo checks).
 
 ## License
 

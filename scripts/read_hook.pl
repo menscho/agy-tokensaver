@@ -668,22 +668,42 @@ $est_lines = defined $exact_lines
 
 my $is_data      = ($base =~ /\.(?:json|jsonl|ndjson|ya?ml|csv|tsv|sql|xml|log|html|htm|lcov|diff|patch|out|err)$/i);
 
+# Opt-in Compact Reads mode (AGY_TS_COMPACT_READS=1 or hud_config.json "compact_reads": true).
+# Default OFF (0% quality loss). When ON (~0.1-0.5% risk of an extra slice read), caps large
+# unbounded code/doc/data reads tighter while leaving bounded StartLine..EndLine slices untouched.
+my $COMPACT_READS = 0;
+if (defined $ENV{AGY_TS_COMPACT_READS}) {
+    $COMPACT_READS = ($ENV{AGY_TS_COMPACT_READS} =~ /^(?:1|true|on|yes)$/i) ? 1 : 0;
+} else {
+    my $cfg_p = data_dir() . "/hud_config.json";
+    if (-f $cfg_p && open(my $cfh, '<:raw', $cfg_p)) {
+        my $cb = '';
+        sysread($cfh, $cb, 4096);
+        close $cfh;
+        $COMPACT_READS = 1 if $cb =~ /"compact_reads"\s*:\s*true\b/i;
+    }
+}
+
 # Determine cap target
 my ($cap, $cat_label);
 if ($is_spillback && $size > 12288) {
     my $avg = ($peek_nl > 0) ? $peek_n / $peek_nl : 80;
     my $c = int(12288 / ($avg || 80));
     ($cap, $cat_label) = ($c > 120 ? 120 : ($c < 40 ? 40 : $c), 'spillback_log');
-} elsif ($is_data && $size > 8192) {
-    ($cap, $cat_label) = ($size > 65536 ? 100 : 120, 'large_data');
-} elsif ($size > 16384) {
-    # Prose/instruction docs (SKILL.md, references, plans, notes) are read to be followed in
-    # full: replaying 30 real sessions showed every capped doc read costs a follow-up turn that
-    # fetches the remainder anyway, so the cap only added a turn. Leave docs up to the native
-    # 46,080-byte read_file limit untouched; bigger docs still get capped.
+} elsif ($is_data && $size > ($COMPACT_READS ? 6144 : 8192)) {
+    ($cap, $cat_label) = ($COMPACT_READS ? 80 : ($size > 65536 ? 100 : 120), 'large_data');
+} elsif ($size > ($COMPACT_READS ? 10240 : 16384)) {
     my $is_doc = ($base =~ /\.(?:md|mdx|markdown|txt|rst|adoc)$/i);
-    if ($is_doc && $size <= 46080) {
-        # no cap
+    if ($is_doc) {
+        if ($COMPACT_READS && $size > 12288) {
+            ($cap, $cat_label) = (140, 'compact_doc');
+        } elsif ($size > 46080) {
+            ($cap, $cat_label) = ($size > 102400 ? 200 : 250, 'large_file');
+        }
+    } elsif ($COMPACT_READS) {
+        if (!(defined $exact_lines && $exact_lines <= 160 && $size <= 12288)) {
+            ($cap, $cat_label) = (120, 'compact_code');
+        }
     } elsif (!(defined $exact_lines && $exact_lines <= 320 && $size <= 28672)) {
         ($cap, $cat_label) = ($size > 102400 ? 200 : 250, 'large_file');
     }

@@ -71,6 +71,8 @@ def load_config() -> dict[str, Any]:
         "model": "inherit",
         "min_turns": 14,
         "cooldown_min": 20,
+        "compact_reads": False,
+        "concise_output": False,
     }
     if not CFG_FILE.is_file():
         return default
@@ -93,6 +95,8 @@ def load_config() -> dict[str, Any]:
                 "model": str(d.get("model") or "inherit"),
                 "min_turns": max(6, min(40, int(d.get("min_turns", 14)))),
                 "cooldown_min": max(5, min(120, int(d.get("cooldown_min", 20)))),
+                "compact_reads": bool(d.get("compact_reads", False)),
+                "concise_output": bool(d.get("concise_output", False)),
             }
     except Exception:
         pass
@@ -134,9 +138,29 @@ def save_config(patch: dict[str, Any]) -> dict[str, Any]:
             "model": str(merged.get("model") or "inherit"),
             "min_turns": max(6, min(40, int(merged.get("min_turns", 14)))),
             "cooldown_min": max(5, min(120, int(merged.get("cooldown_min", 20)))),
+            "compact_reads": bool(merged.get("compact_reads", False)),
+            "concise_output": bool(merged.get("concise_output", False)),
         }
         _atomic_write_json(CFG_FILE, clean)
+        _sync_concise_rule(clean["concise_output"])
         return clean
+
+
+_CONCISE_RULE_LINE = "7. Concise mode: drop pleasantries, preambles, and pre/post-tool narration; keep code, diffs, paths, and errors verbatim."
+
+
+def _sync_concise_rule(enabled: bool) -> None:
+    """Opt-in Caveman-lite output rule synced to rules/AGENTS.md only on explicit user toggle."""
+    try:
+        agents_md = PLUGIN_ROOT / "rules" / "AGENTS.md"
+        if not agents_md.is_file():
+            return
+        lines = [l for l in agents_md.read_text(encoding="utf-8").splitlines() if not l.startswith("7. Concise mode:")]
+        if enabled:
+            lines.append(_CONCISE_RULE_LINE)
+        agents_md.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    except OSError:
+        pass
 
 
 def _load_rollover_state() -> dict[str, Any]:

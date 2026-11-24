@@ -134,8 +134,8 @@ if ($tot < 60000) {
             ? " (`hydrogen` cache drops sharply after ~90s idle!)"
             : "";
         my $extra = $cur_tier >= 150
-            ? " Resetting now via `/compact` or `/handoff` cuts remaining long-session tokens by ~60-70% and avoids the 200k+ cliff."
-            : " Run `/compact` or `/handoff` at the next phase switch (especially before a >2m break).";
+            ? " A >2m idle pause will rebuild ~${k_tot}k uncached tokens — run `/handoff` before stepping away to cut long-session quota sharply."
+            : " A >2m idle pause will rebuild ~${k_tot}k uncached tokens — run `/compact` or `/handoff` at the next phase switch.";
         push @notes, "**Token Saver:** Context reached **~${k_tot}k tokens** (~${k_cr_cost}k uncached-equiv/turn in cache reads)${ttl_hint}.${extra}";
     }
 }

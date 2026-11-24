@@ -511,6 +511,28 @@
 
         <div class="row">
           <div class="row-info">
+            <div class="row-title">Compact Reads (Opt-in)</div>
+            <div class="row-desc">Caps large unbounded code to 120L &amp; docs to 140L (bounded slices untouched; ~0.1–0.5% risk of an extra slice read)</div>
+          </div>
+          <select id="sel-compact-reads" aria-label="Compact Reads mode">
+            <option value="false">Off (0% quality loss)</option>
+            <option value="true">On (Tighter unbounded caps)</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <div class="row-info">
+            <div class="row-title">Concise Output (Opt-in)</div>
+            <div class="row-desc">Caveman-lite: strips chatter &amp; preambles to cut 6× output tokens (code/paths/errors verbatim; ~0.1% prose risk)</div>
+          </div>
+          <select id="sel-concise-output" aria-label="Concise Output mode">
+            <option value="false">Off (Default style)</option>
+            <option value="true">On (Terse output)</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <div class="row-info">
             <div class="row-title">Manual Actions</div>
             <div class="row-desc">Zero LLM tokens — archive this session or start a clean continuation</div>
           </div>
@@ -715,6 +737,8 @@
     // Controls
     document.getElementById('sel-mode').value = cfg.mode || 'smart_auto';
     document.getElementById('sel-thresh').value = cfg.threshold_mode || 'auto';
+    document.getElementById('sel-compact-reads').value = cfg.compact_reads ? 'true' : 'false';
+    document.getElementById('sel-concise-output').value = cfg.concise_output ? 'true' : 'false';
     document.getElementById('adaptive-reason').textContent = adp.reason || '';
 
     // Totals strip
@@ -943,8 +967,10 @@
   async function saveSettings() {
     const mode = document.getElementById('sel-mode').value;
     const threshold_mode = document.getElementById('sel-thresh').value;
+    const compact_reads = document.getElementById('sel-compact-reads').value === 'true';
+    const concise_output = document.getElementById('sel-concise-output').value === 'true';
     setStatus('Saving…');
-    const res = await callTool('ts_save_settings', { mode, threshold_mode });
+    const res = await callTool('ts_save_settings', { mode, threshold_mode, compact_reads, concise_output });
     if (res && res.state) {
       render(res.state);
       setStatus('Settings saved.');
@@ -954,6 +980,8 @@
   }
   document.getElementById('sel-mode').onchange = saveSettings;
   document.getElementById('sel-thresh').onchange = saveSettings;
+  document.getElementById('sel-compact-reads').onchange = saveSettings;
+  document.getElementById('sel-concise-output').onchange = saveSettings;
 
   document.getElementById('btn-handoff').onclick = async () => {
     const res = await callTool('ts_build_handoff', { workspace: lastState?.workspace, archive: false });

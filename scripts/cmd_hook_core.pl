@@ -368,7 +368,7 @@ if ($cmd =~ /\$env:/i || $cmd =~ /(?:^|[\s;|])(?:Get|Set|New|Remove|Invoke|Selec
 }
 
 # Fast-path keyword check ONLY on CommandLine (never on cwd/toolSummary)
-if ($cmd !~ /\b(?:ssh|python3?|pytest|jest|vitest|mocha|ava|playwright|cypress|bats|ctest|cargo|go|npm|pnpm|yarn|bun|pip3?|uv(?:\.exe)?|poetry|pipenv|pdm|hatch|apt(?:-get)?|brew|composer|docker|podman|kubectl|helm|make|cmake|ninja|mvn|gradlew?|webpack|vite|next|esbuild|rollup|tsup|tsc|eslint|oxlint|biome|ruff|flake8|mypy|pyright|basedpyright|pylint|golangci-lint|rubocop|phpstan|shellcheck|hadolint|git|gh|rspec|phpunit|pest|dotnet|deno|mix|flutter|swift|zig|find|tree|grep|egrep|fgrep|rg|ag|ack|cat|curl|wget|tar|unzip|zip|rsync|terraform|tofu|ansible-playbook|aws|gcloud|az|journalctl|dmesg|systemctl|strings|tmux|ps|ls|du|df|pm2|ss|netstat|node|tox|nox|conda|mamba|remotion|manage\.py|artisan)\b/i) {
+if ($cmd !~ /\b(?:ssh|python3?|pytest|jest|vitest|mocha|ava|playwright|cypress|bats|ctest|cargo|go|npm|pnpm|yarn|bun|pip3?|uv(?:\.exe)?|poetry|pipenv|pdm|hatch|apt(?:-get)?|brew|composer|docker|podman|kubectl|helm|make|cmake|ninja|mvn|gradlew?|webpack|vite|next|esbuild|rollup|tsup|tsc|eslint|oxlint|biome|ruff|flake8|mypy|pyright|basedpyright|pylint|golangci-lint|rubocop|phpstan|shellcheck|hadolint|git|gh|rspec|phpunit|pest|dotnet|deno|mix|flutter|swift|zig|find|tree|grep|egrep|fgrep|rg|ag|ack|cat|curl|wget|tar|unzip|zip|rsync|terraform|tofu|ansible-playbook|aws|gcloud|az|journalctl|dmesg|systemctl|strings|tmux|ps|ls|du|df|pm2|ss|netstat|node|tox|nox|conda|mamba|remotion|ffmpeg|manage\.py|artisan)\b/i) {
     print '{"decision":"allow"}';
     exit 0;
 }
@@ -660,6 +660,7 @@ sub classify_segment {
 
     # Global help/version/interactive/structured-output skips on FINAL command args only
     for my $a (@args) {
+        next if $bin eq 'ffmpeg' && $a eq '-i';
         return ('', undef, undef) if $a =~ /^(?:--help|--version|-V|--json|--porcelain|--name-only|--name-status|--stat|--shortstat|--numstat|--short|-q|--quiet|--silent|-i|-it|--interactive|--patch|--watch|-w|--vimgrep)$/;
         return ('', undef, undef) if $a =~ /^(?:--format|--pretty|--output-format|--jq|--template)(?:=|$)/;
     }
@@ -800,6 +801,7 @@ sub classify_segment {
         ($bin eq 'dotnet' && $sub =~ /^(?:build|publish)$/) ||
         ($bin =~ /^(?:swift|flutter|zig)$/ && $sub eq 'build') ||
         ($bin eq 'remotion' && $sub =~ /^(?:bundle|render|still)$/) ||
+        ($bin eq 'ffmpeg') ||
         ($bin =~ /^(?:npm|pnpm|yarn|bun)$/ && ($sub eq 'build' || ($sub eq 'run' && $sub2 =~ /^(?:build|typecheck|check)(?::|$)/)))
     ) {
         return ('build', undef, undef);
@@ -1088,6 +1090,12 @@ sub classify_segment {
         # Wrap noisy test/build/audit/bench Python script runs (small outputs pass through verbatim)
         my @nonflags = grep { $_ !~ /^-/ } @args;
         if (@nonflags && $nonflags[0] =~ /(?:^|\/)(?:test_[^\/]*|[^\/]*_test|run_tests|setup|bench[^\/]*|audit[^\/]*|build[^\/]*|migrate[^\/]*)\.py$/i) {
+            return ('logs', undef, undef);
+        }
+        # Wrap non-trivial read-only `python3 -c '...'` inspection scripts (>=80B, no file writes)
+        if ($arg_str =~ /(?:^|\s)-c\s+/ && length($arg_str) >= 80 &&
+            $arg_str !~ /\b(?:write_text|write_bytes|unlink|rmtree|shutil\.|os\.remove)\b/ &&
+            $arg_str !~ /open\([^)]*['"][wa+]/i) {
             return ('logs', undef, undef);
         }
         return ('', undef, undef);

@@ -368,9 +368,10 @@ def main() -> int:
     ap.add_argument("--demo", action="store_true", help="Run deterministic 6-step Before/After hook benchmark")
     ap.add_argument("--transcripts", action="store_true", help="Run counterfactual rollover replay on local transcripts")
     ap.add_argument("--replay", action="store_true", help="Replay real local sessions through the hooks (hooks-only + handoff)")
+    ap.add_argument("--modes", action="store_true", help="Compare Zero-Loss, Compact Reads, Concise Output, and Auto-Handoff separately")
     ap.add_argument("--json", default=None, help="With --replay: write the summary JSON here (input for make_benchmark_chart.py)")
     args = ap.parse_args()
-    if not args.demo and not args.transcripts and not args.replay:
+    if not args.demo and not args.transcripts and not args.replay and not args.modes:
         args.demo = True
     rc = 0
     if args.demo:
@@ -385,6 +386,12 @@ def main() -> int:
         sys.path.insert(0, str(SCRIPTS))
         import transcript_replay
         rc |= 0 if transcript_replay.run(json_out=args.json)["n"] else 1
+    if args.modes:
+        if args.demo or args.transcripts or args.replay:
+            print()
+        sys.path.insert(0, str(SCRIPTS))
+        import transcript_replay
+        transcript_replay.run_modes()
     return rc
 
 
