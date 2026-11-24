@@ -85,16 +85,16 @@ def _infer_profile(mode: str, compact_reads: bool, concise_output: bool) -> str:
 
 def load_config() -> dict[str, Any]:
     default = {
-        "profile": "small_loss",       # "small_loss" (Mode 2 Max, default) | "handoff_only" (2c) | "concise_no_handoff" (2b) | "compact_reads" (2a) | "zero_loss" (Mode 1)
+        "profile": "zero_loss",        # "zero_loss" (Mode 1, 0% loss default) | "compact_reads" (2a) | "concise_no_handoff" (2b) | "handoff_only" (2c) | "small_loss" (Mode 2 Max)
         "auto_rollover": True,
-        "mode": "smart_auto",          # "smart_auto" (default max savings) | "prepare_only" | "off"
+        "mode": "prepare_only",        # "prepare_only" (safe default) | "smart_auto" | "off"
         "threshold_mode": "auto",      # "auto" | "75" | "90" | "110" | "140" | "180"
         "threshold_k": 110,
         "model": "inherit",
         "min_turns": 14,
         "cooldown_min": 20,
-        "compact_reads": True,
-        "concise_output": True,
+        "compact_reads": False,
+        "concise_output": False,
         "pending_concise_sync": False,
     }
     if not CFG_FILE.is_file():
@@ -103,11 +103,11 @@ def load_config() -> dict[str, Any]:
         d = json.loads(CFG_FILE.read_text(encoding="utf-8"))
         if isinstance(d, dict):
             auto_on = bool(d.get("auto_rollover", True))
-            mode = str(d.get("mode") or ("smart_auto" if auto_on else "off"))
+            mode = str(d.get("mode") or ("prepare_only" if auto_on else "off"))
             if mode not in ("smart_auto", "prepare_only", "off"):
-                mode = "smart_auto" if auto_on else "off"
-            compact_reads = bool(d.get("compact_reads", True))
-            concise_output = bool(d.get("concise_output", True))
+                mode = "prepare_only" if auto_on else "off"
+            compact_reads = bool(d.get("compact_reads", False))
+            concise_output = bool(d.get("concise_output", False))
             profile = str(d.get("profile") or _infer_profile(mode, compact_reads, concise_output))
             if profile not in _PROFILE_PRESETS:
                 profile = _infer_profile(mode, compact_reads, concise_output)
@@ -782,7 +782,7 @@ def _simulate_rollover_session(
         conv.push(int(ti), int(tc), out)
         pol = rollover_policy(conv.features(), pcfg, cold_start, rediscovery_tax)
         is_settled_now = (settled is None) or (idx < len(settled) and settled[idx])
-        # Causal Cold-Cache Auto-Handoff (ReCAP arXiv:2609.40118 + arXiv:2607.19214): if a settled >=75k chat sits
+        # Causal Cold-Cache Auto-Handoff (Persistent Context Graphs arXiv:2609.40118 + arXiv:2607.19214): if a settled >=75k chat sits
         # idle past ttl_cliff (<=1800s / 30m), its KV cache already expired before the next user turn.
         g_after = gaps[idx] if (gaps is not None and idx < len(gaps)) else None
         cold_roll = bool(
@@ -1681,7 +1681,7 @@ def apply_update() -> dict[str, Any]:
 
 
 def run_smart_rollover_tick() -> None:
-    """Single anti-spam adaptive + cold-cache rollover evaluation tick (ReCAP arXiv:2609.40118)."""
+    """Single anti-spam adaptive + cold-cache rollover evaluation tick (Persistent Context Graphs arXiv:2609.40118)."""
     global _last_auto_event
     # Apply any deferred rules/AGENTS.md sync as soon as no warm large cache is active
     flush_pending_concise_sync(force=False)
@@ -1706,7 +1706,7 @@ def run_smart_rollover_tick() -> None:
     if not act.get("last_settled"):
         return
 
-    # Cold-cache trigger (ReCAP arXiv:2609.40118 / arXiv:2607.19214): once a >=75k chat's KV cache has
+    # Cold-cache trigger (Persistent Context Graphs arXiv:2609.40118 / arXiv:2607.19214): once a >=75k chat's KV cache has
     # ALREADY expired (idle >= ttl_cliff, up to 30m), resuming it pays cur_tot uncached vs 17k fresh handoff
     # (instant Turn-1 payback, zero warm cache wasted).
     is_cold_payback = bool(

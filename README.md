@@ -1,178 +1,90 @@
 # agy-tokensaver
 
-<p align="center">
-  <a href="https://github.com/menscho/agy-tokensaver/releases"><img src="https://img.shields.io/badge/release-v1.0.0-4ade80?style=flat-square&labelColor=0d0d11" alt="Release v1.0.0"/></a>
-  <a href="https://github.com/menscho/agy-tokensaver/actions/workflows/test.yml"><img src="https://img.shields.io/badge/tests-326%20passing-4ade80?style=flat-square&labelColor=0d0d11" alt="326 Tests Passing"/></a>
-  <a href="https://github.com/menscho/agy-tokensaver/actions/workflows/test.yml"><img src="https://img.shields.io/badge/CI-Ubuntu%20%7C%20macOS%20%7C%20Windows-8e8e98?style=flat-square&labelColor=0d0d11" alt="3-OS CI"/></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-8e8e98?style=flat-square&labelColor=0d0d11" alt="MIT License"/></a>
+<p align="left">
+  <a href="https://github.com/menscho/agy-tokensaver/actions/workflows/test.yml"><img src="https://github.com/menscho/agy-tokensaver/actions/workflows/test.yml/badge.svg" alt="CI"/></a>
+  <a href="https://github.com/menscho/agy-tokensaver/releases"><img src="https://img.shields.io/badge/release-v1.1.0-4ade80?style=flat-square&labelColor=0d0d11" alt="Release v1.1.0"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-8e8e98?style=flat-square&labelColor=0d0d11" alt="MIT"/></a>
 </p>
 
-A local token, cache, and quota optimizer for **Google Antigravity** (CLI & IDE), with a full-page native HUD (`agy-tokensaver`).
+A zero-dependency Perl + Python plugin for **Google Antigravity** that trims noisy tool output, blocks duplicate or lockfile reads, and optionally rolls long chats over into fresh sessions.
 
----
+It defaults to **Mode 1 (Lossless)**: raw output is spilled to disk before any compression, hooks fail open on bad input, and nothing resets your chat unless you opt in from the HUD.
 
-## Install & Update
+## Install
 
-**Installer:** download `agy-tokensaver-v1.0.0.zip` from **[Releases](https://github.com/menscho/agy-tokensaver/releases)**, extract, and run **`Install-TokenSaver.bat`** (Windows), **`Install-TokenSaver.command`** (macOS), or `python3 install.py`.
+Download `agy-tokensaver-v1.1.0.zip` from **[Releases](https://github.com/menscho/agy-tokensaver/releases)** (verified against `SHA256SUMS.txt`), extract it, and run:
 
-**Or from a terminal:**
-```bash
-# Linux / macOS / WSL
-curl -fsSL https://raw.githubusercontent.com/menscho/agy-tokensaver/main/install.sh | bash
-```
-```powershell
-# Windows PowerShell
-irm https://raw.githubusercontent.com/menscho/agy-tokensaver/main/install.ps1 | iex
-```
+- **Windows:** `Install-TokenSaver.bat`
+- **macOS:** `Install-TokenSaver.command`
+- **Linux / CLI:** `python3 install.py`
 
-**Updates:** open **`agy-tokensaver`** in the Antigravity sidebar → **Updates** → **Install Update**. Updates install only from tagged GitHub Releases after checking `SHA256SUMS.txt` from the same release (catches corrupted downloads; not a separate cryptographic signature). Local stats, settings, and archived handoffs in `~/.gemini/antigravity/plugin_data/token-saver/` are never overwritten.
-
-*(Requires Python 3.9+ stdlib and Perl 5 stdlib — zero external packages or API keys.)*
-
----
-
-## Where Your Antigravity Quota Actually Goes
-
-Across **79 real Antigravity sessions (3,933 turns, 110.3M weighted quota units)** measured with `scripts/benchmark.py --modes`, quota breaks down into three almost-equal buckets:
-
-- **38.4% — Uncached Input (`1×` weight):** over **half (`20.5M` tokens = `19.8%` of total quota)** came from **115 prompt-cache drops** (`14.5M` from idle pauses past Gemini's `90–150s` TTL cliff, `6.0M` from long `>90s` tool/swarm waits).
-- **31.2% — Cache Reads (`0.05×` weight):** replaying a growing 150k–500k context window across dozens of turns ($O(T^2)$ growth).
-- **30.4% — Model Output (`6×` weight):** every generated token costs 6× an uncached input token and 120× a cached token (with `240` full-file `write_file Overwrite=True` calls alone consuming ~5.6M quota units).
-
-**Why this matters:** pure tool-output hooks only touch *new tool results* (~4–5% of total quota on clean chats, though **-83.3%** on noisy logs/tests/JSON). To cut **26–45% of real total quota out of the box**, `agy-tokensaver` ships with **Max Settings (`Mode 2 Max`) ON by default** and lets you pick **any of the 5 benchmark modes directly in ONE HUD dropdown**:
-
-- **Mode 2 (`Max · Default`):** Cold/Live Anchored Auto-Handoff + Compact Reads + Screenshot Downscale + Concise Output + All Lossless Hooks (`-25.9%..-30.4%` automatic, up to `-45.2%` with phase resets, `~0.1–1.0%` risk).
-- **Mode 2c (`Auto-Handoff + Compact`):** Auto-Handoff + Compact Reads with normal verbose replies (`-19.8%` exact causal live).
-- **Mode 2b (`Compact + Concise, No Auto-Handoff`):** `Archive Only` (**0% memory resets**) + Compact Reads + Concise Output (`-6.9%..-11.4%` quota saved).
-- **Mode 2a (`Compact Reads Only, No Auto-Handoff`):** `Archive Only` + tighter read caps + Screenshot Downscale (`-0.8%` overall / `-83.3%` noisy demo).
-- **Mode 1 (`Zero Quality Loss`, Strict `0.0%`):** strictly lossless hooks, dedupe, cache-safe prefixes, and `Archive Only` (`0.0%` quality loss).
-
----
-
-## Real-Session Benchmark (79 Sessions / 3,933 Turns)
-
-Reproduce on your own Antigravity history:
-```bash
-python3 scripts/benchmark.py --modes    # exact mode-by-mode comparison
-python3 scripts/benchmark.py --replay   # full tier-by-tier breakdown
-```
-
-| Mode *(all selectable 1-to-1 in HUD)* | Stated Quality Loss | Tool Tokens Cut | Avg Total Quota Saved |
-|---|---|---:|---:|
-| **Mode 1: Zero Quality Loss** *(Strict)* | **0.0%** *(exact replay)* | 224,666 tok | **-0.7%** *(noisy tasks: **-76.4%**)* |
-| **Mode 2a: Compact Reads only** *(No Auto-Handoff)* | **~0.1–0.5%** *(exact replay)* | 327,721 tok | **-0.8%** *(noisy tasks: **-83.3%**)* |
-| **Mode 2b: Compact + Concise Output\*** *(No Auto-Handoff)* | **~0.1%** prose *(modeled\*)* | 327,721 tok | **-6.9% to -11.4%** |
-| **Mode 2c: Cold/Live Auto-Handoff + Compact** | **~0.5–1.0%**\*\* *(exact causal replay)* | 327,721 tok | **-19.8%** |
-| **Mode 2 (DEFAULT / Max): Live + Compact + Concise\*** | **~0.1–1.0%**\*\* | 327,721 tok | **-25.9% to -30.4%** |
-| **Mode 2 (Upper Bound): Phase Resets + Concise\*** | **~0.1–1.0%**\*\* | 327,721 tok | **-40.7% to -45.2%** |
-
-*\* **Concise Output** (*Sketch-of-Thought* `arXiv:2503.05179` + *TALE* `arXiv:2412.18547` + *Caveman-lite*) cannot be replayed on past transcripts without re-calling the LLM; rows 2b, DEFAULT, and Upper Bound apply a conservative `-20%` to `-35%` reduction to the measured `30.4%` (`6×`-weighted) output bucket (papers report `-65%` to `-76%`). Mode 1, 2a, and 2c are exact deterministic replays charging retries, follow-up reads, and the plugin's `434 tok/turn` always-loaded prompt overhead (383 tok/turn in Mode 1).*  
-*\*\* **Anchored Auto-Handoff** (*The Complexity Trap* `arXiv:2508.21433` + *Focus* `arXiv:2601.07190` + *ReCAP* `arXiv:2609.40118` + Factory.ai Layer A symbol outlines + `TokenEconomizer` verified repo micro-skills): `0%` to `+1.4 pp` quality at phase switches; `~0.5–1.0%` risk if triggered mid-debug. **Live** fires between finished agent runs (warm adaptive caps + expired 30m cold-cache rollovers); **Upper Bound** shows the ceiling when also clicking `Archive & New Chat` at task/phase boundaries.*
-
-<p align="center">
-  <img src="docs/assets/benchmark-chart.svg" alt="Real-Session Benchmark across 79 Antigravity sessions" width="100%"/>
-</p>
-
-### What Each Mode Enables (Pros, Cons & Exact Quality Risk)
-
-| Technique | Mode | Stated Quality Loss | What It Does & Trade-Offs |
-|---|---|---|---|
-| **Lossless Hooks, RTK Hygiene, Tail Logs, SPDX Skip & Poll Guards** | All Modes | **0.0%** | Blocks lockfiles/binaries/sourcemaps/`@generated` headers, skips leading 12–55L SPDX/Copyright comment banners (`StartLine` advance), crushes JSON arrays to lossless `[N]{cols}` CSV+schema, hoists grep/SSH paths, strips HTML `<script>`/`<style>`/`<svg>`, injects `NO_COLOR=1`/`CLICOLOR=0`/`GIT_PAGER=cat` (RTK), groups repeated compiler/linter errors (`tsc`/`cargo`/`eslint`/`ruff`), runs **Merlin** (`arXiv:2605.09990`) non-adjacent chunk dedupe, tail-anchors unbounded `.log`/`.err`/`.out`/spillback reads (`LogDx-CI` `arXiv:2605.28876`), narrows post-edit re-reads to `[min_dirty-15..max_dirty+15]` (`squeez`/`Cline`), preserves omitted `ERR_*`/UUIDs/URLs in spill footers (`ids_preserved`), provides SQLite FTS5 BM25 spill search (`ts_inspect.py query`, `context-mode`), wraps `ps -eo` / `export`+`mkdir`+`ls && find` chains / multi-cmd `ssh` dumps, blocks duplicate unchanged image & file reads, runs universal 3× `doom_loop` & `read_board` poll guards (`IAL-Scan` `arXiv:2607.01641` + `Models Take Notes` `arXiv:2606.17107`), emits 0-LLM-token nudges on huge `write_file` overwrites (`AdaEdit` `arXiv:2604.27296`), audits dead 0-call MCPs & transcript leaks (`audit.py --discover`), and keeps prefixes strictly cache-safe (`arXiv:2601.06007`). |
-| **Compact Reads & Oversized Screenshot Downscaling** | Modes 2a / 2b / 2c / Max | **~0.1–0.5%** | Cuts **+46% more tool tokens** (`225k → 328k`) by capping unbounded reads (`120L` code / `120L` docs / `80L` data & `CHANGELOG.md`; bounded slices untouched) and auto-downscaling oversized `>1568px` PNG/JPEG screenshots to `<=1280px` cached JPEG (4–8× fewer vision tiles; 0.1ms pure-Perl header check, fail-open). *Con:* unbounded reads may occasionally need 1 extra targeted slice (already charged in Mode 2a). |
-| **Concise Output & Diff-First Discipline** | Modes 2b / Max | **~0.1% prose** | Cuts **`-6.1%` to `-10.6%` total quota even without Auto-Handoff** by stripping pleasantries, preambles, and pre/post-tool chatter from `6×`-weighted output (*SoT* + *TALE* + *Caveman-lite* + `arXiv:2608.01347` bounded-efficiency stop rule) and reinforcing `edit_file` over full `write_file` rewrites (`arXiv:2604.27296`). Code, diffs, paths, errors, and root-cause debugging stay verbatim. *Con:* replies are terse. |
-| **Cold-Cache & Live Anchored Auto-Handoff** | Modes 2c / Max | **0% phase / ~0.5–1% mid-debug** | Biggest single win on long sessions (**`-19.8%` exact causal live**, up to **`-40.7%..-45.2%`** with phase resets), preventing both $O(T^2)$ cache replay and `100k–450k` cold rebuilds after idle pauses (up to 30m). Layer A deterministic handoff packets include recent ruled-out errors, last verification command, cross-session verified repo micro-skills (`TokenEconomizer` `arXiv:2610.22732`), and `L<start>-L<end>` symbol outlines of edited files. *Con:* opens a fresh chat with a structured packet (details below). |
-
----
-
-## What Auto-Handoff Actually Does (And Does the Model Forget Everything?)
-
-This is the most common question, so here is the plain, honest answer:
-
-1. **What it does:** When a long conversation crosses the adaptive threshold (~110k–180k tokens), `handoff_pack.py` generates a compact (~500-token) **Anchored Handoff** packet from your workspace and transcript:
-   - Your **current goal** and the **assistant's last conclusion**
-   - **Git branch, recent commits, diff stat, and exact list of edited files**
-   - **Recent errors / ruled-out paths** (extracted from recent tool failures so the new chat doesn't repeat them)
-   It saves this snapshot to the **Archive** tab. In **Mode 2 (`Small Quality Loss`)**, it also opens a fresh chat seeded with that packet (~17k starting tokens instead of 250k–500k).
-2. **Does the model forget stuff?** **Yes — selectively.**
-   - **What is kept:** your goal, edited file list, git state, recent ruled-out errors, last conclusion, and every file on disk (which the agent can still read at any time).
-   - **What is dropped:** old terminal logs, dead-end debugging attempts from 60 turns ago, and earlier file slices that are no longer needed (the full original chat stays untouched in your Antigravity history and Archive tab).
-3. **What is the real quality loss?**
-   - **At a phase switch** (finished feature A → starting feature B, finished planning → implementing, or before taking a `>2 min` break): **0% quality loss** — and often *better* focus, because JetBrains' NeurIPS 2025 study (*The Complexity Trap*, `arXiv:2508.21433`) and *Focus* (`arXiv:2601.07190`) showed resetting stale observation bloat matches or beats (`+1.4 pp`) full-history solve rates while cutting cost 23–50%.
-   - **Mid-debugging a subtle multi-file bug** where subtle context wasn't summarized yet: **~0.5–1.0% risk** — the fresh chat may spend 1–2 turns re-reading a file.
-4. **Why Mode 2 (`Small Quality Loss`) is ON by default (and how to switch to strict `0%` loss):** Out of the box, `agy-tokensaver` enables max savings (`-24.7%` to `-29.3%` automatic, up to `-44.5%` with phase resets) while never interrupting an active turn. Prefer strictly `0.0%` loss with `Archive Only` handoffs? Switch the single **Optimization Mode** selector in the HUD to **`Zero Quality Loss`**.
-
----
-
-## 8-Step Noisy-Task Demo (`python3 scripts/benchmark.py --demo`)
-
-Runs a deterministic 8-step noisy coding fixture directly through `read_hook.pl`, `cmd_hook.pl`, and `cmd_wrap.pl` under default Max Settings (baseline capped at Antigravity's native limits: `46,080 B` read / `10,136 B` command; post-hook includes the `94 B` overwrite notice; median hook latency **~7.6 ms**):
-
-| Task Step | Without | With | Saved | Result |
-|---|---:|---:|---:|---|
-| 1. `read_file` `package-lock.json` (unbounded) | 11,520 tok | 41 tok | -99.6% | blocked (hint emitted) |
-| 2. `read_file` `service.py` (900L unbounded) | 11,520 tok | 2,309 tok | -80.0% | capped to lines 1–120 |
-| 3. `read_file` `service.py:50-120` (dup slice) | 1,359 tok | 36 tok | -97.4% | blocked (already in context) |
-| 4. `run_command` `pytest` (300 pass, 1 fail) | 2,534 tok | 109 tok | -95.7% | `--cat test`: assertion + traceback kept |
-| 5. `run_command` `git diff` (code + lockfile) | 2,534 tok | 108 tok | -95.7% | `--cat git_diff`: code hunk verbatim |
-| 6. `run_command` server log (900L + 1 ERROR) | 2,534 tok | 1,552 tok | -38.8% | `--cat logs`: `ERROR` pinned + raw saved |
-| 7. `run_command` `curl` JSON API (120 rows) | 2,534 tok | 942 tok | -62.8% | `--cat http`: CSV+schema & error row kept |
-| 8. `run_command` `ssh` remote grep (74 hits) | 1,847 tok | 959 tok | -48.1% | `--cat ssh`: lossless path hoisting |
-| **Total direct tool tokens** | **36,383 tok** | **6,059 tok** | **-83.3%** | **30,324 tokens avoided** |
-| **15-turn weighted quota (`1×` in + `14×0.05×` cr)** | **61,851 qu** | **10,300 qu** | **-83.3%** | **51,551 quota units avoided** |
-
-*(This fixture represents a noisy test/log/JSON/diff workflow; clean small-file sessions save much less with hooks alone, as shown in the 71-session replay above.)*
-
----
-
-## Native HUD
-
-Opens from **`agy-tokensaver`** under **Plugins** in Antigravity's left sidebar. Internal dashboard tools use `visibility: ["app"]` so they add zero tokens to the model prompt.
-
-<p align="center">
-  <img src="docs/assets/hud-preview.svg" alt="agy-tokensaver HUD Preview" width="100%"/>
-</p>
-
-- **Overview:** Input/Cache/Output/Quota breakdown, live context meter, one-click **Optimization Mode** (`Zero Quality Loss` vs `Small Quality Loss`), Context Limit selector, and manual actions.
-- **Archive:** Saved Anchored Handoff packets (goal, branch, commits, diff stat, edited files, ruled-out errors, last summary).
-- **Updates:** Tagged GitHub Release check, local requirement checks, changelog, and SHA-256 verified 1-click updates.
-
----
-
-## Research & Open-Source Foundations
-
-Every technique in `agy-tokensaver` is grounded in 2024–2026 coding-agent efficiency papers and verified open-source tools (while deliberately excluding techniques shown to hurt cost or quality):
-
-- **Zero-Loss Research (`0.0%` quality loss):**
-  - **Merlin** (`arXiv:2605.09990`): byte-exact non-adjacent chunk deduplication (`cmd_wrap.pl` `merlin_dedupe_chunks`, 24–80% reduction on repeated log/SSH diagnostics with 0% info loss).
-  - **TokenEconomizer** (`arXiv:2610.22732`): failure-loop breaker stopping 3× identical failing `test`/`build`/`lint` runs with no intervening edits (18–31% cost cut + Pass@1 gain).
-  - **SkillReducer** (`arXiv:2603.29919`) & **Same Task, Different Work** (`arXiv:2608.01347`): tightened always-loaded prompt/skill descriptions from `906 → 383 tok/turn` (-58%) plus bounded-scope stop rules.
-  - **Don't Break the Cache** (`arXiv:2601.06007`), **CAPC** (`arXiv:2607.15516`), **Keeping the Cache Warm** (`arXiv:2607.19214`), **ReCAP** (`arXiv:2609.40118`), & **Models Take Notes at Prefill** (`arXiv:2606.17107`): strictly append-only prefixes, deterministic content-addressed spillback filenames (zero timestamp/PID entropy), alphabetically sorted MCP tool schemas, cache-safe deferred `rules/AGENTS.md` sync, swarm worker `<90s` pacing + `read_board` poll-guard (`board_hook.pl`), 30m cold-cache auto-handoff (instant Turn-1 payback on expired `>=75k` chats), and live HUD cache-drop forensics.
-- **Small-Loss Research (`~0.1%–1.0%` risk, opt-in Mode 2):**
-  - **The Complexity Trap** (JetBrains, NeurIPS 2025, `arXiv:2508.21433`) & **Focus** (`arXiv:2601.07190`) & **Factory.ai Anchored Summarization**: threshold-based Anchored Handoff packets with ruled-out errors (23–50% cost cut, `0%` to `+1.4 pp` at phase boundaries).
-  - **Sketch-of-Thought** (`arXiv:2503.05179`), **TALE-EP** (`arXiv:2412.18547`), & **[Caveman](https://github.com/JuliusBrussee/caveman):** Concise Output rule cutting `6×`-weighted prose chatter while keeping code, diffs, paths, and root-cause debugging verbatim.
-- **Open-Source Ports:**
-  - **[rtk-ai/rtk](https://github.com/rtk-ai/rtk) & `tarekziade/claude-tools`:** `NO_COLOR=1`/`CLICOLOR=0`/`GIT_PAGER=cat` child env injection, compiler/linter diagnostic grouping in `compress_build` & `compress_lint`, `git diff` index-hash stripping, and framework stack-frame folding.
-  - **[headroomlabs-ai/headroom](https://github.com/headroomlabs-ai/headroom):** lossless JSON `[N]{cols}` CSV+schema compaction, nested flattening, `>256 B` blob offload, 12-keyword error-preserving SmartCrusher sampling, dense minified-line elision, multi-line block folding, large-diff `±2` context trimming, and Windows-safe / SSH grep path hoisting.
-  - **[@plexer/cli](https://www.npmjs.com/package/@plexer/cli):** `PostToolUse` edit invalidation (`post_edit_hook.pl`), duplicate search / unchanged `git diff` dedup, `WaitMsBeforeAsync` floor bump (`5000 ms`), `initialNumSteps` compaction reset, and stdlib AST/regex symbol outlining (`ts_inspect.py outline`).
-  - **Vision / Screenshot Tiling (`yawalkar/image-resizer` + Anthropic `1568px` / Gemini `768px` tiling):** zero-loss duplicate image read guard + pure-Perl 0.1ms PNG/JPEG dimension check auto-downscaling `>1568px` screenshots to `<=1280px` cached JPEG in Mode 2.
-  - **Aider Edit-Format Benchmark & `CodeGrep` (`arXiv:2608.05886`):** diff-first `edit_file` discipline over full `write_file` rewrites + specialized Flash/Flash-Lite retrieval scouts.
-- **Deliberately Excluded Anti-Patterns (Proven Harmful):** lexical code minification (`arXiv:2606.01326`: **-12 pp** SWE-bench drop), perplexity token pruning like LLMLingua (drops exact identifiers/flags), per-turn sliding history mutation (`arXiv:2611.22238`: **+38–116%** cost by breaking KV caches), autonomous 30s keepalive pings (`arXiv:2607.19214`: **8×** waste), unsolicited Turn-0 snippet pre-injection (`arXiv:2611.22238`: **+33–42%** net cost), and global Chain-of-Draft on complex debugging (`arXiv:2506.10987`: up to **-10%** drop).
-
----
-
-## Compatibility, Limitations & Tests
-
-- **Antigravity IDE vs. CLI hooks:** Hooks fire reliably in Antigravity 2.0 and the `agy` CLI (verify via `/hooks` or by watching hook events increment in the HUD). Older desktop IDE builds that don't fire plugin hooks yet still benefit from `rules/AGENTS.md`, skills, scouts, `ts_inspect.py`, `handoff_pack.py`, and the HUD.
-- **Cross-platform:** Full CLI wrapping runs on Linux, macOS, WSL, **and native Windows PowerShell** (`cmd_wrap.pl --pwsh-stdin` via child `powershell.exe` with exact exit codes, table compaction, and `%TEMP%` spillback; `AGY_TS_SHELL=off|posix|pwsh` overrides).
-- **Fail-open invariant:** Every hook fails open (`{"decision":"allow"}` / `{}`) on any malformed input or Antigravity payload change, and every lossy compression spills the unmodified raw output to disk first.
+Or install from source:
 
 ```bash
-for t in tests/run_tests.sh tests/test_*.sh; do bash "$t"; done
-python3 scripts/benchmark.py --demo --modes
+git clone https://github.com/menscho/agy-tokensaver.git && cd agy-tokensaver && python3 install.py
 ```
 
-Verified in [`.github/workflows/test.yml`](.github/workflows/test.yml) across **Ubuntu, macOS, and Native Windows** (`326` assertions across 7 test suites + MCP/installer/PowerShell/demo checks).
+Restart Antigravity and open **Token Saver** in the sidebar to switch modes or inspect session telemetry.
 
-## License
+## Benchmark
 
-[MIT License](LICENSE).
+![Real-Session Benchmark](docs/assets/benchmark-chart.svg)
+
+Replayed against **79 local Antigravity sessions** (`3,952` turns, `111.3M` cost-proxy units) through the real hooks, charging retries, follow-up reads, and the plugin's own `392 tok/turn` prompt overhead:
+
+| HUD Mode | Default / Opt-in | Measured vs Estimated | Tool Tokens Cut | Avg Cost Change |
+| :--- | :--- | :--- | ---: | ---: |
+| **Mode 1: Lossless** | **Default** | Measured replay | 224,649 | **-0.7%** |
+| **Mode 2a: Compact Reads** | Opt-in | Measured replay | 327,704 | **-0.9%** |
+| **Mode 2b: + Concise Output** | Opt-in | **Estimated** (modeled output) | 327,704 | **-7.0%..-11.5% (estimated)** |
+| **Mode 2c: + Auto-Handoff** | Opt-in | Measured replay | 327,704 | **-20.2%** |
+| **Mode 2 (Max): All opt-in** | Opt-in | **Estimated** (modeled output) | 327,704 | **-26.3%..-30.8% (estimated)** |
+| *Upper Bound (manual phase resets)* | *Reference* | **Estimated** | 327,704 | *-40.9%..-45.4% (estimated)* |
+
+- **Why Mode 1 looks small on average (-0.7%) but big on noisy steps:** Across normal mixed chats, tool outputs are a small share of total cost once prompt caching is active. On an 8-step noisy workflow (`python3 scripts/benchmark.py --demo` — lockfile read, large source file, duplicate read, 300-test pytest run, lockfile git diff, 900-line server log, 120-row JSON response, SSH grep), the same lossless hooks cut direct tool tokens by **-76.4%** (`36,383 → 8,594` tokens, `9.1 ms` median hook latency).
+- **Methodology & caveats:**
+  - Cost weights (`1×` uncached input, `0.05×` cache read, `6×` output) are a standard LLM API pricing proxy, not published Antigravity billing weights.
+  - Rows marked **(estimated)** add a modeled `-20%..-35%` reduction on the `6×` output bucket (30.3% of baseline proxy cost) because concise-reply rules cannot be replayed retroactively on recorded transcripts.
+  - The ~`90–150s` idle cache-drop cliff used by cold-cache handoffs is measured empirically from local Antigravity transcripts, not a documented service SLA.
+
+## How the modes work
+
+Switch anytime in the **Token Saver** HUD (toggling concise rules while a large warm cache is active defers the file write until the cache cools so your prefix isn't invalidated mid-session):
+
+- **Mode 1 — Lossless (Default):** Compresses verbose test/build/git/log/JSON/SSH output (saving full raw output to temp files with deterministic content-addressed names), blocks lockfiles/binaries/auto-generated files and unchanged duplicate reads, anchors unbounded `.log` reads to the tail, breaks 3× identical retry loops, and archives snapshots without opening new chats.
+- **Mode 2a — Compact Reads:** Tighter default slices on unbounded reads (`120L`/`80L` instead of `250L`/`120L`), `80L` cap on `CHANGELOG.md`, and optional downscaling of `>1568px` screenshots.
+- **Mode 2b — + Concise Output:** Adds a short reply-style rule targeting verbose prose while leaving code and edits untouched. Never resets your chat.
+- **Mode 2c — + Auto-Handoff:** When a settled long chat crosses its adaptive context cap or sits idle past the local cache-drop cliff (`>=75k` tokens), automatically opens a fresh chat seeded with a zero-LLM handoff packet (git branch/status/diff, edited files with `L<start>-L<end>` symbol outlines, recent failed commands, verified repo test commands, and a link to the full archived transcript). Best at task/phase boundaries; mid-debug rollovers can occasionally require re-reading a file.
+- **Mode 2 (Max):** Combines Auto-Handoff, Compact Reads, and Concise Output.
+
+## What's included
+
+- **Hooks (`scripts/`):** `cmd_hook.pl`, `cmd_wrap.pl` (~40 output compressors across Unix & PowerShell), `read_hook.pl`, `write_hook.pl`, `find_hook.pl`, `grep_hook.pl`, `board_hook.pl`, `swarm_hook.pl`, `post_edit_hook.pl`, `post_invocation_alerts.pl`, `stop_telemetry.pl`.
+- **MCP App HUD (`mcp_app/`):** Local full-page panel with session telemetry, mode selector, snapshot archive, and SHA-256 verified release updater.
+- **CLI utilities (`scripts/`):** `handoff_pack.py`, `ts_inspect.py` (`outline` & SQLite FTS5 `query`), `audit.py --discover`, `benchmark.py`, `transcript_replay.py`.
+- **Requirements:** Python 3.9+ and Perl 5 (macOS/Linux built-in; Git for Windows / MSYS2 / Strawberry Perl on Windows). Zero third-party packages.
+
+<details>
+<summary>Research & open-source references</summary>
+
+- Prompt caching & prefix stability: *Don't Break the Cache* ([arXiv:2601.06007](https://arxiv.org/abs/2601.06007)), *CAPC* ([arXiv:2607.15516](https://arxiv.org/abs/2607.15516)), *Keeping the Cache Warm* ([arXiv:2607.19214](https://arxiv.org/abs/2607.19214)), *Persistent Context Graphs for Efficient Memory Compaction in LLM Agents* ([arXiv:2609.40118](https://arxiv.org/abs/2609.40118)), *Models Take Notes at Prefill* ([arXiv:2606.17107](https://arxiv.org/abs/2606.17107)).
+- Context resets & handoffs: *The Complexity Trap* ([arXiv:2508.21433](https://arxiv.org/abs/2508.21433)), *Active Context Compression* ([arXiv:2601.07190](https://arxiv.org/abs/2601.07190)), Factory.ai anchored summarization.
+- Output & loop control: *Sketch-of-Thought* ([arXiv:2503.05179](https://arxiv.org/abs/2503.05179)), *Merlin* ([arXiv:2605.09990](https://arxiv.org/abs/2605.09990)), *TokenEconomizer* ([arXiv:2610.22732](https://arxiv.org/abs/2610.22732)), *AdaEdit* ([arXiv:2604.27296](https://arxiv.org/abs/2604.27296)), *SkillReducer* ([arXiv:2603.29919](https://arxiv.org/abs/2603.29919)), *IAL-Scan* ([arXiv:2607.01641](https://arxiv.org/abs/2607.01641)), *LogDx-CI* ([arXiv:2605.28876](https://arxiv.org/abs/2605.28876)).
+- Open-source inspiration: RTK, Headroom, `@plexer/cli`, Aider, Cline, OpenCode, `context-mode`, `squeez`.
+
+</details>
+
+## Verify locally
+
+```bash
+# Run all 7 test suites (Ubuntu, macOS, Windows in CI)
+for t in tests/*.sh; do bash "$t" || break; done
+
+# Reproducible 8-step noisy-task benchmark
+python3 scripts/benchmark.py --demo
+
+# Replay hooks against your own local Antigravity transcripts
+python3 scripts/benchmark.py --modes
+```
+
+MIT License — see [LICENSE](LICENSE) and [CHANGELOG.md](CHANGELOG.md).

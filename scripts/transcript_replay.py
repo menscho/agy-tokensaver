@@ -722,19 +722,19 @@ def run_modes(policy: str = "auto", json_out: str | None = None) -> dict:
     c_live = -comp["q_both"]["total"]
     c_ub = -comp["q_both_ub"]["total"]
 
-    print(f"=== 2-Mode Real-Session Benchmark ({base['n']} sessions, {base['turns']:,} turns, {q_tot/1e6:.1f}M quota units) ===")
-    print(f"Quota mix: Input {tot_in*W_IN/q_tot*100:.1f}% | Cache read {tot_cr*W_CR/q_tot*100:.1f}% | Output (6x) {out_share:.1f}% | Prompt overhead: {base['overhead_tok_per_turn']} tok/turn\n")
-    print(f"{'Mode':46s} | {'Quality Loss':14s} | {'Tool Tok Cut':>12s} | {'Avg Quota Saved':>15s}")
-    print("-" * 97)
-    print(f"{'Mode 1: Zero Quality Loss (Strict Opt-in)':46s} | {'0.0%':14s} | {base['saved_tool_tok']:9,d} tk | {b_h:+14.1f}%")
-    print(f"{'Mode 2a: Small Loss — Compact Reads only':46s} | {'~0.1-0.5%':14s} | {comp['saved_tool_tok']:9,d} tk | {c_h:+14.1f}%")
-    print(f"{'Mode 2b: Small Loss — + Concise Output*':46s} | {'~0.1% prose':14s} | {comp['saved_tool_tok']:9,d} tk | {c_h - c20:+6.1f}%..{c_h - c35:+.1f}%")
-    print(f"{'Mode 2c: Small Loss — + Auto-Handoff Live':46s} | {'~0.5-1.0%**':14s} | {comp['saved_tool_tok']:9,d} tk | {c_live:+14.1f}%")
-    print(f"{'Mode 2 (DEFAULT / Max): Live + Compact + Conc*':46s} | {'~0.1-1.0%**':14s} | {comp['saved_tool_tok']:9,d} tk | {c_live - c20:+6.1f}%..{c_live - c35:+.1f}%")
-    print(f"{'Mode 2 (Upper Bound, phase resets + Concise*)':46s} | {'~0.1-1.0%**':14s} | {comp['saved_tool_tok']:9,d} tk | {c_ub - c20:+6.1f}%..{c_ub - c35:+.1f}%")
-    print("-" * 97)
-    print("*  Concise Output (SoT arXiv:2503.05179 + Caveman-lite) modeled on real 6x output bucket (-20%..-35% conservative band).")
-    print("** Anchored Auto-Handoff (arXiv:2508.21433 + Focus arXiv:2601.07190): 0% to +1.4pp at phase switches; ~0.5-1% risk mid-debug.")
+    print(f"=== Real-Session Benchmark ({base['n']} sessions, {base['turns']:,} turns, {q_tot/1e6:.1f}M proxy units) ===")
+    print(f"Cost proxy (1x in + 0.05x cache + 6x out): Input {tot_in*W_IN/q_tot*100:.1f}% | Cache {tot_cr*W_CR/q_tot*100:.1f}% | Output {out_share:.1f}% | Overhead: {base['overhead_tok_per_turn']} tok/turn\n")
+    print(f"{'Mode':44s} | {'Type':10s} | {'Tool Tok Cut':>12s} | {'Avg Cost Saved':>22s}")
+    print("-" * 98)
+    print(f"{'Mode 1: Lossless (Default)':44s} | {'measured':10s} | {base['saved_tool_tok']:9,d} tk | {b_h:+21.1f}%")
+    print(f"{'Mode 2a: Compact Reads (Opt-in)':44s} | {'measured':10s} | {comp['saved_tool_tok']:9,d} tk | {c_h:+21.1f}%")
+    print(f"{'Mode 2b: + Concise Output (Opt-in)':44s} | {'estimated':10s} | {comp['saved_tool_tok']:9,d} tk | {c_h - c20:+5.1f}%..{c_h - c35:+.1f}% (est.)")
+    print(f"{'Mode 2c: + Auto-Handoff Live (Opt-in)':44s} | {'measured':10s} | {comp['saved_tool_tok']:9,d} tk | {c_live:+21.1f}%")
+    print(f"{'Mode 2 (Max): Live + Compact + Concise':44s} | {'estimated':10s} | {comp['saved_tool_tok']:9,d} tk | {c_live - c20:+5.1f}%..{c_live - c35:+.1f}% (est.)")
+    print(f"{'Mode 2 (Upper Bound, phase resets)':44s} | {'estimated':10s} | {comp['saved_tool_tok']:9,d} tk | {c_ub - c20:+5.1f}%..{c_ub - c35:+.1f}% (est.)")
+    print("-" * 98)
+    print("Note: 'measured' = exact transcript replay (charges retries + prompt overhead); 'estimated' adds a modeled -20%..-35% cut on the 6x output bucket.")
+    print("      Anchored Auto-Handoff (arXiv:2508.21433, Active Context Compression arXiv:2601.07190): lowest risk at phase switches.")
 
     res = {
         "n": base["n"],

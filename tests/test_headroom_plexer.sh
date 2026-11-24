@@ -176,18 +176,18 @@ hook cmd_hook.pl "$(tj 4)" "--cat test" "loop breaker: 1-retry escape hatch allo
 ml_cmd='echo "=== STATUS ===" && ps aux && echo "=== LOGS ===" && journalctl -n 50'
 hook cmd_hook.pl "$("$PY" -c 'import json,sys; print(json.dumps({"toolInput":{"CommandLine":sys.argv[1],"Cwd":sys.argv[2]}}))' "$ml_cmd" "$T")" "--cat chain" "multiline diagnostic banner chain wraps"
 
-# 16. 2-Mode config profile (max default small_loss -> zero_loss -> small_loss)
-"$PY" - "$ROOT/mcp_app" "$T/cfgdata" <<'PYEOF' && ok || bad "2-mode profile default small_loss vs zero_loss" "failed"
+# 16. 2-Mode config profile (lossless default zero_loss -> small_loss -> zero_loss)
+"$PY" - "$ROOT/mcp_app" "$T/cfgdata" <<'PYEOF' && ok || bad "2-mode profile default zero_loss vs small_loss" "failed"
 import os, sys
 os.environ["PLUGIN_DATA"] = sys.argv[2]
 sys.path.insert(0, sys.argv[1])
 import core
 c0 = core.load_config()
-assert c0["profile"] == "small_loss" and c0["mode"] == "smart_auto" and c0["compact_reads"] and c0["concise_output"], c0
-c1 = core.save_config({"profile": "zero_loss"})
-assert c1["profile"] == "zero_loss" and c1["mode"] == "prepare_only" and not c1["compact_reads"] and not c1["concise_output"], c1
-c2 = core.save_config({"profile": "small_loss"})
-assert c2["profile"] == "small_loss" and c2["mode"] == "smart_auto" and c2["compact_reads"] and c2["concise_output"], c2
+assert c0["profile"] == "zero_loss" and c0["mode"] == "prepare_only" and not c0["compact_reads"] and not c0["concise_output"], c0
+c1 = core.save_config({"profile": "small_loss"})
+assert c1["profile"] == "small_loss" and c1["mode"] == "smart_auto" and c1["compact_reads"] and c1["concise_output"], c1
+c2 = core.save_config({"profile": "zero_loss"})
+assert c2["profile"] == "zero_loss" and c2["mode"] == "prepare_only" and not c2["compact_reads"] and not c2["concise_output"], c2
 PYEOF
 
 # 17. Deterministic content-addressed spillback filename (arXiv:2601.06007 cache stability)
@@ -262,20 +262,20 @@ PYEOF
 o=$($W --cat build --test-stdin --test-rc 1 < "$T/tsc.err")
 [[ "$o" == *"Repeated compiler errors collapsed"* && "$o" == *"(+75 more)"* ]] && ok || bad "RTK compiler error grouping in compress_build" "$(head -c 300 <<<"$o")"
 
-# 24. All 5 benchmark HUD modes selectable cleanly (strongest small_loss default)
+# 24. All 5 benchmark HUD modes selectable cleanly (lossless zero_loss default)
 "$PY" - "$ROOT/mcp_app" "$T/cfgdata5" <<'PYEOF' && ok || bad "all 5 HUD benchmark profiles" "failed"
 import os, sys
 os.environ["PLUGIN_DATA"] = sys.argv[2]
 sys.path.insert(0, sys.argv[1])
 import core
 c = core.load_config()
-assert c["profile"] == "small_loss" and c["mode"] == "smart_auto" and c["compact_reads"] and c["concise_output"], c
+assert c["profile"] == "zero_loss" and c["mode"] == "prepare_only" and not c["compact_reads"] and not c["concise_output"], c
 for prof, exp in [
-    ("handoff_only", ("smart_auto", True, False)),
-    ("concise_no_handoff", ("prepare_only", True, True)),
     ("compact_reads", ("prepare_only", True, False)),
-    ("zero_loss", ("prepare_only", False, False)),
+    ("concise_no_handoff", ("prepare_only", True, True)),
+    ("handoff_only", ("smart_auto", True, False)),
     ("small_loss", ("smart_auto", True, True)),
+    ("zero_loss", ("prepare_only", False, False)),
 ]:
     r = core.save_config({"profile": prof})
     assert (r["mode"], r["compact_reads"], r["concise_output"]) == exp, (prof, r)
@@ -284,7 +284,7 @@ PYEOF
 # 25. Tail-anchored unbounded .log read (OpenAI Codex + LogDx-CI)
 "$PY" -c 'for i in range(1, 401): print(f"2026-11-24 INFO line {i} payload_event_0123456789abcdef")' > "$T/app.log"
 o=$(perl "$S/read_hook.pl" <<< "$(printf '{"toolInput":{"Path":"%s"}}' "$T/app.log")")
-[[ "$o" == *'"StartLine":32'* && "$o" == *'"EndLine":40'* ]] && ok || bad "tail-anchored unbounded .log cap" "$o"
+[[ "$o" == *'"StartLine":28'* && "$o" == *'"EndLine":40'* ]] && ok || bad "tail-anchored unbounded .log cap" "$o"
 
 # 26. Post-edit dirty-hunk auto-narrowing (squeez/Cline)
 "$PY" -c 'for i in range(1, 321): print(f"def fn_{i}(x): return x + {i}  # padding comment line")' > "$T/dirty.py"
@@ -342,11 +342,11 @@ for i in range(1, 350):
     print(f"pub fn handler_{i}(x: usize) -> usize {{ x + {i} }} // realistic rust code line")
 PYEOF
 o=$(perl "$S/read_hook.pl" <<< "$(printf '{"toolInput":{"Path":"%s"}}' "$T/licensed.rs")")
-[[ "$o" == *'"StartLine":20,"EndLine":139'* ]] && ok || bad "SPDX license banner StartLine skip" "$o"
+[[ "$o" == *'"StartLine":20,"EndLine":269'* ]] && ok || bad "SPDX license banner StartLine skip" "$o"
 
-# 34. CHANGELOG.md compact cap to 80L in Mode 2
+# 34. CHANGELOG.md compact cap to 80L in Mode 2 (opt-in)
 "$PY" -c 'for i in range(1, 300): print(f"- v0.{i}.0: release changelog entry with details and notes 1234567890")' > "$T/CHANGELOG.md"
-o=$(perl "$S/read_hook.pl" <<< "$(printf '{"toolInput":{"Path":"%s"}}' "$T/CHANGELOG.md")")
+o=$(AGY_TS_COMPACT_READS=1 perl "$S/read_hook.pl" <<< "$(printf '{"toolInput":{"Path":"%s"}}' "$T/CHANGELOG.md")")
 [[ "$o" == *'"StartLine":1,"EndLine":80'* ]] && ok || bad "CHANGELOG.md compact cap to 80L" "$o"
 
 # 35. TokenEconomizer cross-session microskills promotion (>=2 confirmations)

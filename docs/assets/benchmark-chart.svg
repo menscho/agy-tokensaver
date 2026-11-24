@@ -2,63 +2,63 @@
   <defs><style>.t{font-family:"Google Sans","Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}.m{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}</style></defs>
   <rect width="960" height="540" rx="14" fill="#070708"/>
   <rect x="0.5" y="0.5" width="959" height="539" rx="13.5" fill="none" stroke="#222227"/>
-  <text x="32" y="36" class="t" font-size="16.5" font-weight="500" fill="#ececef">2-Mode Real-Session Benchmark · 79 sessions, 3,933 turns (110.3M quota units)</text>
-  <text x="32" y="56" class="t" font-size="11.5" fill="#8e8e98">python3 scripts/benchmark.py --modes · exact per-turn tokens (1× in + 0.05× cache + 6× out) · 434 tok/turn prompt overhead charged</text>
+  <text x="32" y="36" class="t" font-size="16.5" font-weight="500" fill="#ececef">Real-Session Replay · 79 sessions, 3,952 turns (111.3M cost-proxy units)</text>
+  <text x="32" y="56" class="t" font-size="11.5" fill="#8e8e98">python3 scripts/benchmark.py --modes · API-ratio proxy (1× in + 0.05× cache + 6× out) · 392 tok/turn overhead charged</text>
   <rect x="32" y="74" width="436" height="106" rx="10" fill="#0d0d11" stroke="#4ade80"/>
-  <text x="48" y="96" class="t" font-size="12" font-weight="500" fill="#4ade80">MODE 2 · SMALL QUALITY LOSS (DEFAULT / MAX)</text>
-  <text x="452" y="96" class="m" font-size="11" fill="#f59e0b" text-anchor="end">~0.1–1.0% risk</text>
-  <text x="48" y="130" class="m" font-size="22" font-weight="500" fill="#ececef">-25.9% to -30.4%</text>
-  <text x="452" y="128" class="m" font-size="12" fill="#8e8e98" text-anchor="end">up to -45.2% UB</text>
-  <text x="48" y="152" class="t" font-size="11.5" fill="#8e8e98">327,721 tool tok cut · Cold-Cache + Live Auto-Handoff (-19.8%)</text>
-  <text x="48" y="168" class="t" font-size="11.5" fill="#5e5e68">+ Compact Reads + Image Downscale + Concise Output (-20%..-35%*)</text>
+  <text x="48" y="96" class="t" font-size="12" font-weight="500" fill="#4ade80">MODE 1 · LOSSLESS (DEFAULT)</text>
+  <text x="452" y="96" class="m" font-size="11" fill="#4ade80" text-anchor="end">measured</text>
+  <text x="48" y="130" class="m" font-size="22" font-weight="500" fill="#ececef">-0.7% avg cost</text>
+  <text x="452" y="128" class="m" font-size="12" fill="#8e8e98" text-anchor="end">224,649 tool tok cut</text>
+  <text x="48" y="152" class="t" font-size="11.5" fill="#8e8e98">Lossless output compressors, duplicate-read &amp; loop guards,</text>
+  <text x="48" y="168" class="t" font-size="11.5" fill="#5e5e68">cache-safe prefixes, Archive-Only handoffs (no automatic chat resets)</text>
   <rect x="492" y="74" width="436" height="106" rx="10" fill="#0d0d11" stroke="#222227"/>
-  <text x="508" y="96" class="t" font-size="12" font-weight="500" fill="#8e8e98">MODE 1 · ZERO QUALITY LOSS (STRICT)</text>
-  <text x="912" y="96" class="m" font-size="11" fill="#4ade80" text-anchor="end">0.0% quality loss</text>
-  <text x="508" y="130" class="m" font-size="22" font-weight="500" fill="#ececef">-0.7% avg quota</text>
-  <text x="912" y="128" class="m" font-size="12" fill="#8e8e98" text-anchor="end">-76.4% noisy tasks</text>
-  <text x="508" y="152" class="t" font-size="11.5" fill="#8e8e98">224,666 tool tok cut · JSON CSV, RTK error grouping, SSH/grep hoist,</text>
-  <text x="508" y="168" class="t" font-size="11.5" fill="#5e5e68">Merlin chunk dedupe, image/loop guards, cache-safe prefixes, Archive Only</text>
-  <text x="32" y="206" class="t" font-size="12" font-weight="500" fill="#8e8e98">TOTAL QUOTA REDUCTION BY MODE (79 REAL SESSIONS · NEGATIVE = LESS QUOTA)</text>
+  <text x="508" y="96" class="t" font-size="12" font-weight="500" fill="#8e8e98">MODE 2 · OPT-IN (AUTO-HANDOFF + COMPACT)</text>
+  <text x="912" y="96" class="m" font-size="11" fill="#f59e0b" text-anchor="end">measured + est.</text>
+  <text x="508" y="130" class="m" font-size="22" font-weight="500" fill="#ececef">-20.2% measured</text>
+  <text x="912" y="128" class="m" font-size="12" fill="#f59e0b" text-anchor="end">-26.3..-30.8% est.</text>
+  <text x="508" y="152" class="t" font-size="11.5" fill="#8e8e98">327,704 tool tok cut · causal Auto-Handoff + tighter read caps</text>
+  <text x="508" y="168" class="t" font-size="11.5" fill="#5e5e68">Estimated range adds modeled -20%..-35% on Concise Output (6× bucket)</text>
+  <text x="32" y="206" class="t" font-size="12" font-weight="500" fill="#8e8e98">TOTAL COST-PROXY REDUCTION ACROSS 79 SESSIONS (NEGATIVE = LOWER COST)</text>
   <line x1="290.0" y1="214" x2="290.0" y2="482" stroke="#18181d"/>
   <text x="290.0" y="497" class="m" font-size="10.5" fill="#5e5e68" text-anchor="middle">-0%</text>
-  <line x1="394.0" y1="214" x2="394.0" y2="482" stroke="#18181d"/>
-  <text x="394.0" y="497" class="m" font-size="10.5" fill="#5e5e68" text-anchor="middle">-10%</text>
-  <line x1="498.0" y1="214" x2="498.0" y2="482" stroke="#18181d"/>
-  <text x="498.0" y="497" class="m" font-size="10.5" fill="#5e5e68" text-anchor="middle">-20%</text>
-  <line x1="602.0" y1="214" x2="602.0" y2="482" stroke="#18181d"/>
-  <text x="602.0" y="497" class="m" font-size="10.5" fill="#5e5e68" text-anchor="middle">-30%</text>
-  <line x1="706.0" y1="214" x2="706.0" y2="482" stroke="#18181d"/>
-  <text x="706.0" y="497" class="m" font-size="10.5" fill="#5e5e68" text-anchor="middle">-40%</text>
-  <line x1="810.0" y1="214" x2="810.0" y2="482" stroke="#18181d"/>
-  <text x="810.0" y="497" class="m" font-size="10.5" fill="#5e5e68" text-anchor="middle">-50%</text>
-  <text x="32" y="228" class="t" font-size="12.5" font-weight="500" fill="#ececef">Mode 1 · Zero Quality Loss</text>
-  <text x="32" y="242" class="t" font-size="10.5" fill="#5e5e68">Exact replay · 0.0% loss (all 79 chats, Archive Only)</text>
-  <rect x="290.0" y="218" width="6.8" height="14" rx="3" fill="#86efac"/>
-  <text x="304.8" y="229" class="m" font-size="11.5" font-weight="500" fill="#86efac">-0.7%</text>
-  <text x="32" y="272" class="t" font-size="12.5" fill="#ececef">Mode 2 · Compact Reads only</text>
-  <text x="32" y="286" class="t" font-size="10.5" fill="#5e5e68">Exact replay · ~0.1–0.5% risk (Auto-Handoff OFF)</text>
-  <rect x="290.0" y="262" width="8.8" height="14" rx="3" fill="#86efac"/>
-  <text x="306.8" y="273" class="m" font-size="11.5" fill="#86efac">-0.8%</text>
-  <text x="32" y="316" class="t" font-size="12.5" fill="#ececef">Mode 2 · + Concise Output*</text>
-  <text x="32" y="330" class="t" font-size="10.5" fill="#5e5e68">Modeled -20%..-35% on 6× output · ~0.1% prose risk</text>
-  <rect x="290.0" y="306" width="118.6" height="14" rx="3" fill="#f59e0b" fill-opacity="0.28"/>
-  <rect x="290.0" y="306" width="71.8" height="14" rx="3" fill="#f59e0b"/>
-  <text x="416.6" y="317" class="m" font-size="11.5" fill="#f59e0b">-6.9% .. -11.4%</text>
-  <text x="32" y="360" class="t" font-size="12.5" fill="#ececef">Mode 2 · + Cold/Live Handoff</text>
-  <text x="32" y="374" class="t" font-size="10.5" fill="#5e5e68">Exact causal replay · warm + cold-cache rollovers</text>
-  <rect x="290.0" y="350" width="206.4" height="14" rx="3" fill="#4ade80"/>
-  <text x="504.4" y="361" class="m" font-size="11.5" fill="#4ade80">-19.8%</text>
-  <text x="32" y="404" class="t" font-size="12.5" fill="#ececef">Mode 2 · DEFAULT (Live + All)*</text>
-  <text x="32" y="418" class="t" font-size="10.5" fill="#5e5e68">Default ON: Cold/Live Handoff + Compact + Concise</text>
-  <rect x="290.0" y="394" width="316.2" height="14" rx="3" fill="#4ade80" fill-opacity="0.28"/>
-  <rect x="290.0" y="394" width="269.4" height="14" rx="3" fill="#4ade80"/>
-  <text x="614.2" y="405" class="m" font-size="11.5" fill="#4ade80">-25.9% .. -30.4%</text>
-  <text x="32" y="448" class="t" font-size="12.5" font-weight="500" fill="#ececef">Mode 2 · Full (Upper Bound)*</text>
-  <text x="32" y="462" class="t" font-size="10.5" fill="#5e5e68">Phase-switch resets + Compact Reads + Concise Output</text>
-  <rect x="290.0" y="438" width="470.1" height="14" rx="3" fill="#34d399" fill-opacity="0.28"/>
-  <rect x="290.0" y="438" width="423.3" height="14" rx="3" fill="#34d399"/>
-  <text x="768.1" y="449" class="m" font-size="11.5" font-weight="500" fill="#34d399">-40.7% .. -45.2%</text>
+  <line x1="388.0" y1="214" x2="388.0" y2="482" stroke="#18181d"/>
+  <text x="388.0" y="497" class="m" font-size="10.5" fill="#5e5e68" text-anchor="middle">-10%</text>
+  <line x1="486.0" y1="214" x2="486.0" y2="482" stroke="#18181d"/>
+  <text x="486.0" y="497" class="m" font-size="10.5" fill="#5e5e68" text-anchor="middle">-20%</text>
+  <line x1="584.0" y1="214" x2="584.0" y2="482" stroke="#18181d"/>
+  <text x="584.0" y="497" class="m" font-size="10.5" fill="#5e5e68" text-anchor="middle">-30%</text>
+  <line x1="682.0" y1="214" x2="682.0" y2="482" stroke="#18181d"/>
+  <text x="682.0" y="497" class="m" font-size="10.5" fill="#5e5e68" text-anchor="middle">-40%</text>
+  <line x1="780.0" y1="214" x2="780.0" y2="482" stroke="#18181d"/>
+  <text x="780.0" y="497" class="m" font-size="10.5" fill="#5e5e68" text-anchor="middle">-50%</text>
+  <text x="32" y="228" class="t" font-size="12.5" font-weight="500" fill="#ececef">Mode 1 · Lossless (Default)</text>
+  <text x="32" y="242" class="t" font-size="10.5" fill="#5e5e68">Measured replay · lossless hooks + Archive Only</text>
+  <rect x="290.0" y="218" width="6.4" height="14" rx="3" fill="#4ade80"/>
+  <text x="304.4" y="229" class="m" font-size="11" font-weight="500" fill="#4ade80">-0.7% (measured)</text>
+  <text x="32" y="272" class="t" font-size="12.5" fill="#ececef">Mode 2a · Compact Reads</text>
+  <text x="32" y="286" class="t" font-size="10.5" fill="#5e5e68">Measured replay · opt-in tighter read/image caps</text>
+  <rect x="290.0" y="262" width="8.3" height="14" rx="3" fill="#86efac"/>
+  <text x="306.3" y="273" class="m" font-size="11" fill="#86efac">-0.9% (measured)</text>
+  <text x="32" y="316" class="t" font-size="12.5" fill="#ececef">Mode 2b · + Concise Output</text>
+  <text x="32" y="330" class="t" font-size="10.5" fill="#5e5e68">Estimated · Mode 2a + modeled -20%..-35% output</text>
+  <rect x="290.0" y="306" width="112.7" height="14" rx="3" fill="#f59e0b" fill-opacity="0.28"/>
+  <rect x="290.0" y="306" width="68.6" height="14" rx="3" fill="#f59e0b"/>
+  <text x="410.7" y="317" class="m" font-size="11" fill="#f59e0b">-7.0..-11.5% (est.)</text>
+  <text x="32" y="360" class="t" font-size="12.5" fill="#ececef">Mode 2c · + Auto-Handoff</text>
+  <text x="32" y="374" class="t" font-size="10.5" fill="#5e5e68">Measured replay · Mode 2a + live/cold Auto-Handoff</text>
+  <rect x="290.0" y="350" width="198.4" height="14" rx="3" fill="#4ade80"/>
+  <text x="496.4" y="361" class="m" font-size="11" fill="#4ade80">-20.2% (measured)</text>
+  <text x="32" y="404" class="t" font-size="12.5" font-weight="500" fill="#ececef">Mode 2 · Max (All Opt-in)</text>
+  <text x="32" y="418" class="t" font-size="10.5" fill="#5e5e68">Estimated · Mode 2c + modeled -20%..-35% output</text>
+  <rect x="290.0" y="394" width="301.8" height="14" rx="3" fill="#f59e0b" fill-opacity="0.28"/>
+  <rect x="290.0" y="394" width="257.7" height="14" rx="3" fill="#f59e0b"/>
+  <text x="599.8" y="405" class="m" font-size="11" font-weight="500" fill="#f59e0b">-26.3..-30.8% (est.)</text>
+  <text x="32" y="448" class="t" font-size="12.5" fill="#ececef">Mode 2 · Upper Bound</text>
+  <text x="32" y="462" class="t" font-size="10.5" fill="#5e5e68">Estimated · manual resets at phase switches + Concise</text>
+  <rect x="290.0" y="438" width="444.9" height="14" rx="3" fill="#d97706" fill-opacity="0.28"/>
+  <rect x="290.0" y="438" width="400.8" height="14" rx="3" fill="#d97706"/>
+  <text x="742.9" y="449" class="m" font-size="11" fill="#d97706">-40.9..-45.4% (est.)</text>
   <line x1="32" y1="494" x2="928" y2="494" stroke="#222227"/>
-  <text x="32" y="512" class="t" font-size="10.5" fill="#5e5e68">* Concise Output (Sketch-of-Thought arXiv:2503.05179 + Caveman-lite) modeled on real 30.4% (6×) output bucket (solid bar = -20%, shaded = -35%).</text>
-  <text x="32" y="527" class="t" font-size="10.5" fill="#5e5e68">Exact replays charge retries, follow-up reads, and 434 tok/turn prompt overhead. Cache-drop rebuilds = 19% of baseline quota (109 idle drops).</text>
+  <text x="32" y="512" class="t" font-size="10.5" fill="#5e5e68">Green bars = measured replay on real transcripts (retries + 392 tok/turn overhead charged). Amber bars = includes modeled -20%..-35% cut on the 30.3% output bucket.</text>
+  <text x="32" y="527" class="t" font-size="10.5" fill="#5e5e68">Cost weights (1× input, 0.05× cache read, 6× output) are a standard LLM API pricing proxy, not published Antigravity billing weights.</text>
 </svg>

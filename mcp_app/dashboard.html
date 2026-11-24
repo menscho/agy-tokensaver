@@ -486,14 +486,14 @@
         <div class="row">
           <div class="row-info">
             <div class="row-title">Optimization Mode</div>
-            <div class="row-desc" id="profile-desc">Mode 2 (Max): Cold/Live Auto-Handoff + Compact Reads + Image Downscale + Concise Output (-25%..-45% quota, ~0.1–1% risk).</div>
+            <div class="row-desc" id="profile-desc">Mode 1 (Default): lossless hooks, duplicate/loop guards, and archive-only handoffs.</div>
           </div>
           <select id="sel-profile" aria-label="Optimization mode">
-            <option value="small_loss">Mode 2 (Max · Default) — Auto-Handoff + Compact + Concise</option>
-            <option value="handoff_only">Mode 2c — Auto-Handoff + Compact Reads (Normal Prose)</option>
-            <option value="concise_no_handoff">Mode 2b — Compact + Concise (No Auto-Handoff)</option>
-            <option value="compact_reads">Mode 2a — Compact Reads Only (No Auto-Handoff)</option>
-            <option value="zero_loss">Mode 1 — Zero Quality Loss (Strict 0.0%)</option>
+            <option value="zero_loss">Mode 1 — Lossless (Default)</option>
+            <option value="compact_reads">Mode 2a — + Compact Reads (No Auto-Handoff)</option>
+            <option value="concise_no_handoff">Mode 2b — + Compact Reads + Concise Output (No Auto-Handoff)</option>
+            <option value="handoff_only">Mode 2c — + Compact Reads + Auto-Handoff</option>
+            <option value="small_loss">Mode 2 (Max) — All Opt-in Optimizations</option>
           </select>
         </div>
 
@@ -598,7 +598,7 @@
       <div class="box">
         <div class="row">
           <div class="row-info">
-            <div class="row-title" id="upd-headline">agy-tokensaver v1.0.0</div>
+            <div class="row-title" id="upd-headline">agy-tokensaver v1.1.0</div>
             <div class="row-desc" id="upd-sub">Up to date · all statistics and archive entries are preserved across updates</div>
           </div>
           <div class="actions">
@@ -639,7 +639,7 @@
 
     <section class="section">
       <div class="section-head">
-        <span class="section-title" id="chg-title">Release Notes (v1.0.0)</span>
+        <span class="section-title" id="chg-title">Release Notes (v1.1.0)</span>
         <span class="section-note" id="chg-date">Latest changes</span>
       </div>
       <div class="box">
@@ -717,11 +717,11 @@
 
     // Controls
     const PROFILE_DESCS = {
-      small_loss: 'Mode 2 (Max · Default): Cold/Live Anchored Auto-Handoff + Compact Reads + Screenshot Downscale + Concise Output (~0.1–1% risk; ~26–30% auto / up to 45% with phase resets).',
-      handoff_only: 'Mode 2c: Cold/Live Anchored Auto-Handoff + Compact Reads + Lossless Hooks, normal verbose replies (~0.5–1% mid-debug risk; ~19.8% exact live savings).',
-      concise_no_handoff: 'Mode 2b (No Auto-Handoff): Archive Only (0% memory resets) + Compact Reads + Concise Output (~0.1–0.5% risk; ~7–11% quota saved).',
-      compact_reads: 'Mode 2a (No Auto-Handoff): Archive Only + tighter unbounded read caps (120L/80L) + Screenshot Downscale, normal replies (~0.1–0.5% risk).',
-      zero_loss: 'Mode 1 (Strict 0.0% Loss): Lossless hooks, dedupe, RTK error grouping, cache-safe prefixes, Archive-Only handoffs (0.0% quality loss).'
+      zero_loss: 'Mode 1 (Default · Lossless): Lossless output compressors, duplicate-read & loop guards, cache-safe prefixes, Archive-Only handoffs (-0.7% measured avg across 79 sessions).',
+      compact_reads: 'Mode 2a (Opt-in): Mode 1 + tighter unbounded read caps (120L/80L) and oversized screenshot downscaling, no auto-handoff (-0.9% measured avg).',
+      concise_no_handoff: 'Mode 2b (Opt-in): Mode 2a + concise reply rules, no automatic chat resets (-7.0%..-11.5% estimated).',
+      handoff_only: 'Mode 2c (Opt-in): Mode 2a + automatic cold/live chat handoff, normal reply style (-20.2% measured avg).',
+      small_loss: 'Mode 2 (Max · Opt-in): Auto-Handoff + Compact Reads + Concise Output (-20.2% measured, -26.3%..-30.8% estimated with concise replies).'
     };
     const prof = (cfg.profile && PROFILE_DESCS[cfg.profile]) ? cfg.profile : (cfg.mode === 'smart_auto' ? (cfg.concise_output ? 'small_loss' : 'handoff_only') : (cfg.concise_output ? 'concise_no_handoff' : (cfg.compact_reads ? 'compact_reads' : 'zero_loss')));
     document.getElementById('sel-profile').value = prof;
@@ -930,10 +930,10 @@
       ? `What's New in v${latV}`
       : `Release Notes (v${instV})`;
     document.getElementById('chg-date').textContent = u.published_at || 'v' + instV;
-    document.getElementById('upd-changelog').textContent = notes || 'Token Saver v1.0.0 — initial open-source release.';
+    document.getElementById('upd-changelog').textContent = notes || 'Token Saver v1.1.0.';
   }
 
-  const app = new App({ name: 'agy-tokensaver', version: '1.0.0' }, {});
+  const app = new App({ name: 'agy-tokensaver', version: '1.1.0' }, {});
   app.ontoolresult = (result) => {
     if (result && result.structuredContent) render(result.structuredContent);
   };

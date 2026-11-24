@@ -193,13 +193,13 @@ if ($check_path =~ /\.(?:png|jpe?g|gif|webp|ico|bmp|tiff?|pdf|mp4|mov|webm|avi|m
             };
         }
 
-        # 3. Oversized Screenshot Auto-Downscaler (Mode 2 / compact_reads: >1568px -> <=1280px, 4-8x fewer vision tiles)
-        my $img_compact = 1;
+        # 3. Oversized Screenshot Auto-Downscaler (opt-in Mode 2 / compact_reads: >1568px -> <=1280px)
+        my $img_compact = 0;
         if (defined $ENV{AGY_TS_COMPACT_READS}) {
             $img_compact = ($ENV{AGY_TS_COMPACT_READS} =~ /^(?:1|true|on|yes)$/i) ? 1 : 0;
         } elsif (-f "$dd/hud_config.json" && open(my $cfh, '<:raw', "$dd/hud_config.json")) {
             my $cb = ''; sysread($cfh, $cb, 4096); close $cfh;
-            $img_compact = 0 if $cb =~ /"compact_reads"\s*:\s*false\b/i;
+            $img_compact = 1 if $cb =~ /"compact_reads"\s*:\s*true\b/i;
         }
         if ($img_compact && $check_path =~ /\.(?:png|jpe?g)$/i && $isz > 65536) {
             my ($iw, $ih) = img_dims($path);
@@ -902,9 +902,9 @@ $est_lines = defined $exact_lines
 
 my $is_data      = ($base =~ /\.(?:json|jsonl|ndjson|ya?ml|csv|tsv|sql|xml|log|html|htm|lcov|diff|patch|out|err)$/i);
 
-# Compact Reads mode (default ON in Max Savings / Small Quality Loss profile; ~0.1-0.5% risk of an
-# extra slice read). Set AGY_TS_COMPACT_READS=0 or switch HUD to Zero Quality Loss to disable.
-my $COMPACT_READS = 1;
+# Opt-in Compact Reads mode (default OFF in Mode 1 Zero Quality Loss).
+# Enabled by AGY_TS_COMPACT_READS=1 or Modes 2a/2b/2c/Max in the HUD.
+my $COMPACT_READS = 0;
 if (defined $ENV{AGY_TS_COMPACT_READS}) {
     $COMPACT_READS = ($ENV{AGY_TS_COMPACT_READS} =~ /^(?:1|true|on|yes)$/i) ? 1 : 0;
 } else {
@@ -913,7 +913,7 @@ if (defined $ENV{AGY_TS_COMPACT_READS}) {
         my $cb = '';
         sysread($cfh, $cb, 4096);
         close $cfh;
-        $COMPACT_READS = 0 if $cb =~ /"compact_reads"\s*:\s*false\b/i;
+        $COMPACT_READS = 1 if $cb =~ /"compact_reads"\s*:\s*true\b/i;
     }
 }
 

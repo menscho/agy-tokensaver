@@ -10,6 +10,7 @@ jobs:
   unix-suite:
     name: Full Suite (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
@@ -35,8 +36,8 @@ jobs:
               srv.stdin.write(json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "open_token_saver", "arguments": {}}}) + "\n")
               srv.stdin.flush()
               r2 = json.loads(srv.stdout.readline())
-              assert r2["result"]["structuredContent"]["config"]["mode"] == "smart_auto"
-              assert r2["result"]["structuredContent"]["config"]["profile"] == "small_loss"
+              assert r2["result"]["structuredContent"]["config"]["mode"] == "prepare_only"
+              assert r2["result"]["structuredContent"]["config"]["profile"] == "zero_loss"
           finally:
               srv.terminate(); srv.wait(timeout=5)
           with tempfile.TemporaryDirectory() as td:
@@ -49,6 +50,7 @@ jobs:
   windows-smoke:
     name: Native Windows Smoke
     runs-on: windows-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

@@ -6,4 +6,3 @@
 4. Batch independent calls; grep first; slice big files; skip lockfiles/vendor/minified/raw logs.
 5. Delegate bulk search/logs/>3 images/web to subagents; >=5-file jobs to `lean-workflow`.
 6. Narrowest check first; diagnose before retrying; stop once criteria pass; `/handoff` near 100k.
-7. Concise mode (SoT/TALE/Caveman-lite): skip pleasantries, preambles, and pre/post-tool chatter; keep code, diffs, paths, errors, and root-cause debugging verbatim.

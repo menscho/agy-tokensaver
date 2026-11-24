@@ -263,9 +263,6 @@ def run_demo() -> int:
     tok_saved = tok_before - tok_after
     pct_saved = (tok_saved / tok_before) * 100.0 if tok_before else 0.0
 
-    # Quota impact over a 15-turn warm session (1x initial uncached + 14 * 0.05x warm cache reads = 1.7x)
-    q_before = int(tok_before * (1.0 + 14 * 0.05))
-    q_after = int(tok_after * (1.0 + 14 * 0.05))
     med_ms = statistics.median(latencies)
 
     print("=== Reproducible Before / After Task Benchmark (Measured Through Real Hooks) ===")
@@ -279,7 +276,6 @@ def run_demo() -> int:
         print(f"{name:44s} | {t0:6,d} tk | {t1:6,d} tk | -{p:5.1f}% | {note}")
     print("-" * 102)
     print(f"{'Total direct tool tokens added to context':44s} | {tok_before:6,d} tk | {tok_after:6,d} tk | -{pct_saved:5.1f}% | {tok_saved:,} tokens avoided")
-    print(f"{'15-turn weighted quota (1x in + 14*0.05x cr)':44s} | {q_before:6,d} qu | {q_after:6,d} qu | -{pct_saved:5.1f}% | {q_before - q_after:,} quota units avoided")
     return 0
 
 
