@@ -2,6 +2,16 @@
 
 All notable changes to **agy-tokensaver** (`menscho/agy-tokensaver`) are documented here.
 
+## [1.2.2] — 2026-11-24
+
+### Changed
+- **Unbiased eval harness (`eval/runner.py`, `eval/README.md`, `eval/results/hook_eval.json`):** `off` mode now delivers full unmodified raw output without truncation or synthetic passing-line padding; renamed `--driver hook-replay` metric to `signal_retention`; implemented live `--driver agy` and `--driver manual` task verification without reference patches (live pass-rate remains `not yet measured` until a live IDE/CLI run is executed).
+- **Honest benchmarks & concise README (`scripts/replay_modes.py`, `scripts/make_benchmark_chart.py`, `docs/assets/benchmark-chart.svg`, `docs/perf.md`, `README.md`):** separated hook compression savings (`Mode 1` `-0.7%` avg / `+0.1%` median) from Auto-Handoff chat resets (`-19.2%` alone, `-19.7%` combined), demoted synthetic `--demo` (`-76.4%`) to `docs/perf.md`, moved modeled output estimates out of `README.md`, documented proxy weight sensitivity (`1/0.05/6` plus 3 alternatives), and added CI version/tag sync checks.
+- **Transparency & Windows compatibility (`SECURITY.md`, `README.md`, `.github/workflows/test.yml`, `install.py`):** documented every outbound and loopback (`RefreshMcpServers`) HTTP request, tested Git-Bash (`msys`) vs Strawberry Perl (`MSWin32`) behavior, added Git-for-Windows/Strawberry Perl auto-wiring for installed `hooks.json`, and added `install.py --doctor`.
+
+### Fixed & Removed
+- **Cleanup & buried-error protection (`scripts/lib/TsLoopGuard.pl`, `scripts/compressors/common.pl`, `scripts/compressors/test.pl`, `tests/test_buried_error_prop.sh`):** removed `swarm_hook.pl` and `board_hook.pl`, merged `ssh.pl` into `log.pl`, extracted shared `TsLoopGuard.pl`, fixed zero-exit `compress_test` failure dropping (`|| true`), added 22 `<cat>_buried_error` golden cases (`66` total), and added 66 randomized property fuzz checks across all 22 categories.
+
 ## [1.2.1] — 2026-11-24
 
 ### Fixed
