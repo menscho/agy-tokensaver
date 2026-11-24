@@ -2,7 +2,7 @@
 
 <p align="left">
   <a href="https://github.com/menscho/agy-tokensaver/actions/workflows/test.yml"><img src="https://github.com/menscho/agy-tokensaver/actions/workflows/test.yml/badge.svg" alt="CI"/></a>
-  <a href="https://github.com/menscho/agy-tokensaver/releases"><img src="https://img.shields.io/badge/release-v1.2.0-4ade80?style=flat-square&labelColor=0d0d11" alt="Release v1.2.0"/></a>
+  <a href="https://github.com/menscho/agy-tokensaver/releases"><img src="https://img.shields.io/badge/release-v1.2.1-4ade80?style=flat-square&labelColor=0d0d11" alt="Release v1.2.1"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-8e8e98?style=flat-square&labelColor=0d0d11" alt="MIT"/></a>
 </p>
 
@@ -14,7 +14,7 @@ A zero-dependency Perl 5 + Python 3 plugin for **Google Antigravity** built for 
 
 ## Install & Uninstall
 
-Download `agy-tokensaver-v1.2.0.zip` from **[Releases](https://github.com/menscho/agy-tokensaver/releases)** (built in CI with `SHA256SUMS.txt` and GitHub build provenance attestations), extract it, and run:
+Download `agy-tokensaver-v1.2.1.zip` from **[Releases](https://github.com/menscho/agy-tokensaver/releases)** (built in CI with `SHA256SUMS.txt` and GitHub build provenance attestations), extract it, and run:
 
 - **Windows:** `Install-TokenSaver.bat`
 - **macOS:** `Install-TokenSaver.command`

@@ -2,6 +2,12 @@
 
 All notable changes to **agy-tokensaver** (`menscho/agy-tokensaver`) are documented here.
 
+## [1.2.1] — 2026-11-24
+
+### Fixed
+- **Windows golden line-ending preservation (`.gitattributes`, `tests/test_golden.sh`):** enforced LF line endings for `*.txt` and `tests/golden/**` and read `expected.txt` in binary mode so all 44 golden fixtures match byte-for-byte on Windows.
+- **Perlcritic severity-4 cleanups (`scripts/compressors/log.pl`, `.perlcriticrc`):** replaced mutating `map` in HTML compression with a plain loop and documented intentional CLI hook exclusions.
+
 ## [1.2.0] — 2026-11-24
 
 ### Added

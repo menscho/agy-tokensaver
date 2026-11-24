@@ -15,4 +15,6 @@ mcp_app/vendor/** -text
 *.yml text eol=lf
 *.yaml text eol=lf
 *.md text eol=lf
+*.txt text eol=lf
+tests/golden/** text eol=lf
 *.bat text eol=crlf

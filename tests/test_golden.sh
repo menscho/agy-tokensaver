@@ -51,7 +51,7 @@ for cdir in cases:
     cat = meta["cat"]
     rc = int(meta.get("rc", 0))
     raw_in = (cdir / "input.txt").read_bytes()
-    exp_out = (cdir / "expected.txt").read_text(encoding="utf-8")
+    exp_out = (cdir / "expected.txt").read_bytes().decode("utf-8")
     exp_spill = bool(meta.get("expect_spill", False))
 
     p = subprocess.run(

@@ -598,7 +598,7 @@
       <div class="box">
         <div class="row">
           <div class="row-info">
-            <div class="row-title" id="upd-headline">agy-tokensaver v1.2.0</div>
+            <div class="row-title" id="upd-headline">agy-tokensaver v1.2.1</div>
             <div class="row-desc" id="upd-sub">Up to date · all statistics and archive entries are preserved across updates</div>
           </div>
           <div class="actions">
@@ -639,7 +639,7 @@
 
     <section class="section">
       <div class="section-head">
-        <span class="section-title" id="chg-title">Release Notes (v1.2.0)</span>
+        <span class="section-title" id="chg-title">Release Notes (v1.2.1)</span>
         <span class="section-note" id="chg-date">Latest changes</span>
       </div>
       <div class="box">
@@ -930,10 +930,10 @@
       ? `What's New in v${latV}`
       : `Release Notes (v${instV})`;
     document.getElementById('chg-date').textContent = u.published_at || 'v' + instV;
-    document.getElementById('upd-changelog').textContent = notes || 'Token Saver v1.2.0.';
+    document.getElementById('upd-changelog').textContent = notes || 'Token Saver v1.2.1.';
   }
 
-  const app = new App({ name: 'agy-tokensaver', version: '1.2.0' }, {});
+  const app = new App({ name: 'agy-tokensaver', version: '1.2.1' }, {});
   app.ontoolresult = (result) => {
     if (result && result.structuredContent) render(result.structuredContent);
   };

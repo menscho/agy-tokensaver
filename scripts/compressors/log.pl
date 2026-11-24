@@ -127,7 +127,12 @@ sub compress_http {
         $joined =~ s/<!--.*?-->//gs;
         $joined =~ s/\s+style="[^"]{20,}"//gi;
         $LOSSY = 1;
-        my @hl = grep { /\S/ } map { s/[ \t]+/ /g; s/^\s+|\s+$//g; $_ } split(/\n/, $joined);
+        my @hl;
+        for my $ln (split(/\n/, $joined)) {
+            $ln =~ s/[ \t]+/ /g;
+            $ln =~ s/^\s+|\s+$//g;
+            push @hl, $ln if $ln =~ /\S/;
+        }
         return tail_weighted_cap(\@hl, 60, 40);
     }
     my $ed = elide_dense_lines(\@kept);
