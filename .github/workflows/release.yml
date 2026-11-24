@@ -27,6 +27,19 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Verify release tag matches plugin version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PYEOF'
+          import json, os
+          from pathlib import Path
+          ver = json.loads(Path("plugin.json").read_text(encoding="utf-8"))["version"].lstrip("v")
+          tag = os.environ["TAG"].split("-")[0]
+          assert tag == f"v{ver}", f"Tag {os.environ['TAG']} does not match plugin.json version v{ver}"
+          print(f"Tag {os.environ['TAG']} matches plugin.json v{ver}")
+          PYEOF
+
       - name: Build release archive and SHA256SUMS.txt
         env:
           TAG: ${{ github.ref_name }}

@@ -38,9 +38,9 @@ if ! "$PY" -m unittest tests/test_python_unit.py; then
   FAILED=$((FAILED + 1))
 fi
 
-echo "=== vendor SHA-256 check ==="
+echo "=== version sync & vendor SHA-256 check ==="
 "$PY" - <<'PYEOF' || FAILED=$((FAILED + 1))
-import hashlib, re
+import hashlib, json, re
 from pathlib import Path
 readme = Path("mcp_app/vendor/README.md").read_text(encoding="utf-8")
 m = re.search(r"SHA-256:\*\*\s*`([0-9a-f]{64})`", readme)
@@ -49,6 +49,18 @@ expected = m.group(1)
 actual = hashlib.sha256(Path("mcp_app/vendor/ext-apps-with-deps.js").read_bytes()).hexdigest()
 assert actual == expected, f"vendor hash mismatch: expected {expected} got {actual}"
 print(f"PASS: vendor/ext-apps-with-deps.js SHA-256 matches ({actual[:16]}...)")
+
+ver = json.loads(Path("plugin.json").read_text(encoding="utf-8"))["version"].lstrip("v")
+root_readme = Path("README.md").read_text(encoding="utf-8")
+assert f"release-v{ver}" in root_readme, f"README badge missing release-v{ver}"
+assert f"agy-tokensaver-v{ver}.zip" in root_readme, f"README install zip missing v{ver}"
+changelog = Path("CHANGELOG.md").read_text(encoding="utf-8")
+cl_m = re.search(r"^##\s+\[(\d+\.\d+\.\d+)\]", changelog, re.M)
+assert cl_m and cl_m.group(1) == ver, f"CHANGELOG top version {cl_m.group(1) if cl_m else None} != plugin.json {ver}"
+dash = Path("mcp_app/dashboard.html").read_text(encoding="utf-8")
+assert f"agy-tokensaver v{ver}" in dash, f"dashboard.html headline missing v{ver}"
+assert f"Release Notes (v{ver})" in dash, f"dashboard.html notes missing v{ver}"
+print(f"PASS: version v{ver} synced across plugin.json, README.md, CHANGELOG.md, and dashboard.html")
 PYEOF
 
 if [[ $FAILED -ne 0 ]]; then

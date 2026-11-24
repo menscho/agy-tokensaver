@@ -6,75 +6,47 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-8e8e98?style=flat-square&labelColor=0d0d11" alt="MIT"/></a>
 </p>
 
-A zero-dependency Perl 5 + Python 3 plugin for **Google Antigravity** built for coding-agent sessions that run heavy test suites, logs, builds, diffs, or search queries.
+Shortens noisy test/build/log/git output and blocks duplicate file reads in **Google Antigravity**, without losing errors. Zero third-party dependencies (Perl 5 + Python 3 stdlib).
 
-**Headline results:** Cuts **-76.4%** of direct tool tokens on noisy workloads (`36,383 → 8,594` tokens in `benchmark.py --demo`, `15.7 ms` median hook hit latency; `~2.5 ms` fast-path misses). Across **79 real local sessions** (`4,051` turns, prompt caching active, `190 tok/turn` overhead charged), the default **Lossless** mode averages **-0.7%** (**p90 -1.7%**, `224,631` tool tokens removed); opt-in modes reach **-20.1% measured** (**p90 -25.7%**) with Auto-Handoff and **-26.2%..-30.7% (estimated)** with Concise Output. **Quality impact:** **100.0%** (`95.9..100.0%` CI) across `30` scripted coding tasks × `3` runs under `--driver hook-replay` (`70.0%` baseline without hooks because lockfile/log dumps truncate required lines); live end-to-end LLM pass-rate evaluation awaits manual/headless runs (`eval/README.md`).
+![Real-Session Measured Benchmark](docs/assets/benchmark-chart.svg)
 
-![Token Saver HUD](docs/assets/hud-preview.svg)
+## What to expect
+
+- **Default mode (Lossless):** **`-0.7%`** avg (`+0.1%` median) cost saved via `python3 scripts/benchmark.py --modes --report`; full breakdown in [docs/perf.md](docs/perf.md#1-real-session-replay-python3-scriptsbenchmarkpy---modes---report).
+- **Compact Reads (Opt-in):** **`-0.8%`** avg (`+0.1%` median) cost saved via `python3 scripts/benchmark.py --modes --report` by tightening unbounded file-read limits.
+- **Auto-Handoff (Opt-in):** **`-19.7%`** avg (`+0.1%` median) cost saved via `python3 scripts/benchmark.py --modes --report` by starting fresh chats when settled sessions hit context limits.
+- **Signal retention & live pass rate:** `100.0%` signal retention across 30 tasks (`python3 eval/runner.py --driver hook-replay --runs 3`). **Live pass-rate: not yet measured** — run `python3 eval/runner.py --driver manual` ([`eval/README.md`](eval/README.md)).
 
 ## Install & Uninstall
 
-Download `agy-tokensaver-v1.2.1.zip` from **[Releases](https://github.com/menscho/agy-tokensaver/releases)** (built in CI with `SHA256SUMS.txt` and GitHub build provenance attestations), extract it, and run:
+Download `agy-tokensaver-v1.2.1.zip` from **[Releases](https://github.com/menscho/agy-tokensaver/releases)**, extract it, and run:
 
 - **Windows:** `Install-TokenSaver.bat`
 - **macOS:** `Install-TokenSaver.command`
-- **Linux / CLI:** `python3 install.py` (or `git clone https://github.com/menscho/agy-tokensaver.git && cd agy-tokensaver && python3 install.py`)
+- **Linux / CLI:** `python3 install.py` (or `python3 install.py --remote`)
 
-Restart Antigravity and open **Token Saver** in the sidebar.
+Restart Antigravity and open **agy-tokensaver** in the sidebar. Uninstall with `python3 install.py --uninstall` (add `--purge-stats` to delete `~/.gemini/antigravity/plugin_data/token-saver/`).
 
-**Uninstall:**
+## Is it safe?
 
-```bash
-python3 install.py --uninstall                # removes plugin; preserves plugin_data telemetry & handoff archive
-python3 install.py --uninstall --purge-stats  # also deletes ~/.gemini/antigravity/plugin_data/token-saver/
-```
+- **Fail-open hooks:** Every Perl hook parses payloads via `JSON::PP` with a `2 MB` cap and emits `{"decision":"allow"}` or `{}` on malformed/oversized input (`bash tests/test_failopen.sh`).
+- **Byte-exact raw logs:** Whenever `cmd_wrap.pl` shortens output, it first writes the full raw stream to a `0600` spill file (`ts_inspect.py purge` deletes them).
+- **Instant kill switch:** Set `AGY_TS_SHELL=off` to bypass all command rewriting immediately.
+- **Local-only telemetry:** Hook logs stay local in `~/.gemini/antigravity/plugin_data/token-saver/`. Only explicit update checks hit GitHub Releases; see [SECURITY.md](SECURITY.md).
 
-## Modes & Benchmark Results
+## Modes
 
-All numbers come from `python3 scripts/benchmark.py --modes --report` (79 local sessions, cost-proxy weights `1×` input + `0.05×` cache read + `6×` output — configurable with `--weights`) and `python3 eval/runner.py --driver hook-replay --runs 3`.
-
-| HUD Mode | Savings (Avg / Median / p90) | Quality Impact (`eval/`) | What Changes for the User |
+| Mode | Savings (Avg / Median) | What changes for you | Tradeoffs |
 | :--- | :--- | :--- | :--- |
-| **Mode 1: Lossless (Default)** | **-0.7%** / `+0.1%` / **-1.7%** *(measured)* | `100.0%` signal pass (`0` agent prompt/chat changes) | Compresses noisy test/build/git/log/JSON/SSH output (full raw bytes kept in `0600` spill files), blocks binaries/lockfiles & duplicate re-reads, breaks 3× retry loops, archives handoffs only on request. |
-| **Mode 2a: Compact Reads** *(Opt-in)* | **-0.9%** / `+0.1%` / **-2.2%** *(measured)* | `100.0%` signal pass *(live LLM eval pending before proposing default)* | Mode 1 + tighter unbounded read caps (`120L`/`80L` vs `250L`/`120L`), `80L` `CHANGELOG.md` cap, and optional downscaling of `>1568px` screenshots. |
-| **Mode 2b: + Concise Output** *(Opt-in)* | **-7.0%..-11.5% (estimated)** / `-8.0%` / `-14.0%` | `100.0%` signal pass; adds terse-reply rule | Mode 2a + adds one concise-prose line to `rules/AGENTS.md` (deferred until active warm cache cools). Never resets chats. |
-| **Mode 2c: + Auto-Handoff** *(Opt-in)* | **-20.1%** / `+0.1%` / **-25.7%** *(measured)* | `100.0%` signal pass; best at phase switches | Mode 2a + automatically rolls settled `>=75k` cold/over-cap chats into a fresh chat with a deterministic handoff packet (`git` state, edited `L<start>-L<end>` symbols, recent errors, verified test commands). |
-| **Mode 2 (Max): All opt-in** | **-26.2%..-30.7% (estimated)** / `-8.5%` / `-30.9%` | `100.0%` signal pass | Combines Compact Reads, Concise Output, and Auto-Handoff. *(Manual phase-switch upper bound: `-40.9%..-45.4% (estimated)`.)* |
-
-![Real-Session Benchmark and Per-Session Distribution](docs/assets/benchmark-chart.svg)
-
-```bash
-python3 scripts/benchmark.py --demo                 # 8-step noisy workflow (-76.4%)
-python3 scripts/benchmark.py --modes --report       # full distribution, session-type & --weights sensitivity
-python3 eval/runner.py --verify-fixtures            # verify all 30 coding tasks fail before & pass after fix
-bash tests/run_all.sh                               # all 12 test suites + vendor SHA-256 check
-```
-
-## Will This Break My Agent? (FAQ)
-
-- **What happens if a hook crashes or gets weird JSON?** Every Perl hook decodes payloads via `JSON::PP` (`scripts/lib/TsJson.pm`) with a 2 MB cap and strict fail-open handling (`tests/test_failopen.sh` tests all 10 hooks against 190 malformed/binary/oversized inputs). Any error emits `{"decision":"allow"}` (or `{}` for Post/Stop hooks).
-- **Can command compression drop an error or hide output I need?** No: before any lossy compression runs, `cmd_wrap.pl` writes the byte-exact raw output (including ANSI/CRLF) to a `0600` spill file in `$TMPDIR/agy-tokensaver-<uid>` (pruned after 7 days; run `python3 scripts/ts_inspect.py purge` anytime).
-- **Is telemetry sent anywhere?** Never. All hook logs, stats, and snapshots stay 100% local in `~/.gemini/antigravity/plugin_data/token-saver/`. The only network call is an explicit update check you trigger.
-- **How do I turn command wrapping off immediately?** Set `AGY_TS_SHELL=off` in your environment.
-- **How do I report a bad compression?** Open an issue with the **Bad Compression Report** template and attach the `[full: ...]` spill file name plus a minimal redacted input.
-
-## Troubleshooting
-
-- **Missing Perl on Windows:** Antigravity hooks invoke `perl`. Install [Strawberry Perl](https://strawberryperl.com/) or add Git for Windows' Perl (`C:\Program Files\Git\usr\bin`) to `PATH`, then verify with `perl -MJSON::PP -e "print 'OK'"`. Without Perl, the HUD and Archive tools still work.
-- **Hooks not firing:** Confirm `plugin.json` and `hooks.json` exist in `~/.gemini/config/plugins/token-saver/`, then reload Antigravity (`install.py --cli --yes` refreshes MCP config and permissions).
-- **Disable a single hook:** Remove or comment out that entry in `~/.gemini/config/plugins/token-saver/hooks.json` (e.g. `token-saver-cmd` or `token-saver-board`) and reload Antigravity.
-
-## Compatibility Matrix
-
-| Platform | Runtime Tested | Status |
-| :--- | :--- | :--- |
-| **Linux (`ubuntu-latest`)** | Perl 5.14+ (`JSON::PP` core), Python 3.9+, Antigravity IDE & CLI | Full CI (`bash tests/run_all.sh` + linters + 80% MCP coverage) |
-| **macOS (`macos-latest`)** | System Perl 5 + Python 3.9+, Antigravity IDE & CLI | Full CI (`bash tests/run_all.sh`) |
-| **Windows (`windows-latest`)** | Git Bash / Strawberry Perl 5 + Python 3.12 + PowerShell 5.1 | Full CI (`bash tests/run_all.sh` + native PowerShell hook & installer tests) |
+| **Mode 1: Lossless (Default)** | **`-0.7%` / `+0.1%`** *(measured)* | Compresses test/build/log/git output, blocks duplicate/lockfile reads, archives handoffs on request. | Keeps full raw bytes on disk; short plain-editing chats see `+0.1%` overhead. |
+| **Mode 2a: Compact Reads** *(Opt-in)* | **`-0.8%` / `+0.1%`** *(measured)* | Lowers unbounded file read caps and optionally downscales huge images. | May require an extra targeted slice read on large source files. |
+| **Mode 2b: + Concise Output** *(Opt-in)* | Measured in live eval only *(not yet measured)* | Adds a terse-reply instruction to `rules/AGENTS.md` once warm caches cool. | Shorter agent prose explanations; live impact not yet measured. |
+| **Mode 2c: + Auto-Handoff** *(Opt-in)* | **`-19.7%` / `+0.1%`** *(measured)* | Mode 2a plus automatic fresh-chat rollovers with a git/symbol handoff summary. | **Starts a new chat**, discarding verbatim conversation history beyond the summary. |
+| **Mode 2 (Max): All opt-in** | Measured in live eval only *(not yet measured)* | Combines Compact Reads, Concise Output, and Auto-Handoff. | Combines shorter replies and automatic chat resets. |
 
 ## Documentation
 
-- [Architecture & State Layout](docs/architecture.md) · [Performance & Hook Latency Budget](docs/perf.md) · [Research & OSS Citations](docs/research.md)
-- [Quality Evaluation (`eval/`)](eval/README.md) · [Security Policy & Spill Handling](SECURITY.md) · [Contributing Guide](CONTRIBUTING.md) · [Changelog](CHANGELOG.md)
+- [Performance, Modeled Estimates & Latency (`docs/perf.md`)](docs/perf.md) · [Architecture (`docs/architecture.md`)](docs/architecture.md) · [Research References (`docs/research.md`)](docs/research.md)
+- [Evaluation Harness (`eval/README.md`)](eval/README.md) · [Security Policy (`SECURITY.md`)](SECURITY.md) · [Contributing (`CONTRIBUTING.md`)](CONTRIBUTING.md) · [Changelog (`CHANGELOG.md`)](CHANGELOG.md)
 
 MIT License — see [LICENSE](LICENSE).
