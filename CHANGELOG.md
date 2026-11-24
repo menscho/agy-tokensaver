@@ -4,6 +4,9 @@ All notable changes to **agy-tokensaver** (`menscho/agy-tokensaver`) are documen
 
 ## [Unreleased]
 
+### Added
+- **Fail-open fuzz test suite (`tests/test_failopen.sh`):** tests all 10 hooks in `hooks.json` against 19 malformed, truncated, wrong-type, deep-nested, binary, random, and oversized inputs (`190` cases).
+
 ### Changed
 - **Structured `JSON::PP` hook parsing (`scripts/lib/TsJson.pm`):** replaced regex JSON extraction across all Perl hooks with core `JSON::PP`, added a 2 MB fail-open payload cap, fixed uninitialized loop-counter variables under `use warnings`, and recorded latency measurements in `docs/perf.md` (before `8.9 ms` → after `17.1 ms` median on 8 hook hits; fast-path misses stay `~2.5 ms`).
 
