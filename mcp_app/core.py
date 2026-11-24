@@ -1572,6 +1572,28 @@ def check_github_updates(force: bool = False) -> dict[str, Any]:
     return get_update_snapshot()
 
 
+def verify_gh_attestation(zip_path: Path) -> tuple[bool, str]:
+    """Optional provenance verification via `gh attestation verify` when gh CLI is available.
+    Returns (ok, status_note). Never fails when gh is absent or unauthenticated; rejects explicit
+    verification mismatches on attested artifacts."""
+    gh_bin = shutil.which("gh") or shutil.which("gh.exe")
+    if not gh_bin:
+        return True, "skipped (gh not installed)"
+    try:
+        p = subprocess.run(
+            [gh_bin, "attestation", "verify", str(zip_path), "--repo", GITHUB_REPO],
+            capture_output=True, text=True, timeout=15, stdin=subprocess.DEVNULL,
+        )
+        if p.returncode == 0:
+            return True, "verified"
+        err = (p.stderr or p.stdout or "").lower()
+        if any(k in err for k in ("no attestations found", "not logged into", "authentication", "network", "could not resolve")):
+            return True, "skipped (unavailable)"
+        return False, f"attestation verify failed: {(p.stderr or p.stdout).strip()[:160]}"
+    except Exception:
+        return True, "skipped (error)"
+
+
 def apply_update() -> dict[str, Any]:
     """Download latest tagged release ZIP, verify SHA-256 checksum, and update files while preserving plugin_data."""
     info = check_github_updates(force=True)
@@ -1604,6 +1626,10 @@ def apply_update() -> dict[str, Any]:
         with tempfile.TemporaryDirectory(prefix="agy-ts-upd-") as td:
             zip_path = Path(td) / asset_name
             zip_path.write_bytes(zip_bytes)
+
+            att_ok, att_note = verify_gh_attestation(zip_path)
+            if not att_ok:
+                return {"ok": False, "error": f"Provenance verification failed for {asset_name}: {att_note}", "updates": info}
 
             extract_dir = Path(td) / "src"
             extract_dir.mkdir()

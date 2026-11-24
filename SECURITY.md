@@ -28,3 +28,12 @@ Please report security issues privately through GitHub Security Advisories on `m
 ```bash
 gh attestation verify agy-tokensaver-vX.Y.Z.zip --repo menscho/agy-tokensaver
 ```
+
+## Maintainer Tag Protection Checklist
+
+Published release tags (`v*`) are immutable and must never be moved or deleted. In GitHub repository settings (requires admin access):
+
+1. Open **Settings → Rules → Rulesets → New tag ruleset**.
+2. Target pattern: `refs/tags/v*`.
+3. Enable **Restrict deletions** and **Restrict updates** (blocks force-pushing or moving tags) and restrict creation to maintainers / CI.
+

@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    uses: ./.github/workflows/test.yml
+
+  release:
+    name: Build, Attest & Publish Release
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build release archive and SHA256SUMS.txt
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          mkdir -p dist
+          git archive --format=zip --prefix="agy-tokensaver-${TAG}/" HEAD -o "dist/agy-tokensaver-${TAG}.zip"
+          (cd dist && sha256sum "agy-tokensaver-${TAG}.zip" > SHA256SUMS.txt && cat SHA256SUMS.txt)
+
+      - name: Generate build provenance attestation
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "dist/agy-tokensaver-*.zip"
+
+      - name: Extract release notes and publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          VER="${TAG#v}"
+          awk -v v="$VER" '$0 ~ "^## \\[" v "\\]" {f=1;next} /^## \[/{f=0} f' CHANGELOG.md > dist/NOTES.md
+          if [ ! -s dist/NOTES.md ]; then
+            printf 'Automated CI release for %s.\n\nVerified with `SHA256SUMS.txt` and GitHub artifact build provenance attestations.\n' "$TAG" > dist/NOTES.md
+          fi
+          PRE=""
+          if [[ "$TAG" == *-* ]]; then
+            PRE="--prerelease"
+          fi
+          gh release create "$TAG" "dist/agy-tokensaver-${TAG}.zip" dist/SHA256SUMS.txt \
+            --title "$TAG" --notes-file dist/NOTES.md $PRE

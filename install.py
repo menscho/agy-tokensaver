@@ -96,6 +96,23 @@ def fetch_remote_bundle(tmp_dir: Path, log: Callable[[str], None]) -> Path:
 
     zpath = tmp_dir / zip_name
     zpath.write_bytes(blob)
+    gh_bin = shutil.which("gh") or shutil.which("gh.exe")
+    if gh_bin:
+        try:
+            att = subprocess.run(
+                [gh_bin, "attestation", "verify", str(zpath), "--repo", REPO],
+                capture_output=True, text=True, timeout=15, stdin=subprocess.DEVNULL,
+            )
+            if att.returncode == 0:
+                log("GitHub build provenance attestation verified.")
+            else:
+                err = (att.stderr or att.stdout or "").lower()
+                if not any(k in err for k in ("no attestations found", "not logged into", "authentication", "network", "could not resolve")):
+                    raise RuntimeError(f"GitHub attestation verification failed: {(att.stderr or att.stdout).strip()[:160]}")
+        except RuntimeError:
+            raise
+        except Exception:
+            pass
     out = tmp_dir / "extracted"
     out.mkdir()
     with zipfile.ZipFile(zpath, "r") as zf:
