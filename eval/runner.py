@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """
-Quality & token evaluation harness for agy-tokensaver (Phase 1.1).
+Signal-retention & live task evaluation harness for agy-tokensaver.
 
 Supports three drivers (zero third-party dependencies):
   1. --verify-fixtures : proves all 30 tasks fail on clean fixtures and pass after reference solutions.
-  2. --driver hook-replay : deterministically executes each task's realistic tool calls through the
-     real Perl hooks under each mode (off, mode1, mode2a, mode2b, mode2c, max) N times and verifies
-     that 100% of required diagnostic signals / code symbols / answers survive compression while
-     recording exact tool tokens, cost proxy, retries, wall time, and re-reads.
-  3. --driver agy | manual : runs tasks headlessly via Antigravity CLI (`agy`) when installed, or
-     guides a maintainer through an interactive IDE protocol and records verified JSON results.
+  2. --driver hook-replay : replays each task's tool calls through the real Perl hooks under each
+     mode (off, mode1, mode2a, mode2b, mode2c, max) N times. In `off`, tools receive the FULL
+     unmodified raw output (no truncation). Records `signal_retention` (whether required error
+     strings/symbols survive) plus tool tokens, cost proxy, retries, and wall time.
+     NOTE: hook-replay does NOT run an LLM or verify whether an agent solves the task.
+  3. --driver agy | manual : stages fresh temp repos and runs `verify_cmd` WITHOUT applying the
+     reference patch to measure real live agent pass rates (`eval/results/live_eval.json`).
 
 Usage:
   python3 eval/runner.py --verify-fixtures
@@ -117,8 +118,8 @@ def _call_read_hook(path: Path, cid: str, step: int, env: dict, start: int | Non
     raw_text = path.read_text(encoding="utf-8", errors="replace")
     lines = raw_text.splitlines()
     if env.get("AGY_TS_SHELL") == "off":
-        txt = "\n".join(lines[:800])[:46080]
-        return txt, len(txt.encode("utf-8")) // 4, 0, False
+        # Full unmodified raw file content (no baseline truncation)
+        return raw_text, len(raw_text.encode("utf-8")) // 4, 0, False
     ti: dict = {"Path": str(path)}
     if start is not None:
         ti["StartLine"] = start
@@ -132,15 +133,15 @@ def _call_read_hook(path: Path, cid: str, step: int, env: dict, start: int | Non
         return reason, len(reason.encode("utf-8")) // 4, 1, True
     ov = dec.get("overwrite") or {}
     s = int(ov.get("StartLine", start or 1))
-    e = int(ov.get("EndLine", end or min(len(lines), 800)))
-    sliced = "\n".join(lines[max(0, s - 1):e])[:46080]
+    e = int(ov.get("EndLine", end or len(lines)))
+    sliced = "\n".join(lines[max(0, s - 1):e])
     return sliced, len(sliced.encode("utf-8")) // 4, 0, False
 
 
 def _call_cmd_wrap(cat: str, raw_out: str, rc: int, env: dict) -> tuple[str, int]:
     if env.get("AGY_TS_SHELL") == "off":
-        clipped = raw_out[:10136]
-        return clipped, len(clipped.encode("utf-8")) // 4
+        # Full unmodified command output (no baseline truncation)
+        return raw_out, len(raw_out.encode("utf-8")) // 4
     p = subprocess.run(
         ["perl", str(SCRIPTS / "cmd_wrap.pl"), "--cat", cat, "--test-stdin", "--test-rc", str(rc)],
         input=raw_out.encode("utf-8"),
@@ -153,7 +154,7 @@ def _call_cmd_wrap(cat: str, raw_out: str, rc: int, env: dict) -> tuple[str, int
 
 
 def run_hook_replay_task(task: dict, mode: str, run_idx: int) -> dict:
-    """Deterministic end-to-end tool-signal & token replay for one task in one mode."""
+    """Deterministic tool-signal retention & token replay for one task in one mode (no LLM calls)."""
     t0 = time.perf_counter()
     with tempfile.TemporaryDirectory(prefix=f"agy-eval-{mode}-") as td:
         tmp = Path(td)
@@ -174,10 +175,9 @@ def run_hook_replay_task(task: dict, mode: str, run_idx: int) -> dict:
 
         cat = task["category"]
         if cat == "fix-failing-test":
-            # Run failing test suite (padded with realistic passing tests) + read calc.py
+            # Real unmodified unittest output (no fake leading ok lines) + read calc.py
             p = subprocess.run([sys.executable, "-m", "unittest", "-v", "test_calc.py"], cwd=str(wd), capture_output=True, text=True)
-            padded = "\n".join(f"test_extra_{i} (test_calc.TestSuite) ... ok" for i in range(180)) + "\n" + p.stdout + p.stderr
-            out, tk = _call_cmd_wrap("test", padded, p.returncode or 1, env)
+            out, tk = _call_cmd_wrap("test", p.stdout + p.stderr, p.returncode or 1, env)
             visible_chunks.append(out); tot_tok += tk
             txt, tk, ret, rr = _call_read_hook(wd / "calc.py", cid, 2, env)
             visible_chunks.append(txt); tot_tok += tk; retries += ret; rereads += int(rr)
@@ -185,7 +185,7 @@ def run_hook_replay_task(task: dict, mode: str, run_idx: int) -> dict:
             target = "utils.js" if task["fixture"] == "node_api" else ("logs.py" if task["fixture"] == "log_ops" else "calc.py")
             txt, tk, ret, rr = _call_read_hook(wd / target, cid, 1, env)
             visible_chunks.append(txt); tot_tok += tk; retries += ret; rereads += int(rr)
-            # Simulate common agent duplicate re-read of the same file
+            # Simulate duplicate re-read of the same file
             txt2, tk2, ret2, rr2 = _call_read_hook(wd / target, cid, 3, env)
             visible_chunks.append(txt2); tot_tok += tk2; retries += ret2; rereads += int(rr2)
         elif cat == "debug-from-log":
@@ -194,17 +194,14 @@ def run_hook_replay_task(task: dict, mode: str, run_idx: int) -> dict:
             out, tk = _call_cmd_wrap("logs", raw_log, 1, env)
             visible_chunks.append(out); tot_tok += tk
         elif cat == "lockfile-dependency":
-            # Agent mistakenly attempts unbounded read of package-lock.json first, then reads package.json
+            # Agent attempts unbounded read of package-lock.json first, then reads package.json
             txt_l, tk_l, ret_l, rr_l = _call_read_hook(wd / "package-lock.json", cid, 1, env)
             visible_chunks.append(txt_l); tot_tok += tk_l; retries += ret_l; rereads += int(rr_l)
             txt_p, tk_p, ret_p, rr_p = _call_read_hook(wd / "package.json", cid, 2, env)
             visible_chunks.append(txt_p); tot_tok += tk_p; retries += ret_p; rereads += int(rr_p)
 
         combined = "\n".join(visible_chunks)
-        signals_ok = all(sig in combined for sig in task["required_signals"])
-        apply_reference(task, wd)
-        verify_ok = run_verify(task, wd)
-        passed = bool(signals_ok and verify_ok)
+        signal_retention = all(sig in combined for sig in task["required_signals"])
         wall_ms = round((time.perf_counter() - t0) * 1000.0, 2)
         # Cost proxy: 1x uncached input + 5 warm cache turns (0.05x) + retry cost
         cost_proxy = round(tot_tok * (1.0 + 5 * 0.05) + retries * (150 * 6.0), 1)
@@ -213,9 +210,7 @@ def run_hook_replay_task(task: dict, mode: str, run_idx: int) -> dict:
             "category": cat,
             "mode": mode,
             "run": run_idx,
-            "passed": passed,
-            "signals_ok": signals_ok,
-            "verify_ok": verify_ok,
+            "signal_retention": bool(signal_retention),
             "total_tokens": tot_tok,
             "cost_proxy": cost_proxy,
             "retries": retries,
@@ -240,31 +235,39 @@ def summarize(data: dict) -> int:
     for r in records:
         by_mode.setdefault(r["mode"], []).append(r)
 
+    is_signal = data.get("driver") == "hook-replay"
+    metric_key = "signal_retention" if is_signal else "passed"
+    metric_hdr = "Signal Ret" if is_signal else "Pass Rate"
+
+    def _hit(rec: dict) -> bool:
+        if metric_key in rec:
+            return bool(rec[metric_key])
+        return bool(rec.get("passed", rec.get("signal_retention", False)))
+
     off_recs = by_mode.get("off", [])
-    off_pass = (sum(1 for r in off_recs if r["passed"]) / len(off_recs) * 100.0) if off_recs else 100.0
+    off_rate = (sum(1 for r in off_recs if _hit(r)) / len(off_recs) * 100.0) if off_recs else 100.0
     off_tok = sum(r["total_tokens"] for r in off_recs)
 
     print(f"=== Eval Summary (driver={data.get('driver')}, tasks={data.get('n_tasks')}, runs={data.get('runs')}) ===\n")
-    print(f"| {'Mode':8s} | {'Pass Rate':10s} | {'95% CI':13s} | {'Min..Max':11s} | {'Tokens':>9s} | {'Tok Delta':>9s} | {'Retries':>7s} | {'Flag':12s} |")
+    print(f"| {'Mode':8s} | {metric_hdr:10s} | {'95% CI':13s} | {'Min..Max':11s} | {'Tokens':>9s} | {'Tok Delta':>9s} | {'Retries':>7s} | {'Flag':12s} |")
     print(f"| {'-'*8} | {'-'*10} | {'-'*13} | {'-'*11} | {'-'*9} | {'-'*9} | {'-'*7} | {'-'*12} |")
     for m in MODES:
         recs = by_mode.get(m, [])
         if not recs:
             continue
-        k = sum(1 for r in recs if r["passed"])
+        k = sum(1 for r in recs if _hit(r))
         n = len(recs)
         pr = k / n * 100.0
         lo, hi = wilson_ci(k, n)
-        # Per-run min/max pass rates
         runs_map: dict[int, list[bool]] = {}
         for r in recs:
-            runs_map.setdefault(int(r["run"]), []).append(bool(r["passed"]))
+            runs_map.setdefault(int(r.get("run", 1)), []).append(_hit(r))
         run_prs = [sum(v) / len(v) * 100.0 for v in runs_map.values()]
         rmin, rmax = min(run_prs), max(run_prs)
         toks = sum(r["total_tokens"] for r in recs)
         tdelta = ((toks / off_tok) - 1.0) * 100.0 if off_tok else 0.0
-        rets = sum(r["retries"] for r in recs)
-        flag = "LOSS >2pp" if (m != "off" and (off_pass - pr) > 2.0) else "OK"
+        rets = sum(r.get("retries", 0) for r in recs)
+        flag = "LOSS >2pp" if (m != "off" and (off_rate - pr) > 2.0) else "OK"
         print(f"| {m:8s} | {pr:8.1f}%  | {lo:5.1f}..{hi:5.1f}% | {rmin:4.0f}..{rmax:4.0f}%  | {toks:9,d} | {tdelta:+8.1f}% | {rets:7d} | {flag:12s} |")
     return 0
 
