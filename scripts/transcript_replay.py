@@ -532,8 +532,57 @@ def apply_savings(turns: list[tuple[int, int, int]], saved_by_turn: list[int], r
     return adj, extra
 
 
-def quota(turns: list[tuple[int, int, int]]) -> float:
-    return sum(a * W_IN + b * W_CR + c * W_OUT for a, b, c in turns)
+def parse_weights(spec: str | None) -> tuple[float, float, float]:
+    """Parse --weights 'input=1,cache=0.05,output=6' into (w_in, w_cr, w_out)."""
+    if not spec:
+        return (W_IN, W_CR, W_OUT)
+    vals = {"input": W_IN, "cache": W_CR, "output": W_OUT}
+    for part in spec.split(","):
+        part = part.strip()
+        if not part or "=" not in part:
+            continue
+        k, v = part.split("=", 1)
+        k = k.strip().lower()
+        if k in ("in", "input"):
+            vals["input"] = float(v)
+        elif k in ("cr", "cache", "cache_read"):
+            vals["cache"] = float(v)
+        elif k in ("out", "output"):
+            vals["output"] = float(v)
+    return (vals["input"], vals["cache"], vals["output"])
+
+
+def _percentile(sorted_vals: list[float], p: float) -> float:
+    if not sorted_vals:
+        return 0.0
+    if len(sorted_vals) == 1:
+        return sorted_vals[0]
+    idx = (len(sorted_vals) - 1) * p
+    lo = int(idx)
+    hi = min(len(sorted_vals) - 1, lo + 1)
+    frac = idx - lo
+    return sorted_vals[lo] * (1.0 - frac) + sorted_vals[hi] * frac
+
+
+def _classify_session_type(sess: dict, cat_n: collections.Counter, tool_bytes: int) -> str:
+    """Classify a session as test-heavy, log-heavy, or plain-editing."""
+    n_test = sum(cat_n.get(k, 0) for k in ("test", "build", "lint", "pkg", "chain"))
+    n_log = sum(cat_n.get(k, 0) for k in ("logs", "ssh", "http", "cloud", "k8s_yaml", "search", "cat_large", "table", "ps", "spillback_log"))
+    n_cmd = sum(1 for e in sess["events"] if e["name"] in ("run_command", "shell_exec"))
+    if n_test >= 3 or (n_cmd >= 4 and n_test / max(1, n_cmd) >= 0.35):
+        return "test-heavy"
+    if n_log >= 3 or (n_cmd >= 4 and n_log / max(1, n_cmd) >= 0.35) or tool_bytes >= 120_000:
+        return "log-heavy"
+    return "plain-editing"
+
+
+def quota(turns: list[tuple[int, int, int]], weights: tuple[float, float, float] | None = None) -> float:
+    wi, wc, wo = weights if weights else (W_IN, W_CR, W_OUT)
+    return sum(a * wi + b * wc + c * wo for a, b, c in turns)
+
+
+def _turns_sums(turns: list[tuple[int, int, int]]) -> tuple[int, int, int]:
+    return (sum(t[0] for t in turns), sum(t[1] for t in turns), sum(t[2] for t in turns))
 
 
 def settled_flags_and_gaps(sess: dict) -> tuple[list[bool] | None, list[float | None] | None, int]:
@@ -567,16 +616,25 @@ def settled_flags(sess: dict) -> list[bool] | None:
     return settled_flags_and_gaps(sess)[0]
 
 
-def rollover_quota(turns: list[tuple[int, int, int]], policy: str = "auto", settled: list[bool] | None = None,
-                   cfg: dict | None = None, gaps: list[float | None] | None = None, ttl_cliff: int = 150) -> tuple[float, int]:
-    """policy 'auto' = shipped adaptive policy; 'v1' = v1.0.0 behaviour (fixed 110k cap).
-    settled=None -> UPPER BOUND (rollover allowed after any generation, i.e. mid agent run)."""
+def rollover_totals(turns: list[tuple[int, int, int]], policy: str = "auto", settled: list[bool] | None = None,
+                    cfg: dict | None = None, gaps: list[float | None] | None = None, ttl_cliff: int = 150) -> tuple[int, int, int, int]:
+    """Return (sim_in, sim_cr, tot_out, nroll) for any weighting."""
     cap = 110_000 if policy == "v1" else None
     try:
         si, sc, nroll = core._simulate_rollover_session(turns, cap, settled=settled, cfg=cfg, gaps=gaps, ttl_cliff=ttl_cliff)
     except TypeError:   # v1.0.0 core: oracle simulator, no live gating
         si, sc, nroll = core._simulate_rollover_session(turns, 110_000)
-    return si * W_IN + sc * W_CR + sum(t[2] for t in turns) * W_OUT, nroll
+    return int(si), int(sc), sum(t[2] for t in turns), int(nroll)
+
+
+def rollover_quota(turns: list[tuple[int, int, int]], policy: str = "auto", settled: list[bool] | None = None,
+                   cfg: dict | None = None, gaps: list[float | None] | None = None, ttl_cliff: int = 150,
+                   weights: tuple[float, float, float] | None = None) -> tuple[float, int]:
+    """policy 'auto' = shipped adaptive policy; 'v1' = v1.0.0 behaviour (fixed 110k cap).
+    settled=None -> UPPER BOUND (rollover allowed after any generation, i.e. mid agent run)."""
+    wi, wc, wo = weights if weights else (W_IN, W_CR, W_OUT)
+    si, sc, so, nroll = rollover_totals(turns, policy, settled, cfg, gaps, ttl_cliff)
+    return si * wi + sc * wc + so * wo, nroll
 
 
 TIERS = [
@@ -589,7 +647,8 @@ TIERS = [
 
 
 def run(detail: bool = False, json_out: str | None = None, quiet: bool = False, policy: str = "auto",
-        extra_env: dict[str, str] | None = None) -> dict:
+        extra_env: dict[str, str] | None = None, weights: tuple[float, float, float] | None = None) -> dict:
+    wi, wc, wo = weights if weights else (W_IN, W_CR, W_OUT)
     sessions = discover_sessions()
     # Live auto policy learns p_continue from this machine's OTHER chats (core.continuation_probability)
     recs = []
@@ -610,23 +669,37 @@ def run(detail: bool = False, json_out: str | None = None, quiet: bool = False, 
             r = replay_session(s, tmp, perl_env)
             cats_all.update(r["cats"])
             catn_all.update(r["cat_n"])
-            adj, extra = apply_savings(s["turns"], r["saved_by_turn"], r["retries_by_turn"], s["checkpoints"], overhead_tok)
-            q0 = quota(s["turns"])
-            qh = quota(adj) + extra
+            adj, extra_default = apply_savings(s["turns"], r["saved_by_turn"], r["retries_by_turn"], s["checkpoints"], overhead_tok)
+            # Track retry overhead tokens separately so arbitrary weights stay exact
+            retry_cr = sum(r["retries_by_turn"][i - 1] * (adj[i][0] + adj[i][1]) for i in range(1, len(adj)) if r["retries_by_turn"][i - 1])
+            retry_out = sum(r["retries_by_turn"][i - 1] * RETRY_OUT_TOK for i in range(1, len(adj)) if r["retries_by_turn"][i - 1])
+            extra = retry_cr * wc + retry_out * wo
+            t0_sum = _turns_sums(s["turns"])
+            th_sum = _turns_sums(adj)
+            th_sum_tot = (th_sum[0], th_sum[1] + retry_cr, th_sum[2] + retry_out)
+            q0 = quota(s["turns"], (wi, wc, wo))
+            qh = quota(adj, (wi, wc, wo)) + extra
             settled, gaps, ttl_cliff = settled_flags_and_gaps(s)
             cfg = None
             if policy == "auto" and hasattr(core, "continuation_probability"):
                 cfg = {**core._SIM_CFG, "p_continue": core.continuation_probability(recs, exclude=s["id"])}
-            qr, nr = rollover_quota(s["turns"], policy, settled, cfg, gaps, ttl_cliff)            # live (causal, gated + cold-cache)
-            qhr, nhr = rollover_quota(adj, policy, settled, cfg, gaps, ttl_cliff)
-            qhr += extra
-            qru, _ = rollover_quota(s["turns"], policy, None, cfg, gaps, ttl_cliff)               # upper bound
-            qhru, _ = rollover_quota(adj, policy, None, cfg, gaps, ttl_cliff)
-            qhru += extra
+            r_in, r_cr, r_out, nr = rollover_totals(s["turns"], policy, settled, cfg, gaps, ttl_cliff)
+            hr_in, hr_cr, hr_out, nhr = rollover_totals(adj, policy, settled, cfg, gaps, ttl_cliff)
+            ru_in, ru_cr, ru_out, _ = rollover_totals(s["turns"], policy, None, cfg, gaps, ttl_cliff)
+            hru_in, hru_cr, hru_out, _ = rollover_totals(adj, policy, None, cfg, gaps, ttl_cliff)
+            qr = r_in * wi + r_cr * wc + r_out * wo
+            qhr = hr_in * wi + (hr_cr + retry_cr) * wc + (hr_out + retry_out) * wo
+            qru = ru_in * wi + ru_cr * wc + ru_out * wo
+            qhru = hru_in * wi + (hru_cr + retry_cr) * wc + (hru_out + retry_out) * wo
+            stype = _classify_session_type(s, r["cat_n"], r["tool_bytes"])
             rows.append({
                 "id": s["id"], "app": s["app"], "src": s["src"], "turns": len(s["turns"]),
+                "session_type": stype,
                 "peak": max(a + b for a, b, _ in s["turns"]),
                 "q0": q0, "q_hooks": qh, "q_roll": qr, "q_both": qhr, "q_roll_ub": qru, "q_both_ub": qhru, "rollovers": nhr,
+                "tok_0": t0_sum, "tok_hooks": th_sum_tot,
+                "tok_both": (hr_in, hr_cr + retry_cr, hr_out + retry_out),
+                "tok_both_ub": (hru_in, hru_cr + retry_cr, hru_out + retry_out),
                 "saved_bytes": sum(r["saved_by_turn"]), "tool_bytes": r["tool_bytes"],
                 "events": len(s["events"]),
             })
@@ -634,15 +707,21 @@ def run(detail: bool = False, json_out: str | None = None, quiet: bool = False, 
     def pct(a: float, b: float) -> float:
         return (1.0 - b / a) * 100.0 if a else 0.0
 
-    summary: dict = {"n": len(rows), "turns": sum(r["turns"] for r in rows), "tiers": [], "cats": {}, "policy": policy}
+    summary: dict = {"n": len(rows), "turns": sum(r["turns"] for r in rows), "tiers": [], "cats": {}, "policy": policy, "weights": [wi, wc, wo]}
     for key in ("q_hooks", "q_roll", "q_both", "q_roll_ub", "q_both_ub"):
-        per = [pct(r["q0"], r[key]) for r in rows]
+        per = sorted(pct(r["q0"], r[key]) for r in rows)
         summary[key] = {
             "median": statistics.median(per) if per else 0.0,
             "mean": statistics.mean(per) if per else 0.0,
+            "p25": _percentile(per, 0.25),
+            "p75": _percentile(per, 0.75),
+            "p90": _percentile(per, 0.90),
+            "max": per[-1] if per else 0.0,
+            "pct_gt_5": (sum(1 for p in per if p > 5.0) / len(per) * 100.0) if per else 0.0,
             "total": pct(sum(r["q0"] for r in rows), sum(r[key] for r in rows)),
             "improved": sum(1 for p in per if p > 0.05),
             "regressed": sum(1 for p in per if p < -0.05),
+            "per_session": [round(p, 2) for p in per],
         }
     for label, lo, hi in TIERS:
         sub = [r for r in rows if lo <= r["peak"] < hi]
@@ -699,31 +778,29 @@ def run(detail: bool = False, json_out: str | None = None, quiet: bool = False, 
     return summary
 
 
-def run_modes(policy: str = "auto", json_out: str | None = None) -> dict:
-    """Compare Mode 1 (Zero Quality Loss) vs Mode 2 (Small Quality Loss) on all local sessions."""
-    base = run(quiet=True, policy=policy, extra_env={"AGY_TS_COMPACT_READS": "0"})
-    comp = run(quiet=True, policy=policy, extra_env={"AGY_TS_COMPACT_READS": "1"})
+def run_modes(policy: str = "auto", json_out: str | None = None, report: bool = False,
+              weights: tuple[float, float, float] | None = None) -> dict:
+    """Compare Mode 1 (Lossless) vs Mode 2 (Opt-in) on all local sessions with distributions & sensitivity."""
+    wi, wc, wo = weights if weights else (W_IN, W_CR, W_OUT)
+    base = run(quiet=True, policy=policy, extra_env={"AGY_TS_COMPACT_READS": "0"}, weights=(wi, wc, wo))
+    comp = run(quiet=True, policy=policy, extra_env={"AGY_TS_COMPACT_READS": "1"}, weights=(wi, wc, wo))
 
-    sessions = discover_sessions()
-    tot_in = sum(t[0] for s in sessions for t in s["turns"])
-    tot_cr = sum(t[1] for s in sessions for t in s["turns"])
-    tot_out = sum(t[2] for s in sessions for t in s["turns"])
-    q_tot = tot_in * W_IN + tot_cr * W_CR + tot_out * W_OUT
-    out_share = (tot_out * W_OUT / q_tot * 100.0) if q_tot else 0.0
+    tot_in = sum(r["tok_0"][0] for r in base["rows"])
+    tot_cr = sum(r["tok_0"][1] for r in base["rows"])
+    tot_out = sum(r["tok_0"][2] for r in base["rows"])
+    q_tot = tot_in * wi + tot_cr * wc + tot_out * wo
+    out_share = (tot_out * wo / q_tot * 100.0) if q_tot else 0.0
 
-    # Conservative (-20%) and moderate (-35%) output savings on the real 6x output bucket
-    # (published Caveman ~65% prose, TALE-EP 68%, Sketch-of-Thought 76% at +0.04%..+0.57%)
     c20 = round(out_share * 0.20, 1)
     c35 = round(out_share * 0.35, 1)
 
     b_h = -base["q_hooks"]["total"]
     c_h = -comp["q_hooks"]["total"]
-    b_live = -base["q_both"]["total"]
     c_live = -comp["q_both"]["total"]
     c_ub = -comp["q_both_ub"]["total"]
 
     print(f"=== Real-Session Benchmark ({base['n']} sessions, {base['turns']:,} turns, {q_tot/1e6:.1f}M proxy units) ===")
-    print(f"Cost proxy (1x in + 0.05x cache + 6x out): Input {tot_in*W_IN/q_tot*100:.1f}% | Cache {tot_cr*W_CR/q_tot*100:.1f}% | Output {out_share:.1f}% | Overhead: {base['overhead_tok_per_turn']} tok/turn\n")
+    print(f"Cost proxy ({wi:g}x in + {wc:g}x cache + {wo:g}x out): Input {tot_in*wi/q_tot*100:.1f}% | Cache {tot_cr*wc/q_tot*100:.1f}% | Output {out_share:.1f}% | Overhead: {base['overhead_tok_per_turn']} tok/turn\n")
     print(f"{'Mode':44s} | {'Type':10s} | {'Tool Tok Cut':>12s} | {'Avg Cost Saved':>22s}")
     print("-" * 98)
     print(f"{'Mode 1: Lossless (Default)':44s} | {'measured':10s} | {base['saved_tool_tok']:9,d} tk | {b_h:+21.1f}%")
@@ -733,23 +810,139 @@ def run_modes(policy: str = "auto", json_out: str | None = None) -> dict:
     print(f"{'Mode 2 (Max): Live + Compact + Concise':44s} | {'estimated':10s} | {comp['saved_tool_tok']:9,d} tk | {c_live - c20:+5.1f}%..{c_live - c35:+.1f}% (est.)")
     print(f"{'Mode 2 (Upper Bound, phase resets)':44s} | {'estimated':10s} | {comp['saved_tool_tok']:9,d} tk | {c_ub - c20:+5.1f}%..{c_ub - c35:+.1f}% (est.)")
     print("-" * 98)
-    print("Note: 'measured' = exact transcript replay (charges retries + prompt overhead); 'estimated' adds a modeled -20%..-35% cut on the 6x output bucket.")
+    print("Note: 'measured' = exact transcript replay (charges retries + prompt overhead); 'estimated' adds a modeled -20%..-35% cut on the output bucket.")
     print("      Anchored Auto-Handoff (arXiv:2508.21433, Active Context Compression arXiv:2601.07190): lowest risk at phase switches.")
+
+    # Distribution stats per mode (positive = saved %)
+    def _dist_entry(label: str, kind: str, stats_obj: dict, add_out_lo: float = 0.0, add_out_hi: float = 0.0,
+                    rows_src: list[dict] | None = None, field: str | None = None) -> dict:
+        if add_out_lo == 0.0:
+            return {
+                "mode": label, "type": kind,
+                "avg": round(stats_obj["total"], 1),
+                "median": round(stats_obj["median"], 1),
+                "p25": round(stats_obj["p25"], 1),
+                "p75": round(stats_obj["p75"], 1),
+                "p90": round(stats_obj["p90"], 1),
+                "max": round(stats_obj["max"], 1),
+                "pct_gt_5": round(stats_obj["pct_gt_5"], 1),
+                "per_session": stats_obj["per_session"],
+            }
+        # Per-session estimated savings when adding -20% (conservative) output cut
+        per_est = []
+        for r in (rows_src or []):
+            q0_r = r["q0"]
+            if not q0_r:
+                continue
+            out_s = (r["tok_0"][2] * wo / q0_r) * 100.0
+            base_s = (1.0 - r[field] / q0_r) * 100.0 if field else 0.0
+            per_est.append(base_s + out_s * 0.20)
+        per_est.sort()
+        return {
+            "mode": label, "type": kind,
+            "avg": round(stats_obj["total"] + add_out_lo, 1),
+            "avg_hi": round(stats_obj["total"] + add_out_hi, 1),
+            "median": round(statistics.median(per_est), 1) if per_est else 0.0,
+            "p25": round(_percentile(per_est, 0.25), 1),
+            "p75": round(_percentile(per_est, 0.75), 1),
+            "p90": round(_percentile(per_est, 0.90), 1),
+            "max": round(per_est[-1], 1) if per_est else 0.0,
+            "pct_gt_5": round(sum(1 for p in per_est if p > 5.0) / len(per_est) * 100.0, 1) if per_est else 0.0,
+            "per_session": [round(p, 2) for p in per_est],
+        }
+
+    distributions = [
+        _dist_entry("Mode 1: Lossless (Default)", "measured", base["q_hooks"]),
+        _dist_entry("Mode 2a: Compact Reads", "measured", comp["q_hooks"]),
+        _dist_entry("Mode 2b: + Concise Output", "estimated", comp["q_hooks"], c20, c35, comp["rows"], "q_hooks"),
+        _dist_entry("Mode 2c: + Auto-Handoff Live", "measured", comp["q_both"]),
+        _dist_entry("Mode 2 (Max): All opt-in", "estimated", comp["q_both"], c20, c35, comp["rows"], "q_both"),
+    ]
+
+    # Per-session-type breakdown
+    by_type = []
+    for stype in ("test-heavy", "log-heavy", "plain-editing"):
+        b_sub = [r for r in base["rows"] if r["session_type"] == stype]
+        c_sub = [r for r in comp["rows"] if r["session_type"] == stype]
+        if not b_sub:
+            continue
+        def _agg(sub: list[dict], fld: str) -> tuple[float, float, float]:
+            q0s = sum(r["q0"] for r in sub)
+            q1s = sum(r[fld] for r in sub)
+            avg = (1.0 - q1s / q0s) * 100.0 if q0s else 0.0
+            per = sorted((1.0 - r[fld] / r["q0"]) * 100.0 for r in sub if r["q0"])
+            return (round(avg, 1), round(statistics.median(per), 1) if per else 0.0, round(_percentile(per, 0.90), 1))
+        m1_avg, m1_med, m1_p90 = _agg(b_sub, "q_hooks")
+        m2a_avg, _, _ = _agg(c_sub, "q_hooks")
+        m2c_avg, m2c_med, m2c_p90 = _agg(c_sub, "q_both")
+        by_type.append({
+            "type": stype, "n": len(b_sub),
+            "m1_avg": m1_avg, "m1_median": m1_med, "m1_p90": m1_p90,
+            "m2a_avg": m2a_avg, "m2c_avg": m2c_avg, "m2c_median": m2c_med, "m2c_p90": m2c_p90,
+        })
+
+    # Cost-weight sensitivity analysis (computed exactly from recorded token sums)
+    regimes = [
+        ("Default proxy (1 / 0.05 / 6)", (1.0, 0.05, 6.0)),
+        ("Anthropic-style (1 / 0.10 / 5)", (1.0, 0.10, 5.0)),
+        ("Output-light (1 / 0.05 / 3)", (1.0, 0.05, 3.0)),
+        ("Cache-heavy (1 / 0.25 / 5)", (1.0, 0.25, 5.0)),
+    ]
+    if (wi, wc, wo) not in [w for _, w in regimes]:
+        regimes.append((f"Custom ({wi:g} / {wc:g} / {wo:g})", (wi, wc, wo)))
+    sensitivity = []
+    for rname, (rwi, rwc, rwo) in regimes:
+        def _qsum(rows_list: list[dict], tok_key: str) -> float:
+            return sum(r[tok_key][0] * rwi + r[tok_key][1] * rwc + r[tok_key][2] * rwo for r in rows_list)
+        q0_r = _qsum(base["rows"], "tok_0")
+        m1_r = (1.0 - _qsum(base["rows"], "tok_hooks") / q0_r) * 100.0 if q0_r else 0.0
+        m2a_r = (1.0 - _qsum(comp["rows"], "tok_hooks") / q0_r) * 100.0 if q0_r else 0.0
+        m2c_r = (1.0 - _qsum(comp["rows"], "tok_both") / q0_r) * 100.0 if q0_r else 0.0
+        out_r = (sum(r["tok_0"][2] for r in base["rows"]) * rwo / q0_r * 100.0) if q0_r else 0.0
+        sensitivity.append({
+            "regime": rname, "weights": [rwi, rwc, rwo],
+            "m1": round(m1_r, 1), "m2a": round(m2a_r, 1), "m2c": round(m2c_r, 1),
+            "m2max_lo": round(m2c_r + out_r * 0.20, 1), "m2max_hi": round(m2c_r + out_r * 0.35, 1),
+        })
+
+    if report:
+        print("\n=== Per-Session Distribution (Negative = Lower Cost) ===")
+        print(f"{'Mode':34s} | {'Type':9s} | {'Avg':>7s} | {'Median':>7s} | {'p90':>7s} | {'Max':>7s} | {'>5% share':>9s}")
+        print("-" * 96)
+        for d in distributions:
+            sfx = " (est.)" if d["type"] == "estimated" else ""
+            print(f"{d['mode']:34s} | {d['type']:9s} | {-d['avg']:+6.1f}% | {-d['median']:+6.1f}% | {-d['p90']:+6.1f}% | {-d['max']:+6.1f}% | {d['pct_gt_5']:8.1f}%{sfx}")
+
+        print("\n=== Breakdown by Session Type ===")
+        print(f"{'Session Type':16s} | {'n':>3s} | {'Mode 1 Avg':>10s} | {'Mode 1 Med':>10s} | {'Mode 1 p90':>10s} | {'Mode 2a Avg':>11s} | {'Mode 2c Avg':>11s} | {'Mode 2c p90':>11s}")
+        print("-" * 102)
+        for t in by_type:
+            print(f"{t['type']:16s} | {t['n']:3d} | {-t['m1_avg']:+9.1f}% | {-t['m1_median']:+9.1f}% | {-t['m1_p90']:+9.1f}% | {-t['m2a_avg']:+10.1f}% | {-t['m2c_avg']:+10.1f}% | {-t['m2c_p90']:+10.1f}%")
+
+        print("\n=== Cost-Weight Sensitivity ===")
+        print(f"{'Weight Regime (in/cache/out)':32s} | {'Mode 1':>8s} | {'Mode 2a':>8s} | {'Mode 2c':>8s} | {'Mode 2 Max (est.)':>20s}")
+        print("-" * 88)
+        for s_row in sensitivity:
+            print(f"{s_row['regime']:32s} | {-s_row['m1']:+7.1f}% | {-s_row['m2a']:+7.1f}% | {-s_row['m2c']:+7.1f}% | {-s_row['m2max_lo']:+6.1f}%..{-s_row['m2max_hi']:+.1f}% (est.)")
 
     res = {
         "n": base["n"],
         "turns": base["turns"],
         "quota_m": round(q_tot / 1e6, 2),
+        "weights": [wi, wc, wo],
         "overhead_tok_per_turn": base["overhead_tok_per_turn"],
         "quota_mix": {
-            "input_pct": round(tot_in * W_IN / q_tot * 100.0, 1),
-            "cache_pct": round(tot_cr * W_CR / q_tot * 100.0, 1),
+            "input_pct": round(tot_in * wi / q_tot * 100.0, 1),
+            "cache_pct": round(tot_cr * wc / q_tot * 100.0, 1),
             "output_pct": round(out_share, 1),
         },
         "concise_20_pct": c20,
         "concise_35_pct": c35,
         "base": base,
         "compact_reads": comp,
+        "distributions": distributions,
+        "by_type": by_type,
+        "sensitivity": sensitivity,
     }
     if json_out:
         Path(json_out).write_text(json.dumps(res, indent=2), encoding="utf-8")
@@ -760,14 +953,17 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--detail", action="store_true")
     ap.add_argument("--json", default=None)
-    ap.add_argument("--modes", action="store_true", help="compare Mode 1 (Zero Quality Loss) vs Mode 2 (Small Quality Loss)")
+    ap.add_argument("--modes", action="store_true", help="compare Mode 1 (Lossless) vs Mode 2 (Opt-in)")
+    ap.add_argument("--report", action="store_true", help="with --modes: print distribution, per-type, and weight-sensitivity tables")
+    ap.add_argument("--weights", default=None, help="cost proxy weights, e.g. input=1,cache=0.05,output=6")
     ap.add_argument("--policy", choices=("auto", "v1"), default="auto",
                     help="rollover policy to simulate: shipped adaptive 'auto' or v1.0.0 fixed 110k cap")
     a = ap.parse_args()
+    w = parse_weights(a.weights)
     if a.modes:
-        run_modes(policy=a.policy, json_out=a.json)
+        run_modes(policy=a.policy, json_out=a.json, report=a.report, weights=w)
         return 0
-    s = run(a.detail, a.json, policy=a.policy)
+    s = run(a.detail, a.json, policy=a.policy, weights=w)
     return 0 if s["n"] else 1
 
 

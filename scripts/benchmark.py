@@ -364,8 +364,10 @@ def main() -> int:
     ap.add_argument("--demo", action="store_true", help="Run deterministic 6-step Before/After hook benchmark")
     ap.add_argument("--transcripts", action="store_true", help="Run counterfactual rollover replay on local transcripts")
     ap.add_argument("--replay", action="store_true", help="Replay real local sessions through the hooks (hooks-only + handoff)")
-    ap.add_argument("--modes", action="store_true", help="Compare Zero-Loss, Compact Reads, Concise Output, and Auto-Handoff separately")
-    ap.add_argument("--json", default=None, help="With --replay: write the summary JSON here (input for make_benchmark_chart.py)")
+    ap.add_argument("--modes", action="store_true", help="Compare Lossless, Compact Reads, Concise Output, and Auto-Handoff separately")
+    ap.add_argument("--report", action="store_true", help="With --modes: print distribution (median/p90/>5% share), per-type, and weight-sensitivity tables")
+    ap.add_argument("--weights", default=None, help="Cost proxy weights, e.g. input=1,cache=0.05,output=6")
+    ap.add_argument("--json", default=None, help="With --replay or --modes: write summary JSON (input for make_benchmark_chart.py)")
     args = ap.parse_args()
     if not args.demo and not args.transcripts and not args.replay and not args.modes:
         args.demo = True
@@ -381,13 +383,15 @@ def main() -> int:
             print()
         sys.path.insert(0, str(SCRIPTS))
         import transcript_replay
-        rc |= 0 if transcript_replay.run(json_out=args.json)["n"] else 1
+        w = transcript_replay.parse_weights(args.weights)
+        rc |= 0 if transcript_replay.run(json_out=args.json, weights=w)["n"] else 1
     if args.modes:
         if args.demo or args.transcripts or args.replay:
             print()
         sys.path.insert(0, str(SCRIPTS))
         import transcript_replay
-        transcript_replay.run_modes(json_out=args.json)
+        w = transcript_replay.parse_weights(args.weights)
+        transcript_replay.run_modes(json_out=args.json, report=args.report, weights=w)
     return rc
 
 
