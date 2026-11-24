@@ -1,0 +1,107 @@
+[220]{id,msg,status}
+evt_0000,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+evt_0001,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+evt_0002,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [1 rows omitted]
+evt_0004,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [3 rows omitted]
+evt_0008,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [4 rows omitted]
+evt_0013,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [3 rows omitted]
+evt_0017,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [4 rows omitted]
+evt_0022,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [3 rows omitted]
+evt_0026,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [3 rows omitted]
+evt_0030,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [4 rows omitted]
+evt_0035,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [3 rows omitted]
+evt_0039,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [4 rows omitted]
+evt_0044,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [3 rows omitted]
+evt_0048,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [3 rows omitted]
+evt_0052,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [4 rows omitted]
+evt_0057,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [3 rows omitted]
+evt_0061,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [4 rows omitted]
+evt_0066,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [3 rows omitted]
+evt_0070,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [3 rows omitted]
+evt_0074,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [4 rows omitted]
+evt_0079,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [3 rows omitted]
+evt_0083,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [4 rows omitted]
+evt_0088,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [3 rows omitted]
+evt_0092,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [3 rows omitted]
+evt_0096,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [4 rows omitted]
+evt_0101,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [3 rows omitted]
+evt_0105,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [4 rows omitted]
+evt_0110,ERROR: BURIED_MUST_KEEP_HTTP,error
+... [3 rows omitted]
+evt_0114,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [3 rows omitted]
+evt_0118,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [4 rows omitted]
+evt_0123,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [3 rows omitted]
+evt_0127,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [4 rows omitted]
+evt_0132,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [3 rows omitted]
+evt_0136,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [3 rows omitted]
+evt_0140,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [4 rows omitted]
+evt_0145,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [3 rows omitted]
+evt_0149,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [4 rows omitted]
+evt_0154,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [3 rows omitted]
+evt_0158,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [3 rows omitted]
+evt_0162,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [4 rows omitted]
+evt_0167,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [3 rows omitted]
+evt_0171,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [4 rows omitted]
+evt_0176,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [3 rows omitted]
+evt_0180,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [3 rows omitted]
+evt_0184,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [4 rows omitted]
+evt_0189,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [3 rows omitted]
+evt_0193,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [4 rows omitted]
+evt_0198,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [3 rows omitted]
+evt_0202,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [3 rows omitted]
+evt_0206,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [4 rows omitted]
+evt_0211,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [3 rows omitted]
+evt_0215,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+... [2 rows omitted]
+evt_0218,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+evt_0219,ok_0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ,ok
+[SmartCrusher: 54/220 rows kept; all error/outlier rows preserved]
+[1102L->106L; full: <SPILL_DIR>/77ebc9c362fc.log]

@@ -1,0 +1,27 @@
+[Archive/sync summary (261 lines)]
+  pkg/: 260
+  (root): 1
+--- head/tail ---
+inflating: pkg/dir_0/file_0000.js 0123456789abcdefghijklmnopqrstuvwxyzABCD
+inflating: pkg/dir_1/file_0001.js 0123456789abcdefghijklmnopqrstuvwxyzABCD
+inflating: pkg/dir_2/file_0002.js 0123456789abcdefghijklmnopqrstuvwxyzABCD
+inflating: pkg/dir_3/file_0003.js 0123456789abcdefghijklmnopqrstuvwxyzABCD
+inflating: pkg/dir_4/file_0004.js 0123456789abcdefghijklmnopqrstuvwxyzABCD
+inflating: pkg/dir_5/file_0005.js 0123456789abcdefghijklmnopqrstuvwxyzABCD
+inflating: pkg/dir_6/file_0006.js 0123456789abcdefghijklmnopqrstuvwxyzABCD
+inflating: pkg/dir_7/file_0007.js 0123456789abcdefghijklmnopqrstuvwxyzABCD
+inflating: pkg/dir_8/file_0008.js 0123456789abcdefghijklmnopqrstuvwxyzABCD
+inflating: pkg/dir_9/file_0009.js 0123456789abcdefghijklmnopqrstuvwxyzABCD
+...
+ERROR: BURIED_MUST_KEEP_ARCHIVE
+inflating: pkg/dir_0/file_0250.js 0123456789abcdefghijklmnopqrstuvwxyzABCD
+inflating: pkg/dir_1/file_0251.js 0123456789abcdefghijklmnopqrstuvwxyzABCD
+inflating: pkg/dir_2/file_0252.js 0123456789abcdefghijklmnopqrstuvwxyzABCD
+inflating: pkg/dir_3/file_0253.js 0123456789abcdefghijklmnopqrstuvwxyzABCD
+inflating: pkg/dir_4/file_0254.js 0123456789abcdefghijklmnopqrstuvwxyzABCD
+inflating: pkg/dir_5/file_0255.js 0123456789abcdefghijklmnopqrstuvwxyzABCD
+inflating: pkg/dir_6/file_0256.js 0123456789abcdefghijklmnopqrstuvwxyzABCD
+inflating: pkg/dir_7/file_0257.js 0123456789abcdefghijklmnopqrstuvwxyzABCD
+inflating: pkg/dir_8/file_0258.js 0123456789abcdefghijklmnopqrstuvwxyzABCD
+inflating: pkg/dir_9/file_0259.js 0123456789abcdefghijklmnopqrstuvwxyzABCD
+[261L->26L; full: <SPILL_DIR>/edcaff3163a1.log]

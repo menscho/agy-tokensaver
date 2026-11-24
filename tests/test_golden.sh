@@ -29,7 +29,7 @@ golden_dir = root / "tests" / "golden"
 spill_dir = tmp / "spills"
 
 cases = sorted(p for p in golden_dir.iterdir() if p.is_dir() and (p / "meta.json").is_file())
-assert len(cases) >= 44, f"expected >=44 golden cases, got {len(cases)}"
+assert len(cases) >= 66, f"expected >=66 golden cases (22 cats x 3 incl. buried_error), got {len(cases)}"
 
 env = dict(os.environ)
 env["PLUGIN_DATA"] = str(tmp / "data")
@@ -84,6 +84,16 @@ for cdir in cases:
         if sp_path.read_bytes() != raw_in:
             failed += 1
             print(f"FAIL: golden:{cdir.name} :: spill bytes != input.txt")
+            continue
+    if cdir.name.endswith("_buried_error"):
+        must_sig = str(meta.get("must_contain", "ERROR: BURIED_MUST_KEEP"))
+        if must_sig not in out_txt and sp_path is None:
+            failed += 1
+            print(f"FAIL: golden:{cdir.name} :: buried error {must_sig!r} lost without spill pointer")
+            continue
+        if must_sig not in out_txt:
+            failed += 1
+            print(f"FAIL: golden:{cdir.name} :: buried error {must_sig!r} omitted from compressed output")
             continue
     passed += 1
     print(f"PASS: golden:{cdir.name}")

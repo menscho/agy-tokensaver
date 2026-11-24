@@ -283,20 +283,26 @@ sub dedupe_log_templates {
     return \@out;
 }
 
+my $SIGNAL_RE = qr/\b(?:ERROR|FATAL|PANIC|CRITICAL|EXCEPTION|TRACEBACK|WARN(?:ING)?|FAIL(?:ED|URE)?|DENIED|REFUSED|TIMEOUT|Traceback)\b|^\s*(?:={3,}|-{3,}|#{2,}\s|\*{3,})\s*\S|^\s*\[[A-Za-z][^\]]{0,60}\]\s*$|exit (?:code|status)/i;
+
 sub tail_weighted_cap {
     my ($lines, $head, $tail) = @_;
     $head //= 35;
     $tail //= 110;
-    return $lines if @$lines <= $head + $tail + 5;
+    my $n = scalar(@$lines);
+    return $lines if $n <= $head + $tail + 5;
     # Zero-loss rule: never drop lines the model would natively have seen in full
     my $bytes = 0;
     $bytes += length($_) + 1 for @$lines;
     return $lines if $bytes <= $NATIVE_CAP;
     $LOSSY = 1;
-    my $omit = @$lines - $head - $tail;
+    my $omit = $n - $head - $tail;
+    my @sig = grep { $lines->[$_] =~ $SIGNAL_RE } ($head .. $n - $tail - 1);
+    @sig = @sig[0 .. 19] if @sig > 20;
     return [
         @{$lines}[0 .. $head - 1],
         "... ($omit middle lines omitted; see full log below) ...",
+        (map { $lines->[$_] } @sig),
         @{$lines}[-$tail .. -1]
     ];
 }
@@ -304,7 +310,6 @@ sub tail_weighted_cap {
 # Head/tail cap that also keeps (in original order) middle lines carrying signal: errors,
 # warnings, and section headers (=== X ===, ## X, [X]) so multi-section ssh/diagnostic scripts
 # never lose a section's identity. Gaps are marked with omitted-line counts.
-my $SIGNAL_RE = qr/\b(?:ERROR|FATAL|PANIC|CRITICAL|EXCEPTION|TRACEBACK|WARN(?:ING)?|FAIL(?:ED|URE)?|DENIED|REFUSED|TIMEOUT|Traceback)\b|^\s*(?:={3,}|-{3,}|#{2,}\s|\*{3,})\s*\S|^\s*\[[A-Za-z][^\]]{0,60}\]\s*$|exit (?:code|status)/i;
 # optional per-category additions (PowerShell path only; POSIX unchanged)
 sub cap_with_signal {
     my ($lines, $head, $tail, $max_sig) = @_;

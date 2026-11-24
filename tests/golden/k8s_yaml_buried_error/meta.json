@@ -1,0 +1,6 @@
+{
+  "cat": "k8s_yaml",
+  "rc": 1,
+  "expect_spill": true,
+  "must_contain": "ERROR: BURIED_MUST_KEEP_K8S_YAML"
+}

@@ -1,0 +1,26 @@
+./packages/mod_0/src/: file_0000.ts, file_0008.ts, file_0016.ts, file_0024.ts, file_0032.ts, file_0040.ts, file_0048.ts, file_0056.ts, file_0064.ts, file_0072.ts, file_0080.ts, file_0088.ts, file_0096.ts, file_0104.ts, file_0112.ts
+   file_0120.ts, file_0128.ts, file_0136.ts, file_0144.ts, file_0152.ts, file_0160.ts, file_0168.ts, file_0176.ts, file_0184.ts, file_0192.ts, file_0200.ts, file_0208.ts, file_0216.ts, file_0224.ts, file_0232.ts, file_0240.ts
+   file_0248.ts, file_0256.ts
+./packages/mod_1/src/: file_0001.ts, file_0009.ts, file_0017.ts, file_0025.ts, file_0033.ts, file_0041.ts, file_0049.ts, file_0057.ts, file_0065.ts, file_0073.ts, file_0081.ts, file_0089.ts, file_0097.ts, file_0105.ts, file_0113.ts
+   file_0121.ts, file_0129.ts, file_0137.ts, file_0145.ts, file_0153.ts, file_0161.ts, file_0169.ts, file_0177.ts, file_0185.ts, file_0193.ts, file_0201.ts, file_0209.ts, file_0217.ts, file_0225.ts, file_0233.ts, file_0241.ts
+   file_0249.ts, file_0257.ts
+./packages/mod_2/src/: file_0002.ts, file_0010.ts, file_0018.ts, file_0026.ts, file_0034.ts, file_0042.ts, file_0050.ts, file_0058.ts, file_0066.ts, file_0074.ts, file_0082.ts, file_0090.ts, file_0098.ts, file_0106.ts, file_0114.ts
+   file_0122.ts, file_0130.ts, file_0138.ts, file_0146.ts, file_0154.ts, file_0162.ts, file_0170.ts, file_0178.ts, file_0186.ts, file_0194.ts, file_0202.ts, file_0210.ts, file_0218.ts, file_0226.ts, file_0234.ts, file_0242.ts
+   file_0250.ts, file_0258.ts
+./packages/mod_3/src/: file_0003.ts, file_0011.ts, file_0019.ts, file_0027.ts, file_0035.ts, file_0043.ts, file_0051.ts, file_0059.ts, file_0067.ts, file_0075.ts, file_0083.ts, file_0091.ts, file_0099.ts, file_0107.ts, file_0115.ts
+   file_0123.ts, file_0131.ts, file_0139.ts, file_0147.ts, file_0155.ts, file_0163.ts, file_0171.ts, file_0179.ts, file_0187.ts, file_0195.ts, file_0203.ts, file_0211.ts, file_0219.ts, file_0227.ts, file_0235.ts, file_0243.ts
+   file_0251.ts, file_0259.ts
+./packages/mod_4/src/: file_0004.ts, file_0012.ts, file_0020.ts, file_0028.ts, file_0036.ts, file_0044.ts, file_0052.ts, file_0060.ts, file_0068.ts, file_0076.ts, file_0084.ts, file_0092.ts, file_0100.ts, file_0108.ts, file_0116.ts
+   file_0124.ts, file_0132.ts, file_0140.ts, file_0148.ts, file_0156.ts, file_0164.ts, file_0172.ts, file_0180.ts, file_0188.ts, file_0196.ts, file_0204.ts, file_0212.ts, file_0220.ts, file_0228.ts, file_0236.ts, file_0244.ts
+   file_0252.ts
+./packages/mod_5/src/: file_0005.ts, file_0013.ts, file_0021.ts, file_0029.ts, file_0037.ts, file_0045.ts, file_0053.ts, file_0061.ts, file_0069.ts, file_0077.ts, file_0085.ts, file_0093.ts, file_0101.ts, file_0109.ts, file_0117.ts
+   file_0125.ts, file_0133.ts, file_0141.ts, file_0149.ts, file_0157.ts, file_0165.ts, file_0173.ts, file_0181.ts, file_0189.ts, file_0197.ts, file_0205.ts, file_0213.ts, file_0221.ts, file_0229.ts, file_0237.ts, file_0245.ts
+   file_0253.ts
+./packages/mod_6/src/: file_0006.ts, file_0014.ts, file_0022.ts, file_0030.ts, file_0038.ts, file_0046.ts, file_0054.ts, file_0062.ts, file_0070.ts, file_0078.ts, file_0086.ts, file_0094.ts, file_0102.ts, file_0110.ts, file_0118.ts
+   file_0126.ts, file_0134.ts, file_0142.ts, file_0150.ts, file_0158.ts, file_0166.ts, file_0174.ts, file_0182.ts, file_0190.ts, file_0198.ts, file_0206.ts, file_0214.ts, file_0222.ts, file_0230.ts, file_0238.ts, file_0246.ts
+   file_0254.ts
+./packages/mod_7/src/: file_0007.ts, file_0015.ts, file_0023.ts, file_0031.ts, file_0039.ts, file_0047.ts, file_0055.ts, file_0063.ts, file_0071.ts, file_0079.ts, file_0087.ts, file_0095.ts, file_0103.ts, file_0111.ts, file_0119.ts
+   file_0127.ts, file_0135.ts, file_0143.ts, file_0151.ts, file_0159.ts, file_0167.ts, file_0175.ts, file_0183.ts, file_0191.ts, file_0199.ts, file_0207.ts, file_0215.ts, file_0223.ts, file_0231.ts, file_0239.ts, file_0247.ts
+   file_0255.ts
+./: ERROR: BURIED_MUST_KEEP_FIND
+[261L->25L; full: <SPILL_DIR>/82d787c6fee3.log]

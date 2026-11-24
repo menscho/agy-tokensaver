@@ -21,6 +21,7 @@ SUITES=(
   tests/test_cmd_semantics.sh
   tests/test_spill_safety.sh
   tests/test_golden.sh
+  tests/test_buried_error_prop.sh
 )
 
 FAILED=0

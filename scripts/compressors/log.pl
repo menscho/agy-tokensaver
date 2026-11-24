@@ -157,7 +157,9 @@ sub compress_archive {
         my @top = sort { $dirs{$b} <=> $dirs{$a} || $a cmp $b } keys %dirs;
         my @hdr = ("[Archive/sync summary (" . scalar(@$lines) . " lines)]");
         push @hdr, "  $_: $dirs{$_}" for @top[0 .. ($#top > 11 ? 11 : $#top)];
-        return [@hdr, '--- head/tail ---', @{$lines}[0 .. 9], '...', @{$lines}[-10 .. -1]];
+        my @mid_sig = grep { $_ =~ /\b(?:ERROR|FATAL|WARN(?:ING)?|FAIL(?:ED)?|PANIC|EXCEPTION)\b/i } @{$lines}[10 .. $#$lines - 10];
+        @mid_sig = @mid_sig[0 .. 19] if @mid_sig > 20;
+        return [@hdr, '--- head/tail ---', @{$lines}[0 .. 9], '...', @mid_sig, @{$lines}[-10 .. -1]];
     } else {
         my @kept = grep { $_ !~ /^\s*(?:inflating|extracting|adding|creating):/i || $_ =~ /err|fail|warn|denied/i } @$lines;
         return tail_weighted_cap(dedupe_consecutive(\@kept), 20, 50);
