@@ -59,7 +59,7 @@ Switch anytime in the **Token Saver** HUD (toggling concise rules while a large 
 
 ## What's included
 
-- **Hooks (`scripts/`):** `cmd_hook.pl`, `cmd_wrap.pl` (~40 output compressors across Unix & PowerShell), `read_hook.pl`, `write_hook.pl`, `find_hook.pl`, `grep_hook.pl`, `board_hook.pl`, `swarm_hook.pl`, `post_edit_hook.pl`, `post_invocation_alerts.pl`, `stop_telemetry.pl`.
+- **Hooks (`scripts/`):** `cmd_hook.pl`, `cmd_wrap.pl` (~40 output compressors across Unix & PowerShell; set `AGY_TS_SHELL=off` to disable command wrapping immediately), `read_hook.pl`, `write_hook.pl`, `find_hook.pl`, `grep_hook.pl`, `board_hook.pl`, `swarm_hook.pl`, `post_edit_hook.pl`, `post_invocation_alerts.pl`, `stop_telemetry.pl`.
 - **MCP App HUD (`mcp_app/`):** Local full-page panel with session telemetry, mode selector, snapshot archive, and SHA-256 verified release updater.
 - **CLI utilities (`scripts/`):** `handoff_pack.py`, `ts_inspect.py` (`outline` & SQLite FTS5 `query`), `audit.py --discover`, `benchmark.py`, `transcript_replay.py`.
 - **Requirements:** Python 3.9+ and Perl 5 (macOS/Linux built-in; Git for Windows / MSYS2 / Strawberry Perl on Windows). Zero third-party packages.

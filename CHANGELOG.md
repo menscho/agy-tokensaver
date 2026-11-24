@@ -5,6 +5,7 @@ All notable changes to **agy-tokensaver** (`menscho/agy-tokensaver`) are documen
 ## [Unreleased]
 
 ### Added
+- **Command semantics verification suite (`tests/test_cmd_semantics.sh`):** 63+ table-driven cases proving wrapped POSIX and PowerShell commands preserve exit codes, stdin, stderr ordering, side effects, quoting, and non-ASCII paths; documented `AGY_TS_SHELL=off` kill switch in `README.md`.
 - **Fail-open fuzz test suite (`tests/test_failopen.sh`):** tests all 10 hooks in `hooks.json` against 19 malformed, truncated, wrong-type, deep-nested, binary, random, and oversized inputs (`190` cases).
 
 ### Changed
