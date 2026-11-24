@@ -138,4 +138,20 @@ jobs:
           if ($cout -notmatch '--cat test --pwsh-stdin') { throw "cmd_hook should wrap PowerShell pytest: $cout" }
           $gci = '{"toolInput":{"CommandLine":"Get-ChildItem -Recurse","Cwd":"C:\\work"}}' | & perl scripts/cmd_hook.pl
           if ($gci -notmatch '--cat pwsh --pwsh-stdin') { throw "cmd_hook should wrap PowerShell Get-ChildItem: $gci" }
+          $os = & perl -e 'print $^O'
+          if ($os -eq 'MSWin32') {
+            $env:AGY_TS_SHELL = 'posix'
+            $px = '{"toolInput":{"CommandLine":"pytest","Cwd":"/tmp"}}' | & perl scripts/cmd_hook.pl
+            Remove-Item Env:AGY_TS_SHELL -ErrorAction SilentlyContinue
+            if ($px -ne '{"decision":"allow"}') { throw "MSWin32 with AGY_TS_SHELL=posix must pass through allow: $px" }
+          }
+          $sbPerl = 'C:\Strawberry\perl\bin\perl.exe'
+          if (Test-Path $sbPerl) {
+            $sbOut = '{"toolInput":{"CommandLine":"Get-ChildItem -Recurse","Cwd":"C:\\work"}}' | & $sbPerl scripts/cmd_hook.pl
+            if ($sbOut -notmatch '--cat pwsh --pwsh-stdin') { throw "Strawberry Perl should wrap PowerShell commands: $sbOut" }
+            $env:AGY_TS_SHELL = 'posix'
+            $sbPx = '{"toolInput":{"CommandLine":"pytest","Cwd":"/tmp"}}' | & $sbPerl scripts/cmd_hook.pl
+            Remove-Item Env:AGY_TS_SHELL -ErrorAction SilentlyContinue
+            if ($sbPx -ne '{"decision":"allow"}') { throw "Strawberry Perl AGY_TS_SHELL=posix must allow early: $sbPx" }
+          }
           Write-Host "Native Windows PowerShell checks OK"

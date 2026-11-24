@@ -32,7 +32,13 @@ Restart Antigravity and open **agy-tokensaver** in the sidebar. Uninstall with `
 - **Fail-open hooks:** Every Perl hook parses payloads via `JSON::PP` with a `2 MB` cap and emits `{"decision":"allow"}` or `{}` on malformed/oversized input (`bash tests/test_failopen.sh`).
 - **Byte-exact raw logs:** Whenever `cmd_wrap.pl` shortens output, it first writes the full raw stream to a `0600` spill file (`ts_inspect.py purge` deletes them).
 - **Instant kill switch:** Set `AGY_TS_SHELL=off` to bypass all command rewriting immediately.
-- **Local-only telemetry:** Hook logs stay local in `~/.gemini/antigravity/plugin_data/token-saver/`. Only explicit update checks hit GitHub Releases; see [SECURITY.md](SECURITY.md).
+- **Network calls:** Hooks and telemetry never use the network. User-triggered updates fetch GitHub Releases (plus optional `gh attestation verify`) and POST once to localhost `RefreshMcpServers` to reload Antigravity's MCP server; see [SECURITY.md](SECURITY.md).
+
+## Platform Support
+
+- **Linux / macOS:** Full CI (`bash tests/run_all.sh` + linters + Python unit tests); wraps POSIX `bash` commands via system/Homebrew Perl.
+- **Windows (Git-Bash Perl `msys`):** Full CI (`bash tests/run_all.sh` + native PowerShell tests); wraps Windows PowerShell `C:\...` commands via `powershell.exe` and POSIX `/...` commands via Git Bash.
+- **Windows (Strawberry Perl `MSWin32`):** Wraps Windows PowerShell `C:\...` commands via `powershell.exe`; returns `allow` unmodified if forced into `AGY_TS_SHELL=posix` (no POSIX `bash` in native Win32 Perl).
 
 ## Modes
 

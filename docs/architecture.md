@@ -23,7 +23,7 @@ flowchart LR
 
 - **Perl Pre/Post/Stop Hooks (`scripts/*.pl`):**
   - `scripts/lib/TsJson.pm`: shared `JSON::PP` decoder with strict type checks and a 2 MB fail-open payload cap.
-  - `scripts/cmd_hook.pl` → `scripts/cmd_hook_core.pl` + on-demand `scripts/lib/{cmd_pwsh,cmd_classify}.pl`.
+  - `scripts/cmd_hook.pl` → `scripts/cmd_hook_core.pl` + on-demand `scripts/lib/{cmd_pwsh,cmd_classify,cmd_classify_sys}.pl`.
   - `scripts/cmd_wrap.pl` + `scripts/lib/TsSpill.pl` + on-demand `scripts/compressors/{common,json,test,build,git,log,ssh,pwsh}.pl`.
   - `scripts/read_hook.pl` + on-demand `scripts/lib/{read_media,read_dedupe}.pl`.
   - `scripts/{write_hook,find_hook,grep_hook,board_hook,swarm_hook,post_edit_hook,post_invocation_alerts,stop_telemetry}.pl`.
@@ -36,12 +36,12 @@ flowchart LR
 
 ## On-Disk State & Data Formats
 
-All state stays strictly local (zero network telemetry):
+All hook state stays strictly local (only user-triggered updates and localhost `RefreshMcpServers` use HTTP; see [SECURITY.md](../SECURITY.md)):
 
 | Path | Format | Purpose |
 | :--- | :--- | :--- |
 | `$TMPDIR/agy-tokensaver-<uid>/<12hex>.log` | Raw bytes (`0600` in `0700` dir) | Byte-exact command output spills (auto-pruned after 7 days / 200 files, or `ts_inspect.py purge`). |
-| `~/.gemini/antigravity/plugin_data/token-saver/hud_config.json` | JSON object | Active HUD mode (`zero_loss`, `compact_reads`, `concise_no_handoff`, `handoff_only`, `small_loss`), threshold, and deferred rule-sync flag. |
+| `~/.gemini/antigravity/plugin_data/token-saver/hud_config.json` | JSON object | Active `profile` (`zero_loss`, `compact_reads`, `concise_no_handoff`, `handoff_only`, `small_loss`), `mode` (`prepare_only`, `smart_auto`, `off`), threshold, and deferred rule-sync flag. |
 | `.../plugin_data/token-saver/events.jsonl` | NDJSON | Per-hook telemetry records (`ts`, `source`, `category`, `action`, `raw_bytes`, `kept_bytes`, `est_tokens_saved`). |
 | `.../plugin_data/token-saver/reads/<cid>.tsv` | TSV | Compaction-verified seen line ranges (`path`, `mtime`, `size`, `md5`, `start`, `end`, `step`, `epoch`). |
 | `.../plugin_data/token-saver/rollover_state.json` & `rollover_history.json` | JSON | Tracks `snapshotted_convs` separately from `rolled_convs` plus archived handoff packets. |

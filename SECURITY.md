@@ -4,9 +4,18 @@
 
 Please report security issues privately through GitHub Security Advisories on `menscho/agy-tokensaver` rather than opening a public issue. Include reproduction steps, OS/Perl/Python versions, and any relevant input payload.
 
-## What Gets Written Where
+## Outbound & Local Network Calls
 
-`agy-tokensaver` runs **100% locally** and never phones home or sends telemetry over the network. The only network call in the codebase is the explicit, user-triggered release check/update in `install.py` and the HUD `Updates` tab against `api.github.com/repos/menscho/agy-tokensaver/releases`.
+`agy-tokensaver` hooks (`scripts/*.pl`) and local telemetry never open network connections or phone home. The only network/HTTP requests in the repository are:
+
+| Endpoint / Protocol | File | When It Fires |
+| :--- | :--- | :--- |
+| `GET https://api.github.com/repos/menscho/agy-tokensaver/releases/latest` | `mcp_app/updater.py`, `install.py` | Only when you click Check/Install Update in the HUD or run `install.py` remotely. |
+| `GET` release `SHA256SUMS.txt` & `agy-tokensaver-v*.zip` | `mcp_app/updater.py`, `install.py` | Only when you trigger Install Update or `install.py --remote`. |
+| `gh attestation verify` (Sigstore / GitHub provenance lookup) | `mcp_app/updater.py`, `install.py` | Optional during update/remote install if `gh` CLI is installed. |
+| `POST http://${ANTIGRAVITY_LS_ADDRESS}/exa.language_server_pb.LanguageServerService/RefreshMcpServers` | `mcp_app/updater.py`, `install.py` | Localhost loopback only; fires once after install/update finishes when Antigravity env vars (`ANTIGRAVITY_LS_ADDRESS`, `ANTIGRAVITY_CSRF_TOKEN`) are present. |
+
+## What Gets Written Where
 
 | Location | Contents | Permissions / Retention |
 | :--- | :--- | :--- |

@@ -96,15 +96,18 @@ eval {
         last unless $line =~ /\n\z/; # Only consume complete newline-terminated lines
         $new_offset += length($line);
         next unless index($line, '"PLANNER_RESPONSE"') >= 0;
-        my $in_t  = ($line =~ /"input_tokens"\s*:\s*(\d+)/)      ? int($1) : 0;
-        my $cr_t  = ($line =~ /"cache_read_tokens"\s*:\s*(\d+)/) ? int($1) : 0;
-        my $out_t = ($line =~ /"output_tokens"\s*:\s*(\d+)/)     ? int($1) : 0;
+        my $obj = TsJson::decode_line($line);
+        next unless $obj && (TsJson::get_str($obj, 'type') // '') eq 'PLANNER_RESPONSE';
+        my $in_t  = TsJson::get_int($obj, 'input_tokens') // 0;
+        my $cr_t  = TsJson::get_int($obj, 'cache_read_tokens') // 0;
+        my $out_t = TsJson::get_int($obj, 'output_tokens') // 0;
         next if ($in_t == 0 && $cr_t == 0 && $out_t == 0);
         $turns++;
         $tot_in  += $in_t;
         $tot_cr  += $cr_t;
         $tot_out += $out_t;
-        $models{$1} = 1 if $line =~ /"model"\s*:\s*"([^"]+)"/;
+        my $mdl = TsJson::get_str($obj, 'model') // '';
+        $models{$mdl} = 1 if $mdl ne '';
         if ($turns > 1) {
             $warm_in += $in_t;
             $warm_cr += $cr_t;
