@@ -598,7 +598,7 @@
       <div class="box">
         <div class="row">
           <div class="row-info">
-            <div class="row-title" id="upd-headline">agy-tokensaver v1.1.0</div>
+            <div class="row-title" id="upd-headline">agy-tokensaver v1.2.0</div>
             <div class="row-desc" id="upd-sub">Up to date · all statistics and archive entries are preserved across updates</div>
           </div>
           <div class="actions">
@@ -639,7 +639,7 @@
 
     <section class="section">
       <div class="section-head">
-        <span class="section-title" id="chg-title">Release Notes (v1.1.0)</span>
+        <span class="section-title" id="chg-title">Release Notes (v1.2.0)</span>
         <span class="section-note" id="chg-date">Latest changes</span>
       </div>
       <div class="box">
@@ -717,11 +717,11 @@
 
     // Controls
     const PROFILE_DESCS = {
-      zero_loss: 'Mode 1 (Default · Lossless): Lossless output compressors, duplicate-read & loop guards, cache-safe prefixes, Archive-Only handoffs (-0.7% measured avg across 79 sessions).',
-      compact_reads: 'Mode 2a (Opt-in): Mode 1 + tighter unbounded read caps (120L/80L) and oversized screenshot downscaling, no auto-handoff (-0.9% measured avg).',
+      zero_loss: 'Mode 1 (Default · Lossless): Lossless output compressors, duplicate-read & loop guards, cache-safe prefixes, Archive-Only handoffs (-0.7% avg / p90 -1.7% measured across 79 sessions).',
+      compact_reads: 'Mode 2a (Opt-in): Mode 1 + tighter unbounded read caps (120L/80L) and oversized screenshot downscaling, no auto-handoff (-0.9% avg / p90 -2.2% measured).',
       concise_no_handoff: 'Mode 2b (Opt-in): Mode 2a + concise reply rules, no automatic chat resets (-7.0%..-11.5% estimated).',
-      handoff_only: 'Mode 2c (Opt-in): Mode 2a + automatic cold/live chat handoff, normal reply style (-20.2% measured avg).',
-      small_loss: 'Mode 2 (Max · Opt-in): Auto-Handoff + Compact Reads + Concise Output (-20.2% measured, -26.3%..-30.8% estimated with concise replies).'
+      handoff_only: 'Mode 2c (Opt-in): Mode 2a + automatic cold/live chat handoff, normal reply style (-20.1% avg / p90 -25.7% measured).',
+      small_loss: 'Mode 2 (Max · Opt-in): Auto-Handoff + Compact Reads + Concise Output (-20.1% measured, -26.2%..-30.7% estimated with concise replies).'
     };
     const prof = (cfg.profile && PROFILE_DESCS[cfg.profile]) ? cfg.profile : (cfg.mode === 'smart_auto' ? (cfg.concise_output ? 'small_loss' : 'handoff_only') : (cfg.concise_output ? 'concise_no_handoff' : (cfg.compact_reads ? 'compact_reads' : 'zero_loss')));
     document.getElementById('sel-profile').value = prof;
@@ -930,10 +930,10 @@
       ? `What's New in v${latV}`
       : `Release Notes (v${instV})`;
     document.getElementById('chg-date').textContent = u.published_at || 'v' + instV;
-    document.getElementById('upd-changelog').textContent = notes || 'Token Saver v1.1.0.';
+    document.getElementById('upd-changelog').textContent = notes || 'Token Saver v1.2.0.';
   }
 
-  const app = new App({ name: 'agy-tokensaver', version: '1.1.0' }, {});
+  const app = new App({ name: 'agy-tokensaver', version: '1.2.0' }, {});
   app.ontoolresult = (result) => {
     if (result && result.structuredContent) render(result.structuredContent);
   };
