@@ -5,6 +5,7 @@ All notable changes to **agy-tokensaver** (`menscho/agy-tokensaver`) are documen
 ## [Unreleased]
 
 ### Added
+- **CI release & provenance pipeline (`.github/workflows/release.yml`, `mcp_app/vendor/README.md`, `tests/run_all.sh`):** builds tagged releases entirely in CI with `SHA256SUMS.txt` and `actions/attest-build-provenance`, adds optional `gh attestation verify` in the installer/updater, pins `@modelcontextprotocol/ext-apps@2.0.4` SHA-256 in CI, fixes duplicate macOS arm64 runner contention on tag pushes, and runs all 11 test suites natively on Windows (mandatory Perl, zero silent skips).
 - **Spill-file hardening & purge CLI (`scripts/cmd_wrap.pl`, `scripts/ts_inspect.py`, `SECURITY.md`, `tests/test_spill_safety.sh`):** creates spill files with `0600` permissions (plus `0700` owner-only dir / Windows `icacls` ACL) and symlink refusal, writes byte-exact original raw bytes (including ANSI/CRLF) to spill files across all 22 compressor categories, adds configurable retention (`AGY_TS_SPILL_DAYS`, default `7` days), and adds `ts_inspect.py purge [--days N]`.
 - **Command semantics verification suite (`tests/test_cmd_semantics.sh`):** 63+ table-driven cases proving wrapped POSIX and PowerShell commands preserve exit codes, stdin, stderr ordering, side effects, quoting, and non-ASCII paths; documented `AGY_TS_SHELL=off` kill switch in `README.md`.
 - **Fail-open fuzz test suite (`tests/test_failopen.sh`):** tests all 10 hooks in `hooks.json` against 19 malformed, truncated, wrong-type, deep-nested, binary, random, and oversized inputs (`190` cases).

@@ -3,8 +3,12 @@ name: Tests
 on:
   push:
     branches: [main]
-    tags: ["v*"]
   pull_request:
+  workflow_call:
+
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   unix-suite:
@@ -16,12 +20,9 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
-      - name: Run regression test suites & reproducible benchmark
+      - name: Run all regression suites, vendor check & benchmark demo
         run: |
-          for t in tests/run_tests.sh tests/test_cmd_windows.sh tests/test_read.sh tests/test_rollover.sh tests/test_rules.sh tests/test_tools.sh tests/test_headroom_plexer.sh tests/test_json_parsing.sh tests/test_failopen.sh tests/test_cmd_semantics.sh tests/test_spill_safety.sh; do
-            echo "=== $t ==="
-            bash "$t"
-          done
+          bash tests/run_all.sh
           python3 scripts/benchmark.py --demo
       - name: Verify MCP server & installer
         run: |
@@ -47,8 +48,8 @@ jobs:
           print("MCP + installer OK")
           PYEOF
 
-  windows-smoke:
-    name: Native Windows Smoke
+  windows-suite:
+    name: Full Suite (windows-latest)
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
@@ -56,9 +57,26 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Test handoff_pack, MCP server, and Windows installer
+      - name: Require Perl on Windows (fail loudly if missing)
         shell: pwsh
         run: |
+          $gitPerl = "C:\Program Files\Git\usr\bin\perl.exe"
+          if (-not (Get-Command perl -ErrorAction SilentlyContinue) -and (Test-Path $gitPerl)) {
+            "C:\Program Files\Git\usr\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            $env:PATH = "C:\Program Files\Git\usr\bin;$env:PATH"
+          }
+          $perl = Get-Command perl -ErrorAction SilentlyContinue
+          if (-not $perl) { throw "Perl is required on Windows CI and was not found" }
+          & perl -MJSON::PP -e 'print "Windows Perl $^V ($^O) JSON::PP $JSON::PP::VERSION OK\n"'
+      - name: Run full test suites via Git Bash (matching Linux & macOS)
+        shell: bash
+        run: |
+          bash tests/run_all.sh
+          python scripts/benchmark.py --demo
+      - name: Native PowerShell hook, MCP server, and Windows installer checks
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
           python scripts/handoff_pack.py . | Out-Null
           python -c @"
           import json, os, pathlib, subprocess, sys, tempfile
@@ -76,21 +94,17 @@ jobs:
               assert p.returncode == 0, p.stdout + p.stderr
               cfg = json.loads((pathlib.Path(td)/'.gemini/config/plugins/token-saver/mcp_config.json').read_text())
               assert cfg['mcpServers']['token_saver_ui']['command'] == sys.executable
-          print('Windows smoke OK')
+          print('Windows MCP + installer OK')
           "@
-      - name: Test read_hook & cmd_hook on Windows C:\ paths (with Perl)
-        shell: pwsh
-        run: |
-          $perl = Get-Command perl -ErrorAction SilentlyContinue
-          if (-not $perl) { Write-Host "No perl on runner"; exit 0 }
-          $tmp = Join-Path $env:TEMP "agy-win-test"
+          $tmp = Join-Path $env:TEMP "agy-win-pwsh-test"
           New-Item -ItemType Directory -Force -Path $tmp | Out-Null
           $lock = Join-Path $tmp "package-lock.json"
           ('{"lockfileVersion":3}' + "`n") * 1000 | Set-Content -Path $lock -NoNewline
           $esc = $lock.Replace('\', '\\')
           $out = ('{"toolInput":{"Path":"' + $esc + '"},"cwd":"C:\\"}') | & perl scripts/read_hook.pl
           if ($out -notmatch '"decision":"deny"') { throw "read_hook failed on Windows path: $out" }
-          $cout = '{"toolInput":{"CommandLine":"pytest $env:X"}}' | & perl scripts/cmd_hook.pl
+          $cout = '{"toolInput":{"CommandLine":"pytest $env:X","Cwd":"C:\\work"}}' | & perl scripts/cmd_hook.pl
           if ($cout -notmatch '--cat test --pwsh-stdin') { throw "cmd_hook should wrap PowerShell pytest: $cout" }
-          python scripts/benchmark.py --demo
-          Write-Host "Windows Perl hook & PowerShell wrapper checks OK"
+          $gci = '{"toolInput":{"CommandLine":"Get-ChildItem -Recurse","Cwd":"C:\\work"}}' | & perl scripts/cmd_hook.pl
+          if ($gci -notmatch '--cat pwsh --pwsh-stdin') { throw "cmd_hook should wrap PowerShell Get-ChildItem: $gci" }
+          Write-Host "Native Windows PowerShell checks OK"
