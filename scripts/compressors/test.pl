@@ -5,7 +5,8 @@ our ($NATIVE_CAP, $LOSSY, $LOSSLESS_RM, $LOCKFILE_DIFF_RE, $EXTRA_SIG_RE, $cat);
 sub compress_test {
     my ($lines, $rc) = @_;
     my $pass_re = qr{(?:^\s*(?:PASSED|✓|✔|ok\s+\d+|test\s+\S+\s+\.\.\.\s+ok\b|---\s*PASS:|===\s*RUN\s+|Compiling\s+\S+|Downloading\s+\S+|Blocking waiting for file lock|PASS\s+\S+|collected\s+\d+\s+items|\.{10,}|[sSxX.]{4,}\s*(?:\[\s*\d+%\])?$|\S+\.py\s+[.sSxX]+\s*(?:\[\s*\d+%\])?$)|\s+PASSED(?:\s+\[\s*\d+%\])?$)};
-    if ($rc == 0) {
+    my $has_fail = grep { $_ =~ /(?:^\s*(?:FAIL(?:ED|URE)?|ERROR|PANIC)\b|\bfailures=[1-9]|\berrors=[1-9]|\b[1-9]\d*\s+failed\b|Traceback \(most recent call last\)|AssertionError:)/i } @$lines;
+    if ($rc == 0 && !$has_fail) {
         my @kept;
         for my $l (@$lines) {
             next if $l =~ $pass_re;

@@ -7,7 +7,6 @@ Every citation below maps directly to a shipped feature and file in this reposit
 - **Don't Break the Cache** ([arXiv:2601.06007](https://arxiv.org/abs/2601.06007)) — Informed deterministic 12-hex FNV-1a spill filenames (`scripts/lib/TsSpill.pl`), alphabetically sorted MCP `tools/list` (`mcp_app/server.py`), and cache-safe deferred `rules/AGENTS.md` writes (`mcp_app/rules_sync.py`).
 - **Keeping the Cache Warm** ([arXiv:2607.19214](https://arxiv.org/abs/2607.19214)) — Informed empirical idle TTL-cliff tracking (`90–150s`) and cold-cache rollover payback triggers (`mcp_app/rollover.py`, `mcp_app/snapshots.py`).
 - **Persistent Context Graphs for Efficient Memory Compaction in LLM Agents** ([arXiv:2609.40118](https://arxiv.org/abs/2609.40118)) — Informed the 30-minute cold-cache auto-handoff window (`<= 1800s`) for settled `>= 75k` chats (`mcp_app/rollover.py`, `mcp_app/snapshots.py`).
-- **Models Take Notes at Prefill** ([arXiv:2606.17107](https://arxiv.org/abs/2606.17107)) — Informed swarm coordinator `< 90s` pacing (`scripts/swarm_hook.pl`) and the 3× identical `read_board` poll-guard (`scripts/board_hook.pl`).
 
 ## Context Resets & Handoffs
 

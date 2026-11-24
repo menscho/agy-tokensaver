@@ -24,9 +24,9 @@ flowchart LR
 - **Perl Pre/Post/Stop Hooks (`scripts/*.pl`):**
   - `scripts/lib/TsJson.pm`: shared `JSON::PP` decoder with strict type checks and a 2 MB fail-open payload cap.
   - `scripts/cmd_hook.pl` → `scripts/cmd_hook_core.pl` + on-demand `scripts/lib/{cmd_pwsh,cmd_classify,cmd_classify_sys}.pl`.
-  - `scripts/cmd_wrap.pl` + `scripts/lib/TsSpill.pl` + on-demand `scripts/compressors/{common,json,test,build,git,log,ssh,pwsh}.pl`.
+  - `scripts/cmd_wrap.pl` + `scripts/lib/TsSpill.pl` + on-demand `scripts/compressors/{common,json,test,build,git,log,pwsh}.pl`.
   - `scripts/read_hook.pl` + on-demand `scripts/lib/{read_media,read_dedupe}.pl`.
-  - `scripts/{write_hook,find_hook,grep_hook,board_hook,swarm_hook,post_edit_hook,post_invocation_alerts,stop_telemetry}.pl`.
+  - `scripts/{write_hook,find_hook,grep_hook,post_edit_hook,post_invocation_alerts,stop_telemetry}.pl` + shared `scripts/lib/TsLoopGuard.pl`.
 - **MCP App HUD (`mcp_app/`):**
   - `server.py`: JSON-RPC stdio MCP server serving `dashboard.html` with vendored `@modelcontextprotocol/ext-apps@2.0.4`.
   - `config.py`, `rules_sync.py`, `rollover.py`, `transcript_io.py`, `telemetry.py`, `snapshots.py`, `updater.py`, and facade `core.py`.

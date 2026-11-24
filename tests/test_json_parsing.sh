@@ -38,8 +38,6 @@ check read_hook.pl "$(printf '{"toolInput":{"Path":"%s","Note":"\\"Path\\":\\"%s
   "read_hook: key inside string value ignored"
 check cmd_hook.pl '{"toolInput":{"CommandLine":"pytest -k \"\\\"IsDaemon\\\":true\""}}' "--cat test" \
   "cmd_hook: IsDaemon inside CommandLine string does not skip wrap"
-check swarm_hook.pl '{"toolInput":{"action":"status","brief":"notes with \"action\":\"add\""}}' "$ALLOW" \
-  "swarm_hook: action:add inside string value does not trigger overwrite"
 
 # 2. Key nested inside another object must NOT leak into toolInput
 check read_hook.pl "$(printf '{"meta":{"Path":"%s"},"toolInput":{"Path":"%s"}}' "$T/package-lock.json" "$T/safe.py")" "$ALLOW" \
@@ -52,8 +50,6 @@ check cmd_hook.pl '{"meta":{"IsDaemon":true},"toolInput":{"CommandLine":"pytest 
 # 3. Escaped quotes and backslashes
 check cmd_hook.pl '{"toolInput":{"CommandLine":"pytest -k \"foo \\\"bar\\\"\""}}' "--cat test" \
   "cmd_hook: escaped quotes in CommandLine"
-check swarm_hook.pl '{"toolInput":{"action":"add","brief":"fix \"quoted\" \\\\ path"}}' '"overwrite":\{"brief":' \
-  "swarm_hook: escaped quotes and backslashes preserved"
 
 # 4. \uXXXX escapes and UTF-16 surrogate pairs
 check cmd_hook.pl '{"toolInput":{"CommandLine":"\u0070\u0079\u0074\u0065\u0073\u0074 -x"}}' "--cat test" \
@@ -62,8 +58,8 @@ check read_hook.pl "$(printf '{"toolInput":{"Path":"%s/caf\\u00e9.py"}}' "$T")" 
   "read_hook: \\u00e9 decoded to UTF-8 path"
 check find_hook.pl "$(printf '{"toolInput":{"SearchDirectory":"%s/caf\\u00e9_dir"}}' "$T")" '"Excludes":\["node_modules"\]' \
   "find_hook: \\u00e9 directory path decoded and matched"
-check swarm_hook.pl '{"toolInput":{"action":"add","brief":"ship \uD83D\uDE00 feature"}}' 'ship 😀 feature' \
-  "swarm_hook: UTF-16 surrogate pair decoded to valid UTF-8 emoji"
+check read_hook.pl "$(printf '{"toolInput":{"Path":"%s/\\uD83D\\uDE00-package-lock.json"}}' "$T")" '"EndLine":100' \
+  "read_hook: UTF-16 surrogate pair decoded to valid UTF-8 emoji"
 
 # 5. Duplicate keys (last-key-wins, matching JS JSON.parse / Python json.loads)
 check read_hook.pl "$(printf '{"toolInput":{"Path":"%s","Path":"%s"}}' "$T/safe.py" "$T/package-lock.json")" "$DENY" \
@@ -90,7 +86,7 @@ for bad_in in '{not json' '[]' '"just a string"' '42' 'null' '{"toolInput":['; d
 done
 
 # 8. Empty stdin -> fail open
-for h in read_hook.pl cmd_hook.pl write_hook.pl find_hook.pl grep_hook.pl board_hook.pl swarm_hook.pl; do
+for h in read_hook.pl cmd_hook.pl write_hook.pl find_hook.pl grep_hook.pl; do
   check "$h" "" "$ALLOW" "$h: empty stdin allows"
 done
 for h in post_edit_hook.pl post_invocation_alerts.pl stop_telemetry.pl; do
@@ -106,7 +102,7 @@ with open(sys.argv[1], "wb") as f:
     f.write(b'"}}')
 PYEOF
 
-for h in read_hook.pl cmd_hook.pl write_hook.pl find_hook.pl grep_hook.pl board_hook.pl swarm_hook.pl; do
+for h in read_hook.pl cmd_hook.pl write_hook.pl find_hook.pl grep_hook.pl; do
   t0=$(python3 -c 'import time; print(int(time.time()*1000))')
   out=$(perl "$S/$h" < "$T/big10m.json" 2>"$T/err.txt"); rc=$?
   t1=$(python3 -c 'import time; print(int(time.time()*1000))')
