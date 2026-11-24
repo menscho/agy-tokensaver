@@ -34,7 +34,13 @@ All notable changes to **agy-tokensaver** (`menscho/agy-tokensaver`) are documen
   - **Layer A Deterministic Handoff Artifacts (`scripts/handoff_pack.py`):** appends `L<start>-L<end>` symbol outlines of the top 4 edited files (`Factory.ai` + `Aider`) and last verification command so fresh chats jump straight to exact line ranges.
   - **`ids_preserved` & SQLite FTS5 BM25 Spill Search (`scripts/cmd_wrap.pl`, `scripts/ts_inspect.py`):** preserves omitted UUIDs/`ERR_*`/URLs in spill footers (`squeez`) and adds `ts_inspect.py query <file> <terms...>` (`mksglu/context-mode`).
   - **Universal `doom_loop` Guards & Dead-MCP / Transcript Auditor (`scripts/grep_hook.pl`, `scripts/find_hook.pl`, `scripts/audit.py`):** 3× identical call loop breaking across `cmd`/`grep`/`find` (`OpenCode` / `IAL-Scan` `arXiv:2607.01641`) + 0-call MCP schema warnings, dynamic-date cache-buster rule checks, and `audit.py --discover` (`rtk discover`).
-- **321 assertions across 7 test suites** (`run_tests.sh`, `test_cmd_windows.sh`, `test_read.sh`, `test_rollover.sh`, `test_rules.sh`, `test_tools.sh`, `test_headroom_plexer.sh`) verified in 3-OS CI.
+- **Iteration-2 Research Upgrades & 79-Session Benchmark (`-25.9%..-30.4%` auto / up to `-45.2%` UB; `-19.8%` exact live handoff):**
+  - **`read_board` Poll-Guard (`scripts/board_hook.pl`, `hooks.json`):** blocks 3× identical `read_board(since=...)` loops with 1-retry escape hatch to prevent swarm board bloat & coordinator KV-cache drops (`arXiv:2606.17107`).
+  - **SPDX License Skip, `@generated` Gate & Tighter Doc/Changelog Caps (`scripts/read_hook.pl`):** advances `StartLine` past 12–55L leading SPDX/Copyright comment banners (`0%` loss), blocks unbounded `>24KB` `@generated`/`DO NOT EDIT` files, and caps `CHANGELOG.md` to `80L` & docs `>8KB` to `120L` in Mode 2.
+  - **Zero-Retry `6×` Full-Overwrite Nudge (`scripts/write_hook.pl`, `scripts/post_invocation_alerts.pl`):** flags `>120L` full-file `write_file` overwrites (`>=75%` unchanged) via 0-LLM-token UI alert (`AdaEdit` `arXiv:2604.27296`).
+  - **Cross-Session Verified Repo Micro-Skills (`scripts/handoff_pack.py`):** promotes verified test/build/lint commands (`>=2` runs) into `## Verified Repo Commands` (`TokenEconomizer` `arXiv:2610.22732`).
+  - **30m Cold-Cache Auto-Handoff Window (`mcp_app/core.py`):** expands cold-cache rollover coverage to `1800s` (`ReCAP` `arXiv:2609.40118` + `arXiv:2607.19214`).
+- **326 assertions across 7 test suites** (`run_tests.sh`, `test_cmd_windows.sh`, `test_read.sh`, `test_rollover.sh`, `test_rules.sh`, `test_tools.sh`, `test_headroom_plexer.sh`) verified in 3-OS CI.
 
 ## [1.0.0] — Initial Open-Source Release
 

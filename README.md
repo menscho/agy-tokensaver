@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://github.com/menscho/agy-tokensaver/releases"><img src="https://img.shields.io/badge/release-v1.0.0-4ade80?style=flat-square&labelColor=0d0d11" alt="Release v1.0.0"/></a>
-  <a href="https://github.com/menscho/agy-tokensaver/actions/workflows/test.yml"><img src="https://img.shields.io/badge/tests-321%20passing-4ade80?style=flat-square&labelColor=0d0d11" alt="321 Tests Passing"/></a>
+  <a href="https://github.com/menscho/agy-tokensaver/actions/workflows/test.yml"><img src="https://img.shields.io/badge/tests-326%20passing-4ade80?style=flat-square&labelColor=0d0d11" alt="326 Tests Passing"/></a>
   <a href="https://github.com/menscho/agy-tokensaver/actions/workflows/test.yml"><img src="https://img.shields.io/badge/CI-Ubuntu%20%7C%20macOS%20%7C%20Windows-8e8e98?style=flat-square&labelColor=0d0d11" alt="3-OS CI"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-8e8e98?style=flat-square&labelColor=0d0d11" alt="MIT License"/></a>
 </p>
@@ -33,23 +33,23 @@ irm https://raw.githubusercontent.com/menscho/agy-tokensaver/main/install.ps1 | 
 
 ## Where Your Antigravity Quota Actually Goes
 
-Across **76 real Antigravity sessions (3,886 turns, 108.3M weighted quota units)** measured with `scripts/benchmark.py --modes`, quota breaks down into three almost-equal buckets:
+Across **79 real Antigravity sessions (3,933 turns, 110.3M weighted quota units)** measured with `scripts/benchmark.py --modes`, quota breaks down into three almost-equal buckets:
 
-- **38.1% — Uncached Input (`1×` weight):** over **half (`20.5M` tokens = `19.8%` of total quota)** came from **115 prompt-cache drops** (`14.5M` from idle pauses past Gemini's `90–150s` TTL cliff, `6.0M` from long `>90s` tool/swarm waits).
-- **31.3% — Cache Reads (`0.05×` weight):** replaying a growing 150k–500k context window across dozens of turns ($O(T^2)$ growth).
-- **30.7% — Model Output (`6×` weight):** every generated token costs 6× an uncached input token and 120× a cached token (with `write_file` full rewrites alone consuming ~5.8M quota units).
+- **38.4% — Uncached Input (`1×` weight):** over **half (`20.5M` tokens = `19.8%` of total quota)** came from **115 prompt-cache drops** (`14.5M` from idle pauses past Gemini's `90–150s` TTL cliff, `6.0M` from long `>90s` tool/swarm waits).
+- **31.2% — Cache Reads (`0.05×` weight):** replaying a growing 150k–500k context window across dozens of turns ($O(T^2)$ growth).
+- **30.4% — Model Output (`6×` weight):** every generated token costs 6× an uncached input token and 120× a cached token (with `240` full-file `write_file Overwrite=True` calls alone consuming ~5.6M quota units).
 
-**Why this matters:** pure tool-output hooks only touch *new tool results* (~4–5% of total quota on clean chats, though **-83.3%** on noisy logs/tests/JSON). To cut **25–45% of real total quota out of the box**, `agy-tokensaver` ships with **Max Settings (`Mode 2 Max`) ON by default** and lets you pick **any of the 5 benchmark modes directly in ONE HUD dropdown**:
+**Why this matters:** pure tool-output hooks only touch *new tool results* (~4–5% of total quota on clean chats, though **-83.3%** on noisy logs/tests/JSON). To cut **26–45% of real total quota out of the box**, `agy-tokensaver` ships with **Max Settings (`Mode 2 Max`) ON by default** and lets you pick **any of the 5 benchmark modes directly in ONE HUD dropdown**:
 
-- **Mode 2 (`Max · Default`):** Cold/Live Anchored Auto-Handoff + Compact Reads + Screenshot Downscale + Concise Output + All Lossless Hooks (`-25.3%..-29.9%` automatic, up to `-44.8%` with phase resets, `~0.1–1.0%` risk).
-- **Mode 2c (`Auto-Handoff + Compact`):** Auto-Handoff + Compact Reads with normal verbose replies (`-19.2%` exact causal live).
-- **Mode 2b (`Compact + Concise, No Auto-Handoff`):** `Archive Only` (**0% memory resets**) + Compact Reads + Concise Output (`-7.0%..-11.6%` quota saved).
-- **Mode 2a (`Compact Reads Only, No Auto-Handoff`):** `Archive Only` + tighter read caps + Screenshot Downscale (`-0.9%` overall / `-83.3%` noisy demo).
+- **Mode 2 (`Max · Default`):** Cold/Live Anchored Auto-Handoff + Compact Reads + Screenshot Downscale + Concise Output + All Lossless Hooks (`-25.9%..-30.4%` automatic, up to `-45.2%` with phase resets, `~0.1–1.0%` risk).
+- **Mode 2c (`Auto-Handoff + Compact`):** Auto-Handoff + Compact Reads with normal verbose replies (`-19.8%` exact causal live).
+- **Mode 2b (`Compact + Concise, No Auto-Handoff`):** `Archive Only` (**0% memory resets**) + Compact Reads + Concise Output (`-6.9%..-11.4%` quota saved).
+- **Mode 2a (`Compact Reads Only, No Auto-Handoff`):** `Archive Only` + tighter read caps + Screenshot Downscale (`-0.8%` overall / `-83.3%` noisy demo).
 - **Mode 1 (`Zero Quality Loss`, Strict `0.0%`):** strictly lossless hooks, dedupe, cache-safe prefixes, and `Archive Only` (`0.0%` quality loss).
 
 ---
 
-## 2-Mode Real-Session Benchmark (76 Sessions / 3,886 Turns)
+## Real-Session Benchmark (79 Sessions / 3,933 Turns)
 
 Reproduce on your own Antigravity history:
 ```bash
@@ -60,27 +60,27 @@ python3 scripts/benchmark.py --replay   # full tier-by-tier breakdown
 | Mode *(all selectable 1-to-1 in HUD)* | Stated Quality Loss | Tool Tokens Cut | Avg Total Quota Saved |
 |---|---|---:|---:|
 | **Mode 1: Zero Quality Loss** *(Strict)* | **0.0%** *(exact replay)* | 224,666 tok | **-0.7%** *(noisy tasks: **-76.4%**)* |
-| **Mode 2a: Compact Reads only** *(No Auto-Handoff)* | **~0.1–0.5%** *(exact replay)* | 328,901 tok | **-0.9%** *(noisy tasks: **-83.3%**)* |
-| **Mode 2b: Compact + Concise Output\*** *(No Auto-Handoff)* | **~0.1%** prose *(modeled\*)* | 328,901 tok | **-7.0% to -11.6%** |
-| **Mode 2c: Cold/Live Auto-Handoff + Compact** | **~0.5–1.0%**\*\* *(exact causal replay)* | 328,901 tok | **-19.2%** |
-| **Mode 2 (DEFAULT / Max): Live + Compact + Concise\*** | **~0.1–1.0%**\*\* | 328,901 tok | **-25.3% to -29.9%** |
-| **Mode 2 (Upper Bound): Phase Resets + Concise\*** | **~0.1–1.0%**\*\* | 328,901 tok | **-40.2% to -44.8%** |
+| **Mode 2a: Compact Reads only** *(No Auto-Handoff)* | **~0.1–0.5%** *(exact replay)* | 327,721 tok | **-0.8%** *(noisy tasks: **-83.3%**)* |
+| **Mode 2b: Compact + Concise Output\*** *(No Auto-Handoff)* | **~0.1%** prose *(modeled\*)* | 327,721 tok | **-6.9% to -11.4%** |
+| **Mode 2c: Cold/Live Auto-Handoff + Compact** | **~0.5–1.0%**\*\* *(exact causal replay)* | 327,721 tok | **-19.8%** |
+| **Mode 2 (DEFAULT / Max): Live + Compact + Concise\*** | **~0.1–1.0%**\*\* | 327,721 tok | **-25.9% to -30.4%** |
+| **Mode 2 (Upper Bound): Phase Resets + Concise\*** | **~0.1–1.0%**\*\* | 327,721 tok | **-40.7% to -45.2%** |
 
-*\* **Concise Output** (*Sketch-of-Thought* `arXiv:2503.05179` + *TALE* `arXiv:2412.18547` + *Caveman-lite*) cannot be replayed on past transcripts without re-calling the LLM; rows 2b, DEFAULT, and Upper Bound apply a conservative `-20%` to `-35%` reduction to the measured `30.7%` (`6×`-weighted) output bucket (papers report `-65%` to `-76%`). Mode 1, 2a, and 2c are exact deterministic replays charging retries, follow-up reads, and the plugin's `434 tok/turn` always-loaded prompt overhead (383 tok/turn in Mode 1).*  
-*\*\* **Anchored Auto-Handoff** (*The Complexity Trap* `arXiv:2508.21433` + *Focus* `arXiv:2601.07190` + *CADOC* `arXiv:2609.37012` + Factory.ai Layer A symbol outlines): `0%` to `+1.4 pp` quality at phase switches; `~0.5–1.0%` risk if triggered mid-debug. **Live** fires between finished agent runs (both warm adaptive caps and expired cold-cache rollovers); **Upper Bound** shows the ceiling when also clicking `Archive & New Chat` at task/phase boundaries.*
+*\* **Concise Output** (*Sketch-of-Thought* `arXiv:2503.05179` + *TALE* `arXiv:2412.18547` + *Caveman-lite*) cannot be replayed on past transcripts without re-calling the LLM; rows 2b, DEFAULT, and Upper Bound apply a conservative `-20%` to `-35%` reduction to the measured `30.4%` (`6×`-weighted) output bucket (papers report `-65%` to `-76%`). Mode 1, 2a, and 2c are exact deterministic replays charging retries, follow-up reads, and the plugin's `434 tok/turn` always-loaded prompt overhead (383 tok/turn in Mode 1).*  
+*\*\* **Anchored Auto-Handoff** (*The Complexity Trap* `arXiv:2508.21433` + *Focus* `arXiv:2601.07190` + *ReCAP* `arXiv:2609.40118` + Factory.ai Layer A symbol outlines + `TokenEconomizer` verified repo micro-skills): `0%` to `+1.4 pp` quality at phase switches; `~0.5–1.0%` risk if triggered mid-debug. **Live** fires between finished agent runs (warm adaptive caps + expired 30m cold-cache rollovers); **Upper Bound** shows the ceiling when also clicking `Archive & New Chat` at task/phase boundaries.*
 
 <p align="center">
-  <img src="docs/assets/benchmark-chart.svg" alt="Real-Session Benchmark across 76 Antigravity sessions" width="100%"/>
+  <img src="docs/assets/benchmark-chart.svg" alt="Real-Session Benchmark across 79 Antigravity sessions" width="100%"/>
 </p>
 
 ### What Each Mode Enables (Pros, Cons & Exact Quality Risk)
 
 | Technique | Mode | Stated Quality Loss | What It Does & Trade-Offs |
 |---|---|---|---|
-| **Lossless Hooks, RTK Hygiene, Tail Logs & Dirty-Hunk Narrowing** | All Modes | **0.0%** | Blocks lockfiles/binaries/sourcemaps, crushes JSON arrays to lossless `[N]{cols}` CSV+schema, hoists grep/SSH paths, strips `git diff` index hashes & HTML `<script>`/`<style>`/`<svg>`, injects `NO_COLOR=1`/`CLICOLOR=0`/`GIT_PAGER=cat` (RTK), groups repeated compiler/linter errors (`tsc`/`cargo`/`eslint`/`ruff`), runs **Merlin** (`arXiv:2605.09990`) non-adjacent chunk dedupe, tail-anchors unbounded `.log`/`.err`/`.out`/spillback reads (`LogDx-CI` `arXiv:2605.28876`), narrows post-edit re-reads to `[min_dirty-15..max_dirty+15]` (`squeez`/`Cline`), preserves omitted `ERR_*`/UUIDs/URLs in spill footers (`ids_preserved`), provides SQLite FTS5 BM25 spill search (`ts_inspect.py query`, `context-mode`), wraps `ps -eo` / `export`+`mkdir`+`ls && find` chains / multi-cmd `ssh` dumps, blocks duplicate unchanged image & file reads, runs universal 3× `doom_loop` guards across `cmd`/`grep`/`find` (`IAL-Scan` `arXiv:2607.01641` + `TokenEconomizer` `arXiv:2610.22732`), audits dead 0-call MCPs & transcript leaks (`audit.py --discover`), and keeps prefixes strictly cache-safe (`arXiv:2601.06007`). |
-| **Compact Reads & Oversized Screenshot Downscaling** | Modes 2a / 2b / 2c / Max | **~0.1–0.5%** | Cuts **+46% more tool tokens** (`225k → 329k`) by capping unbounded reads (`120L` code / `140L` docs / `80L` data; bounded slices untouched) and auto-downscaling oversized `>1568px` PNG/JPEG screenshots to `<=1280px` cached JPEG (4–8× fewer vision tiles; 0.1ms pure-Perl header check, fail-open). *Con:* unbounded reads may occasionally need 1 extra targeted slice (already charged in Mode 2a). |
-| **Concise Output & Diff-First Discipline** | Modes 2b / Max | **~0.1% prose** | Cuts **`-6.1%` to `-10.7%` total quota even without Auto-Handoff** by stripping pleasantries, preambles, and pre/post-tool chatter from `6×`-weighted output (*SoT* + *TALE* + *Caveman-lite* + `arXiv:2608.01347` bounded-efficiency stop rule) and reinforcing `edit_file` over full `write_file` rewrites (`arXiv:2604.27296`). Code, diffs, paths, errors, and root-cause debugging stay verbatim. *Con:* replies are terse. |
-| **Cold-Cache & Live Anchored Auto-Handoff** | Modes 2c / Max | **0% phase / ~0.5–1% mid-debug** | Biggest single win on long sessions (**`-19.2%` exact causal live**, up to **`-40.2%..-44.8%`** with phase resets), preventing both $O(T^2)$ cache replay and `100k–450k` cold rebuilds after idle pauses. Layer A deterministic handoff packets include recent ruled-out errors, last verification command, and `L<start>-L<end>` symbol outlines of edited files. *Con:* opens a fresh chat with a structured packet (details below). |
+| **Lossless Hooks, RTK Hygiene, Tail Logs, SPDX Skip & Poll Guards** | All Modes | **0.0%** | Blocks lockfiles/binaries/sourcemaps/`@generated` headers, skips leading 12–55L SPDX/Copyright comment banners (`StartLine` advance), crushes JSON arrays to lossless `[N]{cols}` CSV+schema, hoists grep/SSH paths, strips HTML `<script>`/`<style>`/`<svg>`, injects `NO_COLOR=1`/`CLICOLOR=0`/`GIT_PAGER=cat` (RTK), groups repeated compiler/linter errors (`tsc`/`cargo`/`eslint`/`ruff`), runs **Merlin** (`arXiv:2605.09990`) non-adjacent chunk dedupe, tail-anchors unbounded `.log`/`.err`/`.out`/spillback reads (`LogDx-CI` `arXiv:2605.28876`), narrows post-edit re-reads to `[min_dirty-15..max_dirty+15]` (`squeez`/`Cline`), preserves omitted `ERR_*`/UUIDs/URLs in spill footers (`ids_preserved`), provides SQLite FTS5 BM25 spill search (`ts_inspect.py query`, `context-mode`), wraps `ps -eo` / `export`+`mkdir`+`ls && find` chains / multi-cmd `ssh` dumps, blocks duplicate unchanged image & file reads, runs universal 3× `doom_loop` & `read_board` poll guards (`IAL-Scan` `arXiv:2607.01641` + `Models Take Notes` `arXiv:2606.17107`), emits 0-LLM-token nudges on huge `write_file` overwrites (`AdaEdit` `arXiv:2604.27296`), audits dead 0-call MCPs & transcript leaks (`audit.py --discover`), and keeps prefixes strictly cache-safe (`arXiv:2601.06007`). |
+| **Compact Reads & Oversized Screenshot Downscaling** | Modes 2a / 2b / 2c / Max | **~0.1–0.5%** | Cuts **+46% more tool tokens** (`225k → 328k`) by capping unbounded reads (`120L` code / `120L` docs / `80L` data & `CHANGELOG.md`; bounded slices untouched) and auto-downscaling oversized `>1568px` PNG/JPEG screenshots to `<=1280px` cached JPEG (4–8× fewer vision tiles; 0.1ms pure-Perl header check, fail-open). *Con:* unbounded reads may occasionally need 1 extra targeted slice (already charged in Mode 2a). |
+| **Concise Output & Diff-First Discipline** | Modes 2b / Max | **~0.1% prose** | Cuts **`-6.1%` to `-10.6%` total quota even without Auto-Handoff** by stripping pleasantries, preambles, and pre/post-tool chatter from `6×`-weighted output (*SoT* + *TALE* + *Caveman-lite* + `arXiv:2608.01347` bounded-efficiency stop rule) and reinforcing `edit_file` over full `write_file` rewrites (`arXiv:2604.27296`). Code, diffs, paths, errors, and root-cause debugging stay verbatim. *Con:* replies are terse. |
+| **Cold-Cache & Live Anchored Auto-Handoff** | Modes 2c / Max | **0% phase / ~0.5–1% mid-debug** | Biggest single win on long sessions (**`-19.8%` exact causal live**, up to **`-40.7%..-45.2%`** with phase resets), preventing both $O(T^2)$ cache replay and `100k–450k` cold rebuilds after idle pauses (up to 30m). Layer A deterministic handoff packets include recent ruled-out errors, last verification command, cross-session verified repo micro-skills (`TokenEconomizer` `arXiv:2610.22732`), and `L<start>-L<end>` symbol outlines of edited files. *Con:* opens a fresh chat with a structured packet (details below). |
 
 ---
 
@@ -146,7 +146,7 @@ Every technique in `agy-tokensaver` is grounded in 2024–2026 coding-agent effi
   - **Merlin** (`arXiv:2605.09990`): byte-exact non-adjacent chunk deduplication (`cmd_wrap.pl` `merlin_dedupe_chunks`, 24–80% reduction on repeated log/SSH diagnostics with 0% info loss).
   - **TokenEconomizer** (`arXiv:2610.22732`): failure-loop breaker stopping 3× identical failing `test`/`build`/`lint` runs with no intervening edits (18–31% cost cut + Pass@1 gain).
   - **SkillReducer** (`arXiv:2603.29919`) & **Same Task, Different Work** (`arXiv:2608.01347`): tightened always-loaded prompt/skill descriptions from `906 → 383 tok/turn` (-58%) plus bounded-scope stop rules.
-  - **Don't Break the Cache** (`arXiv:2601.06007`), **CAPC** (`arXiv:2607.15516`), **Keeping the Cache Warm** (`arXiv:2607.19214`), & **CADOC** (`arXiv:2609.37012`): strictly append-only prefixes, deterministic content-addressed spillback filenames (zero timestamp/PID entropy), alphabetically sorted MCP tool schemas, cache-safe deferred `rules/AGENTS.md` sync (never mutating rules while a warm `>30k` cache is active), swarm worker `<90s` pacing, cold-cache auto-handoff (instant Turn-1 payback when resuming expired `>=75k` chats), and live HUD cache-drop forensics (idle gaps vs tool/swarm waits).
+  - **Don't Break the Cache** (`arXiv:2601.06007`), **CAPC** (`arXiv:2607.15516`), **Keeping the Cache Warm** (`arXiv:2607.19214`), **ReCAP** (`arXiv:2609.40118`), & **Models Take Notes at Prefill** (`arXiv:2606.17107`): strictly append-only prefixes, deterministic content-addressed spillback filenames (zero timestamp/PID entropy), alphabetically sorted MCP tool schemas, cache-safe deferred `rules/AGENTS.md` sync, swarm worker `<90s` pacing + `read_board` poll-guard (`board_hook.pl`), 30m cold-cache auto-handoff (instant Turn-1 payback on expired `>=75k` chats), and live HUD cache-drop forensics.
 - **Small-Loss Research (`~0.1%–1.0%` risk, opt-in Mode 2):**
   - **The Complexity Trap** (JetBrains, NeurIPS 2025, `arXiv:2508.21433`) & **Focus** (`arXiv:2601.07190`) & **Factory.ai Anchored Summarization**: threshold-based Anchored Handoff packets with ruled-out errors (23–50% cost cut, `0%` to `+1.4 pp` at phase boundaries).
   - **Sketch-of-Thought** (`arXiv:2503.05179`), **TALE-EP** (`arXiv:2412.18547`), & **[Caveman](https://github.com/JuliusBrussee/caveman):** Concise Output rule cutting `6×`-weighted prose chatter while keeping code, diffs, paths, and root-cause debugging verbatim.
@@ -171,7 +171,7 @@ for t in tests/run_tests.sh tests/test_*.sh; do bash "$t"; done
 python3 scripts/benchmark.py --demo --modes
 ```
 
-Verified in [`.github/workflows/test.yml`](.github/workflows/test.yml) across **Ubuntu, macOS, and Native Windows** (`321` assertions across 7 test suites + MCP/installer/PowerShell/demo checks).
+Verified in [`.github/workflows/test.yml`](.github/workflows/test.yml) across **Ubuntu, macOS, and Native Windows** (`326` assertions across 7 test suites + MCP/installer/PowerShell/demo checks).
 
 ## License
 

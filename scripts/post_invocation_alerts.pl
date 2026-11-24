@@ -169,6 +169,17 @@ if (defined $prev && $prev->{cr} >= 8000 && $cur->{cr} < $prev->{cr} * 0.75 && $
     }
 }
 
+# 3. Surface zero-LLM-token nudge if write_hook.pl observed a huge full-file overwrite (6x output sink)
+my $hw_file = "$state_dir/$safe_cid.huge_write";
+if (-f $hw_file && open(my $hwfh, '<', $hw_file)) {
+    my $hw = <$hwfh>;
+    close $hwfh;
+    unlink($hw_file);
+    if (defined $hw && $hw =~ /^([^\t]+)\t(\d+)\t(\d+)/) {
+        push @notes, "**Token Saver:** Full-file `write_file` on `$1` re-emitted **$2/$3 unchanged lines** (6x output cost) — prefer `edit_file` for surgical hunks (`arXiv:2604.27296`).";
+    }
+}
+
 # Persist state only if changed
 if ($new_tier != $last_tier || $new_drop_ts ne $last_drop_ts) {
     eval {

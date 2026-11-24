@@ -83,6 +83,20 @@
       }
     ]
   },
+  "token-saver-board": {
+    "PreToolUse": [
+      {
+        "matcher": "read_board",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "perl ./scripts/board_hook.pl",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  },
   "token-saver-post-edit": {
     "PostToolUse": [
       {

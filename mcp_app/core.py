@@ -782,13 +782,13 @@ def _simulate_rollover_session(
         conv.push(int(ti), int(tc), out)
         pol = rollover_policy(conv.features(), pcfg, cold_start, rediscovery_tax)
         is_settled_now = (settled is None) or (idx < len(settled) and settled[idx])
-        # Causal Cold-Cache Auto-Handoff (CADOC arXiv:2609.37012): if a settled >=75k chat sits
-        # idle past ttl_cliff (<=600s), its KV cache already expired before the next user turn.
+        # Causal Cold-Cache Auto-Handoff (ReCAP arXiv:2609.40118 + arXiv:2607.19214): if a settled >=75k chat sits
+        # idle past ttl_cliff (<=1800s / 30m), its KV cache already expired before the next user turn.
         g_after = gaps[idx] if (gaps is not None and idx < len(gaps)) else None
         cold_roll = bool(
             is_settled_now
             and g_after is not None
-            and ttl_cliff <= g_after <= 600
+            and ttl_cliff <= g_after <= 1800
             and conv.ctx >= 75_000
             and conv.turns >= 6
         )
@@ -1681,7 +1681,7 @@ def apply_update() -> dict[str, Any]:
 
 
 def run_smart_rollover_tick() -> None:
-    """Single anti-spam adaptive + cold-cache rollover evaluation tick (CADOC arXiv:2609.37012)."""
+    """Single anti-spam adaptive + cold-cache rollover evaluation tick (ReCAP arXiv:2609.40118)."""
     global _last_auto_event
     # Apply any deferred rules/AGENTS.md sync as soon as no warm large cache is active
     flush_pending_concise_sync(force=False)
@@ -1706,14 +1706,14 @@ def run_smart_rollover_tick() -> None:
     if not act.get("last_settled"):
         return
 
-    # Cold-cache trigger (arXiv:2609.37012 / arXiv:2607.19214): once a >=75k chat's KV cache has
-    # ALREADY expired (idle >= ttl_cliff), resuming it pays cur_tot uncached vs 17k fresh handoff
+    # Cold-cache trigger (ReCAP arXiv:2609.40118 / arXiv:2607.19214): once a >=75k chat's KV cache has
+    # ALREADY expired (idle >= ttl_cliff, up to 30m), resuming it pays cur_tot uncached vs 17k fresh handoff
     # (instant Turn-1 payback, zero warm cache wasted).
     is_cold_payback = bool(
         act.get("is_cold")
         and act.get("cur_tot", 0) >= 75_000
         and act.get("turns", 0) >= 6
-        and act.get("idle_sec", 0) <= 600
+        and act.get("idle_sec", 0) <= 1800
     )
 
     if not is_cold_payback:

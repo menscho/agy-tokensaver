@@ -216,6 +216,35 @@ def changed_files(ws: Path) -> list[str]:
     return out
 
 
+def _update_microskills(ws: Path, last_verify: str) -> list[str]:
+    """TokenEconomizer (arXiv:2610.22732) cross-session per-repo verified command memory (max 3 cmds)."""
+    dd = Path(os.environ.get("PLUGIN_DATA") or (Path.home() / ".gemini" / "antigravity" / "plugin_data" / "token-saver"))
+    mf = dd / "microskills.json"
+    key = str(ws)
+    data: dict[str, dict[str, int]] = {}
+    try:
+        if mf.is_file():
+            raw = json.loads(mf.read_text(encoding="utf-8"))
+            if isinstance(raw, dict):
+                data = raw
+    except Exception:
+        data = {}
+    repo_cmds = dict(data.get(key) or {})
+    if last_verify and len(last_verify) <= 100 and not any(c in last_verify for c in ("\n", "\r", "`")):
+        repo_cmds[last_verify] = int(repo_cmds.get(last_verify, 0)) + 1
+        # Keep top 6 commands per repo
+        top6 = dict(sorted(repo_cmds.items(), key=lambda kv: -kv[1])[:6])
+        data[key] = top6
+        try:
+            dd.mkdir(parents=True, exist_ok=True)
+            mf.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        except OSError:
+            pass
+        repo_cmds = top6
+    # Promote only commands confirmed >=2 times (prevents one-off noise)
+    return [cmd for cmd, cnt in sorted(repo_cmds.items(), key=lambda kv: -kv[1]) if cnt >= 2][:3]
+
+
 def _edited_symbols(edited: list[str], ws: Path, budget: int = 1200) -> list[str]:
     """Layer A deterministic artifact map (Factory.ai + Aider): compact L<start>-L<end> outlines for top edited files."""
     insp = Path(__file__).resolve().parent / "ts_inspect.py"
@@ -266,6 +295,10 @@ def build_packet(ws: Path, conv_id: str = "") -> str:
         lines.append("Recent commits: " + "; ".join(c[:72] for c in commits.splitlines()[:5]))
     if last_verify:
         lines.append(f"Last verification: `{last_verify}`")
+    micros = _update_microskills(ws, last_verify)
+    if micros:
+        lines.append("\n## Verified Repo Commands")
+        lines.extend(f"- `{m}`" for m in micros)
     if errors:
         lines.append("\n## Recent errors / ruled-out")
         lines.extend(f"- {e}" for e in errors)

@@ -80,7 +80,7 @@ close $fh;
 
 my @old_lines = split(/\n/, $old_content);
 my $old_cnt = scalar(@old_lines);
-if ($old_cnt <= 150) { print '{"decision":"allow"}'; exit 0; }
+if ($old_cnt <= 120) { print '{"decision":"allow"}'; exit 0; }
 
 my $new_content = json_get_str($raw, 'Content') // json_get_str($raw, 'CodeContent');
 if (!defined $new_content) { print '{"decision":"allow"}'; exit 0; }
@@ -118,8 +118,9 @@ if ($new_cnt <= $old_cnt * 0.60 &&
     exit 0;
 }
 
-# Case 2: Extreme full-file overwrite (>350L existing AND >=85% lines unchanged)
-if ($old_cnt > 350 && $new_cnt > 250) {
+# Case 2: Large full-file overwrite (>120L existing AND >=75% lines unchanged) ->
+# Allow (tokens already generated) but log + queue a 0-LLM-token UI nudge for post_invocation_alerts.pl.
+if ($old_cnt > 120 && $new_cnt > 100) {
     my %old_freq;
     for my $l (@old_lines) { $old_freq{$l}++; }
     my $matched = 0;
@@ -131,8 +132,23 @@ if ($old_cnt > 350 && $new_cnt > 250) {
     }
     my $denom = $old_cnt > $new_cnt ? $old_cnt : $new_cnt;
     my $overlap = $matched / ($denom || 1);
-    if ($overlap >= 0.85) {
+    if ($overlap >= 0.75) {
         log_write_event('observed', 'huge_overwrite', 0);
+        eval {
+            my $cid = json_get_str($raw, 'conversationId') // '';
+            if ($cid ne '') {
+                my $pr = $ENV{PLUGIN_ROOT} || do { my $s = $0; $s =~ s{/[^/]+/[^/]+$}{}; $s };
+                my $agy_pd = ($ENV{HOME} // '') . "/.gemini/antigravity/plugin_data";
+                my $dd = $ENV{PLUGIN_DATA} || (-d $agy_pd ? "$agy_pd/token-saver" : "$pr/.data");
+                my $adir = "$dd/alerts";
+                if (!-d $adir) { require File::Path; File::Path::make_path($adir); }
+                my $scid = $cid; $scid =~ s/[^A-Za-z0-9_-]/_/g;
+                if (open my $afh, '>', "$adir/$scid.huge_write") {
+                    print $afh "$base\t$matched\t$old_cnt\n";
+                    close $afh;
+                }
+            }
+        };
     }
 }
 
