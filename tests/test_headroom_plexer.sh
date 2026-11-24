@@ -289,7 +289,7 @@ o=$(perl "$S/read_hook.pl" <<< "$(printf '{"toolInput":{"Path":"%s"}}' "$T/app.l
 # 26. Post-edit dirty-hunk auto-narrowing (squeez/Cline)
 "$PY" -c 'for i in range(1, 321): print(f"def fn_{i}(x): return x + {i}  # padding comment line")' > "$T/dirty.py"
 o1=$(AGY_TS_COMPACT_READS=0 perl "$S/read_hook.pl" <<< "$(printf '{"toolInput":{"Path":"%s"},"conversationId":"dh1","stepIdx":1}' "$T/dirty.py")")
-"$PY" -c 'p=open("'"$T/dirty.py"'").read().splitlines(); p[219]="def fn_220(x): return x * 999  # edited"; open("'"$T/dirty.py"'","w").write("\n".join(p)+"\n")'
+"$PY" -c 'import sys; p=open(sys.argv[1]).read().splitlines(); p[219]="def fn_220(x): return x * 999  # edited"; open(sys.argv[1],"w").write("\n".join(p)+"\n")' "$T/dirty.py"
 o2=$(perl "$S/read_hook.pl" <<< "$(printf '{"toolInput":{"Path":"%s"},"conversationId":"dh1","stepIdx":3}' "$T/dirty.py")")
 [[ "$o1" == *'"decision":"allow"'* && "$o2" == *'"StartLine":205,"EndLine":235'* ]] && ok || bad "post-edit dirty-hunk narrowing" "o1=$o1 o2=$o2"
 

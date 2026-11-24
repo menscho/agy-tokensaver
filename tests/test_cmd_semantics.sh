@@ -26,6 +26,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 root = Path(sys.argv[1])
 tmp = Path(sys.argv[2])
 scripts = root / "scripts"
@@ -91,6 +96,8 @@ def run_hook(cmd: str, cwd: str, extra_env: dict | None = None) -> tuple[dict, s
     env["PLUGIN_ROOT"] = str(root)
     env["PATH"] = f"{bin_dir}{os.pathsep}{env.get('PATH', '')}"
     env["FOO"] = "bar_value"
+    env["PYTHONUTF8"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
     if extra_env:
         env.update(extra_env)
     payload = json.dumps({"toolInput": {"CommandLine": cmd, "Cwd": cwd}, "cwd": cwd}).encode("utf-8")
@@ -107,6 +114,8 @@ def exec_posix(cmd: str, cwd: Path, stdin_bytes: bytes = b"", extra_env: dict | 
     env["PLUGIN_ROOT"] = str(root)
     env["PATH"] = f"{bin_dir}{os.pathsep}{env.get('PATH', '')}"
     env["FOO"] = "bar_value"
+    env["PYTHONUTF8"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
     if extra_env:
         env.update(extra_env)
     return subprocess.run([bash_bin, "-c", cmd], input=stdin_bytes, capture_output=True, cwd=str(cwd), env=env, timeout=10)

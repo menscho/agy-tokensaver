@@ -1616,9 +1616,11 @@ if ($pwsh_src eq 'stdin' || $pwsh_src eq 'b64') {
         binmode(STDIN, ':raw');
         local $/;
         $script = <STDIN> // '';
-        $script =~ s/\r?\n\z//;      # the newline PowerShell appends when piping a string
+        $script =~ s/\A\xef\xbb\xbf//; # strip UTF-8 BOM PowerShell 5.1 may prepend when piping strings
+        $script =~ s/\r?\n\z//;        # the newline PowerShell appends when piping a string
     } else {
         $script = b64_decode($pwsh_b64);
+        $script =~ s/\A\xef\xbb\xbf//;
     }
     exit 0 if $script !~ /\S/;
     # The script travels in an env var (no command-line quoting/path-conversion can touch it) and
