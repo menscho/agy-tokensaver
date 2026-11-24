@@ -385,6 +385,51 @@ class TestMcpAppModules(unittest.TestCase):
         self.assertIsInstance(warns, list)
         self.assertEqual(stats.fmt_num(1500), "1,500")
 
+    def test_eval_live_driver_and_summarize(self) -> None:
+        sys.path.insert(0, str(ROOT / "eval"))
+        import runner as eval_runner
+
+        task = eval_runner.load_tasks()[0]
+        # Manual live task WITHOUT applying reference fix must report passed=False
+        with mock.patch("builtins.input", return_value=""), \
+             mock.patch.object(eval_runner, "_collect_live_session_metrics", return_value=(1200, 1500.0, 0, "sid-1")):
+            rec = eval_runner.run_live_task(task, "off", 1, "manual")
+        self.assertIsNotNone(rec)
+        assert rec is not None
+        self.assertFalse(rec["passed"])
+        self.assertEqual(rec["total_tokens"], 1200)
+
+        # Headless agy live task where mock agent solves task in cwd reports passed=True
+        orig_run = eval_runner.subprocess.run
+
+        def _fake_agy(cmd_parts: object, cwd: str = "", **kwargs: object) -> object:
+            if isinstance(cmd_parts, list) and cmd_parts and cmd_parts[0] == "agy":
+                eval_runner.apply_reference(task, Path(cwd))
+                return mock.Mock(returncode=0)
+            return orig_run(cmd_parts, cwd=cwd, **kwargs)  # type: ignore[arg-type]
+
+        with mock.patch.object(eval_runner.subprocess, "run", side_effect=_fake_agy), \
+             mock.patch.object(eval_runner, "_collect_live_session_metrics", return_value=(800, 1000.0, 1, "sid-2")):
+            rec_ok = eval_runner.run_live_task(task, "mode1", 1, "agy", agy_cmd="agy {workspace} {prompt}")
+        self.assertIsNotNone(rec_ok)
+        assert rec_ok is not None
+        self.assertTrue(rec_ok["passed"])
+
+        # Summarize flags >2pp drop cleanly with Wilson CI
+        out_buf = io.StringIO()
+        sample = {
+            "driver": "agy", "n_tasks": 10, "runs": 1,
+            "records": (
+                [{"mode": "off", "run": 1, "passed": True, "total_tokens": 100, "cost_proxy": 120.0, "retries": 0} for _ in range(10)]
+                + [{"mode": "mode1", "run": 1, "passed": (i < 9), "total_tokens": 80, "cost_proxy": 90.0, "retries": 0} for i in range(10)]
+            ),
+        }
+        with mock.patch("sys.stdout", out_buf):
+            eval_runner.summarize(sample)
+        summary_txt = out_buf.getvalue()
+        self.assertIn("Pass Rate", summary_txt)
+        self.assertIn("LOSS >2pp", summary_txt)
+
 
 if __name__ == "__main__":
     unittest.main()

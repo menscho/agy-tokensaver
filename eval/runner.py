@@ -24,12 +24,14 @@ import argparse
 import json
 import math
 import os
+import shlex
 import shutil
 import subprocess
 import sys
 import tempfile
 import time
 from pathlib import Path
+from typing import Any
 
 EVAL_DIR = Path(__file__).resolve().parent
 ROOT = EVAL_DIR.parent
@@ -45,6 +47,14 @@ MODE_ENV = {
     "mode2b": {"AGY_TS_SHELL": "posix", "AGY_TS_COMPACT_READS": "1"},
     "mode2c": {"AGY_TS_SHELL": "posix", "AGY_TS_COMPACT_READS": "1"},
     "max": {"AGY_TS_SHELL": "posix", "AGY_TS_COMPACT_READS": "1"},
+}
+MODE_PROFILE = {
+    "off": {"mode": "off"},
+    "mode1": {"profile": "zero_loss"},
+    "mode2a": {"profile": "compact_reads"},
+    "mode2b": {"profile": "concise_no_handoff"},
+    "mode2c": {"profile": "handoff_only"},
+    "max": {"profile": "small_loss"},
 }
 
 
@@ -229,6 +239,106 @@ def wilson_ci(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
     return (round(max(0.0, center - half) * 100.0, 1), round(min(1.0, center + half) * 100.0, 1))
 
 
+def _collect_live_session_metrics(t_start: float, t_end: float) -> tuple[int, float, int, str]:
+    """Find the Antigravity session updated during [t_start, t_end] and extract tokens/cost/retries."""
+    sys.path.insert(0, str(SCRIPTS))
+    sys.path.insert(0, str(ROOT / "mcp_app"))
+    import replay_io  # type: ignore
+
+    best_path: Path | None = None
+    best_mtime = 0.0
+    best_app: Path | None = None
+    best_sid = ""
+    for app in replay_io.APP_DIRS:
+        brain = app / "brain"
+        if not brain.is_dir():
+            continue
+        for p in brain.glob("*/.system_generated/logs/transcript*.jsonl"):
+            try:
+                mt = p.stat().st_mtime
+            except OSError:
+                continue
+            if (t_start - 2.0) <= mt <= (t_end + 5.0) and mt >= best_mtime:
+                best_mtime = mt
+                best_path = p
+                best_app = app
+                best_sid = p.parent.parent.parent.name
+    if best_app is None or best_path is None:
+        return 0, 0.0, 0, ""
+    sess = replay_io.load_session(best_app, best_sid)
+    if not sess:
+        return 0, 0.0, 0, best_sid
+    turns = sess.get("turns") or []
+    tot_tok = sum(a + b + c for a, b, c in turns)
+    cost_proxy = round(sum(a * 1.0 + b * 0.05 + c * 6.0 for a, b, c in turns), 1)
+    retries = sum(1 for ev in (sess.get("events") or []) if "already" in ev.get("content", "").lower() or "denied" in ev.get("content", "").lower())
+    return tot_tok, cost_proxy, retries, best_sid
+
+
+def _set_hud_mode(mode: str) -> dict[str, Any] | None:
+    """Switch active plugin HUD config to `mode`, returning prior config for restoration."""
+    sys.path.insert(0, str(ROOT / "mcp_app"))
+    import config  # type: ignore
+
+    prior = config.CFG_FILE.read_text(encoding="utf-8") if config.CFG_FILE.is_file() else None
+    config.save_config(MODE_PROFILE[mode])
+    return {"prior_raw": prior, "cfg_file": config.CFG_FILE}
+
+
+def _restore_hud_mode(saved: dict[str, Any] | None) -> None:
+    if not saved:
+        return
+    cfg_file: Path = saved["cfg_file"]
+    prior_raw: str | None = saved["prior_raw"]
+    if prior_raw is None:
+        if cfg_file.is_file():
+            cfg_file.unlink()
+    else:
+        cfg_file.write_text(prior_raw, encoding="utf-8")
+
+
+def run_live_task(task: dict, mode: str, run_idx: int, driver: str, agy_cmd: str = "") -> dict | None:
+    """Stage a fresh temp repo, invoke live agent (`agy` or `manual`), and run `verify_cmd` WITHOUT applying reference_edit."""
+    with tempfile.TemporaryDirectory(prefix=f"agy-live-{mode}-") as td:
+        wd = Path(td) / "repo"
+        stage_fixture(task, wd)
+        env = {**os.environ, **MODE_ENV[mode], "PLUGIN_ROOT": str(ROOT)}
+        t_start_wall = time.time()
+        t0 = time.perf_counter()
+
+        if driver == "agy":
+            tmpl = agy_cmd or 'agy --cwd {workspace} {prompt}'
+            cmd_parts = [part.format(workspace=str(wd), prompt=task["prompt"]) for part in shlex.split(tmpl)]
+            subprocess.run(cmd_parts, cwd=str(wd), env=env, check=False, timeout=300)
+        else:
+            print(f"\n--- Live IDE Task [{mode} | run {run_idx}/{task['id']}] ---")
+            print(f"Workspace : {wd}")
+            print(f"Prompt    : {task['prompt']}")
+            ans = input("Press ENTER when Antigravity finishes ('s' to skip task, 'q' to abort): ").strip().lower()
+            if ans == "q":
+                raise KeyboardInterrupt("Aborted by user")
+            if ans == "s":
+                return None
+
+        wall_ms = round((time.perf_counter() - t0) * 1000.0, 2)
+        t_end_wall = time.time()
+        # Crucial: evaluate clean agent output WITHOUT applying reference patch
+        passed = run_verify(task, wd)
+        tot_tok, cost_proxy, retries, sid = _collect_live_session_metrics(t_start_wall, t_end_wall)
+        return {
+            "task_id": task["id"],
+            "category": task["category"],
+            "mode": mode,
+            "run": run_idx,
+            "passed": bool(passed),
+            "total_tokens": tot_tok,
+            "cost_proxy": cost_proxy,
+            "retries": retries,
+            "wall_ms": wall_ms,
+            "session_id": sid,
+        }
+
+
 def summarize(data: dict) -> int:
     records = data.get("records", [])
     by_mode: dict[str, list[dict]] = {}
@@ -246,11 +356,11 @@ def summarize(data: dict) -> int:
 
     off_recs = by_mode.get("off", [])
     off_rate = (sum(1 for r in off_recs if _hit(r)) / len(off_recs) * 100.0) if off_recs else 100.0
-    off_tok = sum(r["total_tokens"] for r in off_recs)
+    off_tok = sum(r.get("total_tokens", 0) for r in off_recs)
 
     print(f"=== Eval Summary (driver={data.get('driver')}, tasks={data.get('n_tasks')}, runs={data.get('runs')}) ===\n")
-    print(f"| {'Mode':8s} | {metric_hdr:10s} | {'95% CI':13s} | {'Min..Max':11s} | {'Tokens':>9s} | {'Tok Delta':>9s} | {'Retries':>7s} | {'Flag':12s} |")
-    print(f"| {'-'*8} | {'-'*10} | {'-'*13} | {'-'*11} | {'-'*9} | {'-'*9} | {'-'*7} | {'-'*12} |")
+    print(f"| {'Mode':8s} | {metric_hdr:10s} | {'95% CI':13s} | {'Min..Max':11s} | {'Tokens':>9s} | {'Tok Delta':>9s} | {'CostProxy':>9s} | {'Retries':>7s} | {'Flag':12s} |")
+    print(f"| {'-'*8} | {'-'*10} | {'-'*13} | {'-'*11} | {'-'*9} | {'-'*9} | {'-'*9} | {'-'*7} | {'-'*12} |")
     for m in MODES:
         recs = by_mode.get(m, [])
         if not recs:
@@ -264,11 +374,12 @@ def summarize(data: dict) -> int:
             runs_map.setdefault(int(r.get("run", 1)), []).append(_hit(r))
         run_prs = [sum(v) / len(v) * 100.0 for v in runs_map.values()]
         rmin, rmax = min(run_prs), max(run_prs)
-        toks = sum(r["total_tokens"] for r in recs)
+        toks = sum(r.get("total_tokens", 0) for r in recs)
         tdelta = ((toks / off_tok) - 1.0) * 100.0 if off_tok else 0.0
+        cproxy = sum(float(r.get("cost_proxy", 0.0)) for r in recs)
         rets = sum(r.get("retries", 0) for r in recs)
         flag = "LOSS >2pp" if (m != "off" and (off_rate - pr) > 2.0) else "OK"
-        print(f"| {m:8s} | {pr:8.1f}%  | {lo:5.1f}..{hi:5.1f}% | {rmin:4.0f}..{rmax:4.0f}%  | {toks:9,d} | {tdelta:+8.1f}% | {rets:7d} | {flag:12s} |")
+        print(f"| {m:8s} | {pr:8.1f}%  | {lo:5.1f}..{hi:5.1f}% | {rmin:4.0f}..{rmax:4.0f}%  | {toks:9,d} | {tdelta:+8.1f}% | {cproxy:9,.0f} | {rets:7d} | {flag:12s} |")
     return 0
 
 
@@ -277,8 +388,10 @@ def main() -> int:
     ap.add_argument("--verify-fixtures", action="store_true", help="Verify all 30 tasks fail before fix and pass after reference fix")
     ap.add_argument("--driver", choices=("hook-replay", "agy", "manual"), default="hook-replay")
     ap.add_argument("--modes", default=",".join(MODES), help="Comma-separated modes to run")
+    ap.add_argument("--tasks", default=None, help="Optional comma-separated task ID prefixes, e.g. T01,T02")
     ap.add_argument("--runs", type=int, default=3, help="Repetitions per (task, mode), default 3")
-    ap.add_argument("--out", default=str(EVAL_DIR / "results" / "hook_eval.json"))
+    ap.add_argument("--agy-cmd", default="", help="Override headless agy command template with {workspace} and {prompt}")
+    ap.add_argument("--out", default=None, help="Output JSON path (defaults to eval/results/hook_eval.json or live_eval.json)")
     ap.add_argument("--summarize", default=None, help="Summarize an existing results JSON file")
     a = ap.parse_args()
 
@@ -288,27 +401,41 @@ def main() -> int:
         return summarize(json.loads(Path(a.summarize).read_text(encoding="utf-8")))
 
     tasks = load_tasks()
+    if a.tasks:
+        prefixes = [p.strip() for p in a.tasks.split(",") if p.strip()]
+        tasks = [t for t in tasks if any(t["id"].startswith(p) for p in prefixes)]
     sel_modes = [m.strip() for m in a.modes.split(",") if m.strip() in MODES]
+    out_path = Path(a.out) if a.out else (EVAL_DIR / "results" / ("hook_eval.json" if a.driver == "hook-replay" else "live_eval.json"))
 
-    if a.driver == "agy":
-        if not shutil.which("agy"):
-            print("ERROR: `agy` CLI not found on PATH. Use `--driver manual` for IDE evaluation or `--driver hook-replay` for deterministic hook signal checks.", file=sys.stderr)
-            return 2
-        print("Running headless `agy` CLI evaluation...")
-        # Headless invocation hook for environments with `agy` installed
-        return 0
+    if a.driver == "agy" and not a.agy_cmd and not shutil.which("agy"):
+        print("ERROR: `agy` CLI not found on PATH. Use `--driver manual` for IDE evaluation or `--driver hook-replay` for signal-retention checks.", file=sys.stderr)
+        return 2
 
-    if a.driver == "manual":
-        print("Manual IDE evaluation protocol: see eval/README.md for recording interactive runs into eval/results/manual_results.json.")
-        return 0
+    records: list[dict] = []
+    if a.driver in ("agy", "manual"):
+        saved_cfg = None
+        try:
+            for mode in sel_modes:
+                if a.driver == "agy":
+                    saved_cfg = _set_hud_mode(mode)
+                else:
+                    input(f"\nSwitch Token Saver HUD to '{mode}' (or disable plugin for 'off'), then press ENTER to begin {mode}...")
+                for run_idx in range(1, a.runs + 1):
+                    for task in tasks:
+                        rec = run_live_task(task, mode, run_idx, a.driver, agy_cmd=a.agy_cmd)
+                        if rec is not None:
+                            records.append(rec)
+        except KeyboardInterrupt:
+            print("\nStopped early; saving completed records.")
+        finally:
+            if saved_cfg is not None:
+                _restore_hud_mode(saved_cfg)
+    else:
+        for mode in sel_modes:
+            for run_idx in range(1, a.runs + 1):
+                for task in tasks:
+                    records.append(run_hook_replay_task(task, mode, run_idx))
 
-    records = []
-    for mode in sel_modes:
-        for run_idx in range(1, a.runs + 1):
-            for task in tasks:
-                records.append(run_hook_replay_task(task, mode, run_idx))
-
-    out_path = Path(a.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "driver": a.driver,
