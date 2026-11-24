@@ -291,6 +291,47 @@ sub fold_repeated_blocks {
     return \@out;
 }
 
+# Merlin-inspired (arXiv:2605.09990) deterministic byte-exact non-adjacent chunk deduplication.
+# Replaces exact duplicate multi-line paragraphs (>=3 lines, >=160B) with a pointer to the first
+# occurrence (100% lossless; zero quality loss).
+sub merlin_dedupe_chunks {
+    my ($lines) = @_;
+    my $n = scalar(@$lines);
+    return $lines if $n < 12;
+    my (@out, %seen, @blk);
+    my $blk_start = 1;
+    my sub flush_blk {
+        return unless @blk;
+        my $bn = scalar(@blk);
+        if ($bn >= 3) {
+            my $txt = join("\n", @blk);
+            if (length($txt) >= 160) {
+                if (exists $seen{$txt}) {
+                    push @out, "[exact dup of lines $seen{$txt} (${bn}L)]";
+                    $LOSSLESS_RM += $bn - 1;
+                    @blk = ();
+                    return;
+                }
+                $seen{$txt} = $blk_start . '-' . ($blk_start + $bn - 1);
+            }
+        }
+        push @out, @blk;
+        @blk = ();
+    }
+    for my $i (0 .. $n - 1) {
+        if ($lines->[$i] eq '') {
+            flush_blk();
+            push @out, '';
+            $blk_start = $i + 2;
+        } else {
+            $blk_start = $i + 1 unless @blk;
+            push @blk, $lines->[$i];
+        }
+    }
+    flush_blk();
+    return \@out;
+}
+
 # Headroom-inspired dense machine-generated line elider (minified bundles, hex/token walls).
 # Never touches code, prose, TSV, or JSON ({...}/[...]). Spills raw output whenever triggered.
 sub elide_dense_lines {
@@ -1105,8 +1146,8 @@ sub compress_logs {
         my $crushed = crush_json_output($lines, $joined);
         return $crushed if defined $crushed;
     }
-    my $b = collapse_table_padding(fold_repeated_blocks(dedupe_consecutive($lines)));
-    # <= native cap: lossless exact-duplicate, table & block folding (+ dense-line elide if huge blob wall)
+    my $b = collapse_table_padding(merlin_dedupe_chunks(fold_repeated_blocks(dedupe_consecutive($lines))));
+    # <= native cap: lossless exact-duplicate, chunk, table & block folding (+ dense-line elide if huge blob wall)
     return elide_dense_lines($b) if total_bytes($b) <= $NATIVE_CAP;
     my $dedup = dedupe_log_templates(fold_stack_frames(elide_dense_lines($b)));
     return cap_with_signal($dedup, 25, 80, 50);
@@ -1129,7 +1170,7 @@ sub compress_ssh {
     if ($grep_hits >= 6 && $non_empty > 0 && ($grep_hits / $non_empty) >= 0.30) {
         return compress_search($lines, $rc);
     }
-    my $base = collapse_table_padding(fold_repeated_blocks(dedupe_consecutive($lines)));
+    my $base = collapse_table_padding(merlin_dedupe_chunks(fold_repeated_blocks(dedupe_consecutive($lines))));
     # Remote output <= native cap stays complete (lossless transforms + dense-line elide for huge minified blobs)
     return elide_dense_lines($base) if total_bytes($base) <= $NATIVE_CAP;
     my $t = dedupe_log_templates(fold_stack_frames(elide_dense_lines($base)));

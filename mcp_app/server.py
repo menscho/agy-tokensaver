@@ -110,8 +110,11 @@ TOOLS: list[dict[str, Any]] = [
         "inputSchema": {
             "type": "object",
             "properties": {
+                "profile": {"type": "string"},
                 "auto_rollover": {"type": "boolean"},
                 "mode": {"type": "string"},
+                "compact_reads": {"type": "boolean"},
+                "concise_output": {"type": "boolean"},
                 "threshold_mode": {"type": "string"},
                 "threshold_k": {"type": "integer"},
                 "min_turns": {"type": "integer"},

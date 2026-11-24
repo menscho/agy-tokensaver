@@ -1,6 +1,6 @@
 ---
 name: scout
-description: Read-only Flash scout for >=3-file code search, >150-line logs/tests/diffs, web docs.
+description: Flash scout for >=3-file search, >150L logs/diffs, web docs.
 subagent: true
 mainAgent: false
 model: flash

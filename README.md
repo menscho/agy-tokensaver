@@ -2,7 +2,7 @@
 
 <p align="center">
   <a href="https://github.com/menscho/agy-tokensaver/releases"><img src="https://img.shields.io/badge/release-v1.0.0-4ade80?style=flat-square&labelColor=0d0d11" alt="Release v1.0.0"/></a>
-  <a href="https://github.com/menscho/agy-tokensaver/actions/workflows/test.yml"><img src="https://img.shields.io/badge/tests-297%20passing-4ade80?style=flat-square&labelColor=0d0d11" alt="297 Tests Passing"/></a>
+  <a href="https://github.com/menscho/agy-tokensaver/actions/workflows/test.yml"><img src="https://img.shields.io/badge/tests-304%20passing-4ade80?style=flat-square&labelColor=0d0d11" alt="304 Tests Passing"/></a>
   <a href="https://github.com/menscho/agy-tokensaver/actions/workflows/test.yml"><img src="https://img.shields.io/badge/CI-Ubuntu%20%7C%20macOS%20%7C%20Windows-8e8e98?style=flat-square&labelColor=0d0d11" alt="3-OS CI"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-8e8e98?style=flat-square&labelColor=0d0d11" alt="MIT License"/></a>
 </p>
@@ -31,51 +31,53 @@ irm https://raw.githubusercontent.com/menscho/agy-tokensaver/main/install.ps1 | 
 
 ---
 
-## Where Your Antigravity Quota Actually Goes (Why Hooks Alone Look Small)
+## Where Your Antigravity Quota Actually Goes
 
-Across **66 real Antigravity sessions (3,648 turns, 101.3M weighted quota units)** measured with `scripts/benchmark.py --modes`, quota breaks down into three almost-equal buckets:
+Across **68 real Antigravity sessions (3,705 turns, 102.7M weighted quota units)** measured with `scripts/benchmark.py --modes`, quota breaks down into three almost-equal buckets:
 
 - **37.5% — Uncached Input (`1×` weight):** over **half (`19.1M` tokens = `19%` of total quota)** came from just **109 prompt-cache drops** (idle pauses `>2 min` on 150k–450k chats forcing a full uncached rebuild).
 - **31.6% — Cache Reads (`0.05×` weight):** replaying a growing 150k–500k context window across dozens of turns ($O(T^2)$ growth).
 - **30.9% — Model Output (`6×` weight):** every generated token costs 6× an uncached input token and 120× a cached token.
 
-**This explains a hard truth about every coding-agent token plugin (confirmed independently by JetBrains SkillsBench on RTK):** pure shell/file hooks only touch *new tool outputs* (~4–5% of total session quota on clean chats, though **-76%** on noisy logs/tests/JSON). To cut **15–40% of real total quota**, you have to attack **output tokens (6×)** and **long-session context / cache drops** too — which is why `agy-tokensaver` separates **Zero-Loss Core Hooks** from **three opt-in modes**, each benchmarked independently below.
+**Why this matters:** pure tool-output hooks only touch *new tool results* (~4–5% of total quota on clean chats, though **-76.4%** on noisy logs/tests/JSON). To cut **24–44% of real total quota**, you also have to attack **6× output tokens** and **long-session context / cache drops**. That is why `agy-tokensaver` ships with **two simple modes** in the HUD:
+
+- **Mode 1 — `Zero Quality Loss` (`0.0%` loss, Default ON):** strictly lossless compression, duplicate/loop guards, prompt-overhead diet, and `Archive Only` handoffs. Never truncates code mid-logic, never spawns chats automatically, never alters prose.
+- **Mode 2 — `Small Quality Loss` (`~0.1%–1.0%` risk, Opt-in):** one toggle in the HUD enables **Compact Reads** (`~0.1–0.5%` risk), **Concise Output** (`~0.1%` prose risk), and **Anchored Auto-Handoff** (`0%` at phase switches / `~0.5–1.0%` mid-debug risk).
 
 ---
 
-## Mode-by-Mode Real-Session Benchmark (66 Sessions / 3,648 Turns)
+## 2-Mode Real-Session Benchmark (68 Sessions / 3,705 Turns)
 
 Reproduce on your own Antigravity history:
 ```bash
-python3 scripts/benchmark.py --modes    # compares every mode separately
+python3 scripts/benchmark.py --modes    # exact 2-mode comparison
 python3 scripts/benchmark.py --replay   # full tier-by-tier breakdown
 ```
 
-| Mode Configuration | Quality Risk | Tool Tokens Cut | Total Quota Delta |
+| Mode | Stated Quality Loss | Tool Tokens Cut | Avg Total Quota Saved |
 |---|---|---:|---:|
-| **1. Zero-Loss Hooks** *(Default ON, Auto-Handoff OFF)* | **0%** (exact replay) | 216,758 tok | **-0.7%** |
-| **2. + Compact Reads** *(Opt-in, Auto-Handoff OFF)* | **~0.1–0.5%** (exact replay) | 321,950 tok | **-1.0%** |
-| **3. + Concise Output (`-20%` conservative)** *(Opt-in, Auto-Handoff OFF)* | **~0.1%** prose only *(modeled\*)* | 216,758 tok | **-6.9%** |
-| **4. + Concise Output (`-35%` moderate)** *(Opt-in, Auto-Handoff OFF)* | **~0.1%** prose only *(modeled\*)* | 216,758 tok | **-11.5%** |
-| **5. + Smart Auto-Handoff (Live-Reachable)** *(Opt-in, default reads)* | Fresh chat\*\* (causal replay) | 216,758 tok | **-17.6%** |
-| **6. + Auto-Handoff Live + Compact Reads + Concise Output\*** | Combined\*\* | 321,950 tok | **-24.1% to -28.7%** |
-| **7. + Auto-Handoff Upper Bound + Compact + Concise\*** | Upper bound\*\* | 321,950 tok | **-39.8% to -44.4%** |
+| **Mode 1: Zero Quality Loss** *(Default ON)* | **0.0%** *(exact replay)* | 217,668 tok | **-0.7%** *(noisy tasks: **-76.4%**)* |
+| **Mode 2a: Small Loss — Compact Reads only** | **~0.1–0.5%** *(exact replay)* | 321,903 tok | **-1.0%** |
+| **Mode 2b: Small Loss — + Concise Output\*** | **~0.1%** prose *(modeled\*)* | 321,903 tok | **-7.2% to -11.8%** |
+| **Mode 2c: Small Loss — + Auto-Handoff (Live)** | **~0.5–1.0%**\*\* *(exact causal replay)* | 321,903 tok | **-18.0%** |
+| **Mode 2 (Full): Live + Compact + Concise\*** | **~0.1–1.0%**\*\* | 321,903 tok | **-24.2% to -28.8%** |
+| **Mode 2 (Upper Bound): Phase Resets + Concise\*** | **~0.1–1.0%**\*\* | 321,903 tok | **-39.7% to -44.3%** |
 
-*\* **Concise Output** cannot be replayed on past transcripts without re-calling the LLM; rows 3, 4, 6, 7 apply conservative `-20%` and `-35%` output reductions to the real `30.9%` (`6×`-weighted) output bucket (published benchmarks report `-45%` on SWE-bench for Chain-of-Draft and `-65%` prose reduction for Caveman). Rows 1, 2, and 5 are exact deterministic replays charging retries, follow-up reads, and the plugin's `433 tok/turn` prompt overhead.*  
-*\*\* **Live-Reachable** only triggers Auto-Handoff between finished agent runs where the background tick can actually fire; **Upper Bound (UB)** shows the ceiling if rolling over at any turn.*
+*\* **Concise Output** (*Sketch-of-Thought* `arXiv:2503.05179` + Caveman-lite) cannot be replayed on past transcripts without re-calling the LLM; rows 2b, Full, and Upper Bound apply a conservative `-20%` to `-35%` reduction to the measured `30.9%` (`6×`-weighted) output bucket (papers report `-65%` to `-76%`). Mode 1, 2a, and 2c are exact deterministic replays charging retries, follow-up reads, and the plugin's `383 tok/turn` always-loaded prompt overhead.*  
+*\*\* **Anchored Auto-Handoff** (*The Complexity Trap* `arXiv:2508.21433` + *Focus* `arXiv:2601.07190`): `0%` to `+1.4 pp` quality at phase switches; `~0.5–1.0%` risk if triggered mid-debug. **Live** only fires between finished agent runs where the background tick can actually run; **Upper Bound** shows the ceiling when resetting at task/phase boundaries.*
 
 <p align="center">
-  <img src="docs/assets/benchmark-chart.svg" alt="Real-session replay across local Antigravity sessions" width="100%"/>
+  <img src="docs/assets/benchmark-chart.svg" alt="2-Mode Real-Session Benchmark across 68 Antigravity sessions" width="100%"/>
 </p>
 
-### Pros & Cons of Every Mode (All Toggleable in the `agy-tokensaver` HUD)
+### What Each Mode Enables (Pros, Cons & Exact Quality Risk)
 
-| Mode | Default | Pros | Cons / Trade-Offs |
+| Technique | Mode | Stated Quality Loss | What It Does & Trade-Offs |
 |---|---|---|---|
-| **Zero-Loss Hooks** | **ON** | **0% quality loss.** Blocks lockfiles/binaries, crushes JSON arrays to lossless `[N]{cols}` CSV+schema, hoists repeated grep/SSH paths, folds repeated log blocks, dedupes unchanged reads/searches (1-retry escape hatch), pins errors & spills raw logs to temp dir. | Modest aggregate impact (`-0.7%`) on short, clean chats; short sessions still pay `433 tok/turn` for always-loaded rules/skills. |
-| **Compact Reads** (`compact_reads`) | **OFF** | Cuts **+48% more tool tokens** (`216k → 322k`) by capping large unbounded code reads to `120 L` and unbounded docs `>12 KB` to `140 L`. Bounded `StartLine..EndLine` slices stay untouched. | **~0.1–0.5% risk:** if the needed function is below line 120 in an unbounded read, the agent spends 1 extra targeted read turn (already charged in row 2 above). |
-| **Concise Output** (`concise_output`) | **OFF** | Attacks the `30.9%` (`6×` weight) output bucket directly (**`-6.9%` to `-11.5%` total quota even with Auto-Handoff OFF**). Strips pleasantries, preambles, and pre/post-tool chatter; code, diffs, paths, and errors stay 100% verbatim. | **~0.1% prose risk:** replies are terse and skip narrative explanations. Change only between sessions to keep prompt-cache prefixes intact. |
-| **Smart Auto-Handoff** (`smart_auto`) | **Archive Only** | Biggest real savings on long chats: **`-17.6%` live-reachable** overall (`-27.7%` on `>400k` chats), preventing both $O(T^2)$ cache replay and 200k-token idle cache-drop rebuilds. | Starts a fresh chat with a structured handoff packet — see exact quality & memory explanation right below. |
+| **Lossless Hooks & Deduplication** | Mode 1 (`zero_loss`) | **0.0%** | Blocks lockfiles/binaries/sourcemaps, crushes JSON arrays to lossless `[N]{cols}` CSV+schema, hoists repeated grep/SSH paths, runs **Merlin** (`arXiv:2605.09990`) non-adjacent exact chunk dedupe, wraps multiline diagnostic chains + `ffmpeg` + PowerShell tables, breaks 3× identical failing test/build/lint loops (**TokenEconomizer** `arXiv:2610.22732`, 1-retry escape), trims prompt overhead to `383 tok/turn` (**SkillReducer** `arXiv:2603.29919`), and saves raw output to temp dir on every trim. |
+| **Compact Reads** (`120L` code / `140L` docs) | Mode 2 (`small_loss`) | **~0.1–0.5%** | Cuts **+48% more tool tokens** (`218k → 322k`) on unbounded reads while leaving bounded `StartLine..EndLine` slices untouched. *Con:* if the needed function sits below line 120 in an unbounded read, the agent spends 1 extra targeted read turn (already charged in Mode 2a). |
+| **Concise Output** (*SoT* + Caveman-lite) | Mode 2 (`small_loss`) | **~0.1% prose** | Cuts **`-6.2%` to `-10.8%` total quota even without Auto-Handoff** by stripping pleasantries, preambles, and pre/post-tool chatter from `6×`-weighted output. Code, diffs, paths, errors, and root-cause debugging stay verbatim. *Con:* replies are terse; toggle only between sessions to protect prompt-cache prefixes. |
+| **Anchored Auto-Handoff** (`smart_auto`) | Mode 2 (`small_loss`) | **0% phase / ~0.5–1% mid-debug** | Biggest single win on long sessions (**`-18.0%` live-reachable**, **`-27.7%` on `>400k` chats**), preventing both $O(T^2)$ cache replay and 200k-token idle cache-drop rebuilds. Includes recent ruled-out errors in the packet. *Con:* opens a fresh chat with a structured packet (details below). |
 
 ---
 
@@ -83,18 +85,18 @@ python3 scripts/benchmark.py --replay   # full tier-by-tier breakdown
 
 This is the most common question, so here is the plain, honest answer:
 
-1. **What it does:** When a long conversation crosses the adaptive threshold (~110k–180k tokens), `handoff_pack.py` generates a compact (~500-token) structured continuation packet from your workspace and transcript:
+1. **What it does:** When a long conversation crosses the adaptive threshold (~110k–180k tokens), `handoff_pack.py` generates a compact (~500-token) **Anchored Handoff** packet from your workspace and transcript:
    - Your **current goal** and the **assistant's last conclusion**
    - **Git branch, recent commits, diff stat, and exact list of edited files**
-   - Relevant workspace state
-   It saves this snapshot to the **Archive** tab. If you select **`Smart Auto`**, it also opens a fresh chat seeded with that packet (~17k starting tokens instead of 250k–500k).
+   - **Recent errors / ruled-out paths** (extracted from recent tool failures so the new chat doesn't repeat them)
+   It saves this snapshot to the **Archive** tab. In **Mode 2 (`Small Quality Loss`)**, it also opens a fresh chat seeded with that packet (~17k starting tokens instead of 250k–500k).
 2. **Does the model forget stuff?** **Yes — selectively.**
-   - **What is kept:** your goal, edited file list, git state, last conclusion, and every file on disk (which the agent can still read at any time).
+   - **What is kept:** your goal, edited file list, git state, recent ruled-out errors, last conclusion, and every file on disk (which the agent can still read at any time).
    - **What is dropped:** old terminal logs, dead-end debugging attempts from 60 turns ago, and earlier file slices that are no longer needed (the full original chat stays untouched in your Antigravity history and Archive tab).
 3. **What is the real quality loss?**
-   - **At a phase switch** (finished feature A → starting feature B, finished planning → implementing, or before taking a `>2 min` break): **near-0% quality loss** — and often *better* focus, because JetBrains' NeurIPS 2025 study (*The Complexity Trap*, `arXiv:2508.21433`) showed removing stale observation bloat improves or matches SWE-bench solve rates while cutting cost ~50%.
-   - **Mid-debugging a subtle multi-file bug** where 5 hypotheses were already ruled out: **real risk** — the fresh chat may re-read 1–2 files or re-try a ruled-out path unless that summary was recorded in the last turn.
-4. **Why the default is `Archive Only`:** Auto-Handoff does **not** automatically spawn new chats out of the box. It silently archives handoff snapshots and warns you before huge idle cache drops so *you* can click **Archive & New Chat** (or type `/handoff`) right at natural boundaries. Switch to **`Smart Auto`** only if you want hands-off resets on marathon sessions.
+   - **At a phase switch** (finished feature A → starting feature B, finished planning → implementing, or before taking a `>2 min` break): **0% quality loss** — and often *better* focus, because JetBrains' NeurIPS 2025 study (*The Complexity Trap*, `arXiv:2508.21433`) and *Focus* (`arXiv:2601.07190`) showed resetting stale observation bloat matches or beats (`+1.4 pp`) full-history solve rates while cutting cost 23–50%.
+   - **Mid-debugging a subtle multi-file bug** where subtle context wasn't summarized yet: **~0.5–1.0% risk** — the fresh chat may spend 1–2 turns re-reading a file.
+4. **Why Mode 1 (`Zero Quality Loss`) is the default:** Out of the box, Auto-Handoff runs in `Archive Only` mode — it never spawns a new chat without you. It archives snapshots and warns before huge idle cache drops so *you* can click **Archive & New Chat** (or type `/handoff`) right at natural boundaries. Switch the HUD to **`Small Quality Loss`** when you want hands-off resets + Compact Reads + Concise Output.
 
 ---
 
@@ -115,7 +117,7 @@ Runs a deterministic 8-step noisy coding fixture directly through `read_hook.pl`
 | **Total direct tool tokens** | **36,383 tok** | **8,588 tok** | **-76.4%** | **27,795 tokens avoided** |
 | **15-turn weighted quota (`1×` in + `14×0.05×` cr)** | **61,851 qu** | **14,599 qu** | **-76.4%** | **47,252 quota units avoided** |
 
-*(This fixture represents a noisy test/log/JSON/diff workflow; clean small-file sessions save much less with hooks alone, as shown in the 66-session replay above.)*
+*(This fixture represents a noisy test/log/JSON/diff workflow; clean small-file sessions save much less with hooks alone, as shown in the 68-session replay above.)*
 
 ---
 
@@ -127,21 +129,28 @@ Opens from **`agy-tokensaver`** under **Plugins** in Antigravity's left sidebar.
   <img src="docs/assets/hud-preview.svg" alt="agy-tokensaver HUD Preview" width="100%"/>
 </p>
 
-- **Overview:** Input/Cache/Output/Quota breakdown, live context meter, Rollover Mode (`Archive Only` / `Smart Auto` / `Off`), opt-in **Compact Reads** & **Concise Output** toggles, and manual actions.
-- **Archive:** Saved compact handoff packets (goal, branch, commits, diff stat, edited files, last summary).
+- **Overview:** Input/Cache/Output/Quota breakdown, live context meter, one-click **Optimization Mode** (`Zero Quality Loss` vs `Small Quality Loss`), Context Limit selector, and manual actions.
+- **Archive:** Saved Anchored Handoff packets (goal, branch, commits, diff stat, edited files, ruled-out errors, last summary).
 - **Updates:** Tagged GitHub Release check, local requirement checks, changelog, and SHA-256 verified 1-click updates.
 
 ---
 
 ## Research & Open-Source Foundations
 
-Techniques implemented in `agy-tokensaver` are grounded in published coding-agent efficiency research and verified open-source tools (while deliberately excluding techniques shown to hurt cost or quality):
+Every technique in `agy-tokensaver` is grounded in 2024–2026 coding-agent efficiency papers and verified open-source tools (while deliberately excluding techniques shown to hurt cost or quality):
 
-- **[headroomlabs-ai/headroom](https://github.com/headroomlabs-ai/headroom):** ported lossless JSON `[N]{cols}` CSV+schema compaction, nested flattening, `>256 B` blob offload, 12-keyword error-preserving SmartCrusher sampling, dense minified-line elision, repeated multi-line block folding, large-diff `±2` context trimming, and Windows-safe grep path hoisting into zero-dependency Perl (`cmd_wrap.pl`).
-- **[@plexer/cli](https://www.npmjs.com/package/@plexer/cli):** ported `PostToolUse` edit invalidation (`post_edit_hook.pl`), duplicate search / unchanged `git diff` dedup with a 1-retry escape hatch, `WaitMsBeforeAsync` floor bump (`5000 ms`) on fast read-only queries, `initialNumSteps` compaction reset, and stdlib AST/regex symbol outlining (`ts_inspect.py outline`).
-- **JetBrains *The Complexity Trap* (`arXiv:2508.21433`, NeurIPS 2025) & *Don't Break the Cache* (`arXiv:2601.06007`):** motivates keeping prompt prefixes strictly append-only (never mutating history mid-turn — which `arXiv:2611.22238` showed increases cost 38–116% by breaking KV caches!) and instead using coarse threshold handoffs + pre-drop idle warnings.
-- **[Caveman](https://github.com/JuliusBrussee/caveman) & *Chain of Draft for Software Engineering* (`arXiv:2506.10987`):** motivates the opt-in **Concise Output** mode targeting the `6×`-weighted output bucket without touching code, paths, or errors.
-- **Deliberately excluded anti-patterns:** lexical code minification (`arXiv:2606.01326`: causes a 12-point SWE-bench drop), per-turn sliding history mutation (`arXiv:2611.22238`: breaks prefix cache), and unsolicited Turn-0 snippet pre-injection (`arXiv:2611.22238`: +33–42% net cost).
+- **Zero-Loss Research (`0.0%` quality loss):**
+  - **Merlin** (`arXiv:2605.09990`): byte-exact non-adjacent chunk deduplication (`cmd_wrap.pl` `merlin_dedupe_chunks`, 24–80% reduction on repeated log/SSH diagnostics with 0% info loss).
+  - **TokenEconomizer** (`arXiv:2610.22732`): failure-loop breaker stopping 3× identical failing `test`/`build`/`lint` runs with no intervening edits (18–31% cost cut + Pass@1 gain).
+  - **SkillReducer** (`arXiv:2603.29919`) & **Same Task, Different Work** (`arXiv:2608.01347`): tightened always-loaded prompt/skill descriptions from `906 → 383 tok/turn` (-58%) plus bounded-scope stop rules.
+  - **Don't Break the Cache** (`arXiv:2601.06007`): strictly append-only prefix hygiene + pre-drop idle cache-rebuild cost warnings.
+- **Small-Loss Research (`~0.1%–1.0%` risk, opt-in Mode 2):**
+  - **The Complexity Trap** (JetBrains, NeurIPS 2025, `arXiv:2508.21433`) & **Focus** (`arXiv:2601.07190`) & **Factory.ai Anchored Summarization**: threshold-based Anchored Handoff packets with ruled-out errors (23–50% cost cut, `0%` to `+1.4 pp` at phase boundaries).
+  - **Sketch-of-Thought** (`arXiv:2503.05179`), **TALE-EP** (`arXiv:2412.18547`), & **[Caveman](https://github.com/JuliusBrussee/caveman):** Concise Output rule cutting `6×`-weighted prose chatter while keeping code, diffs, paths, and root-cause debugging verbatim.
+- **Open-Source Ports:**
+  - **[headroomlabs-ai/headroom](https://github.com/headroomlabs-ai/headroom):** lossless JSON `[N]{cols}` CSV+schema compaction, nested flattening, `>256 B` blob offload, 12-keyword error-preserving SmartCrusher sampling, dense minified-line elision, multi-line block folding, large-diff `±2` context trimming, and Windows-safe / SSH grep path hoisting.
+  - **[@plexer/cli](https://www.npmjs.com/package/@plexer/cli):** `PostToolUse` edit invalidation (`post_edit_hook.pl`), duplicate search / unchanged `git diff` dedup, `WaitMsBeforeAsync` floor bump (`5000 ms`), `initialNumSteps` compaction reset, and stdlib AST/regex symbol outlining (`ts_inspect.py outline`).
+- **Deliberately Excluded Anti-Patterns (Proven Harmful):** lexical code minification (`arXiv:2606.01326`: **-12 pp** SWE-bench drop), per-turn sliding history mutation (`arXiv:2611.22238`: **+38–116%** cost by breaking KV caches), unsolicited Turn-0 snippet pre-injection (`arXiv:2611.22238`: **+33–42%** net cost), and global Chain-of-Draft on complex debugging (`arXiv:2506.10987`: up to **-10%** drop).
 
 ---
 
@@ -156,7 +165,7 @@ for t in tests/run_tests.sh tests/test_*.sh; do bash "$t"; done
 python3 scripts/benchmark.py --demo --modes
 ```
 
-Verified in [`.github/workflows/test.yml`](.github/workflows/test.yml) across **Ubuntu, macOS, and Native Windows** (`297` assertions across 7 test suites + MCP/installer/PowerShell/demo checks).
+Verified in [`.github/workflows/test.yml`](.github/workflows/test.yml) across **Ubuntu, macOS, and Native Windows** (`304` assertions across 7 test suites + MCP/installer/PowerShell/demo checks).
 
 ## License
 

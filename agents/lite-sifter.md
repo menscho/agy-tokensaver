@@ -1,6 +1,6 @@
 ---
 name: lite-sifter
-description: Flash-Lite mechanical extraction (grep, inventories, line pulls). No reasoning.
+description: Flash-Lite grep/line extraction. No reasoning.
 subagent: true
 mainAgent: false
 model: flash_lite

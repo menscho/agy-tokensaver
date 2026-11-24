@@ -64,6 +64,7 @@ def _atomic_write_json(path: Path, obj: Any) -> None:
 
 def load_config() -> dict[str, Any]:
     default = {
+        "profile": "zero_loss",        # "zero_loss" (0% quality loss) | "small_loss" (~0.1-1% risk)
         "auto_rollover": True,
         "mode": "prepare_only",        # "prepare_only" (safe default) | "smart_auto" | "off"
         "threshold_mode": "auto",      # "auto" | "75" | "90" | "110" | "140" | "180"
@@ -83,11 +84,17 @@ def load_config() -> dict[str, Any]:
             mode = str(d.get("mode") or ("prepare_only" if auto_on else "off"))
             if mode not in ("smart_auto", "prepare_only", "off"):
                 mode = "prepare_only" if auto_on else "off"
+            compact_reads = bool(d.get("compact_reads", False))
+            concise_output = bool(d.get("concise_output", False))
+            profile = str(d.get("profile") or ("small_loss" if (mode == "smart_auto" or compact_reads or concise_output) else "zero_loss"))
+            if profile not in ("zero_loss", "small_loss"):
+                profile = "zero_loss"
             tmode = str(d.get("threshold_mode") or "auto")
             if tmode not in ("auto", "75", "90", "110", "140", "180"):
                 tmode = "auto"
             tk = max(60, min(300, int(d.get("threshold_k", 110))))
             return {
+                "profile": profile,
                 "auto_rollover": mode != "off",
                 "mode": mode,
                 "threshold_mode": tmode,
@@ -95,8 +102,8 @@ def load_config() -> dict[str, Any]:
                 "model": str(d.get("model") or "inherit"),
                 "min_turns": max(6, min(40, int(d.get("min_turns", 14)))),
                 "cooldown_min": max(5, min(120, int(d.get("cooldown_min", 20)))),
-                "compact_reads": bool(d.get("compact_reads", False)),
-                "concise_output": bool(d.get("concise_output", False)),
+                "compact_reads": compact_reads,
+                "concise_output": concise_output,
             }
     except Exception:
         pass
@@ -107,12 +114,27 @@ def save_config(patch: dict[str, Any]) -> dict[str, Any]:
     with _cfg_lock:
         cur = load_config()
         merged = {**cur, **patch}
-        if "mode" in patch:
+        if "profile" in patch:
+            prof = str(patch["profile"])
+            if prof == "small_loss":
+                merged["profile"] = "small_loss"
+                merged["mode"] = "smart_auto"
+                merged["auto_rollover"] = True
+                merged["compact_reads"] = True
+                merged["concise_output"] = True
+            else:
+                merged["profile"] = "zero_loss"
+                merged["mode"] = "prepare_only"
+                merged["auto_rollover"] = True
+                merged["compact_reads"] = False
+                merged["concise_output"] = False
+        elif "mode" in patch:
             mode = str(patch["mode"])
             if mode not in ("smart_auto", "prepare_only", "off"):
                 mode = "smart_auto"
             merged["mode"] = mode
             merged["auto_rollover"] = mode != "off"
+            merged["profile"] = "small_loss" if (mode == "smart_auto" or merged.get("compact_reads") or merged.get("concise_output")) else "zero_loss"
         elif "auto_rollover" in patch:
             on = bool(patch["auto_rollover"])
             merged["auto_rollover"] = on
@@ -131,6 +153,7 @@ def save_config(patch: dict[str, Any]) -> dict[str, Any]:
             merged["threshold_k"] = max(60, min(300, int(merged.get("threshold_k", 110))))
 
         clean = {
+            "profile": merged.get("profile", "zero_loss"),
             "auto_rollover": bool(merged["auto_rollover"]),
             "mode": merged["mode"],
             "threshold_mode": merged["threshold_mode"],
@@ -146,16 +169,19 @@ def save_config(patch: dict[str, Any]) -> dict[str, Any]:
         return clean
 
 
-_CONCISE_RULE_LINE = "7. Concise mode: drop pleasantries, preambles, and pre/post-tool narration; keep code, diffs, paths, and errors verbatim."
+_CONCISE_RULE_LINE = "7. Concise mode (SoT/Caveman-lite): skip pleasantries, preambles, and pre/post-tool chatter; keep code, diffs, paths, errors, and root-cause debugging verbatim."
 
 
 def _sync_concise_rule(enabled: bool) -> None:
     """Opt-in Caveman-lite output rule synced to rules/AGENTS.md only on explicit user toggle."""
     try:
+        # Never mutate repo rules/AGENTS.md when running under an isolated test PLUGIN_DATA dir
+        if DATA_DIR.resolve() != (PLUGIN_ROOT / ".data").resolve() and os.environ.get("AGY_TS_SYNC_RULES") != "1":
+            return
         agents_md = PLUGIN_ROOT / "rules" / "AGENTS.md"
         if not agents_md.is_file():
             return
-        lines = [l for l in agents_md.read_text(encoding="utf-8").splitlines() if not l.startswith("7. Concise mode:")]
+        lines = [l for l in agents_md.read_text(encoding="utf-8").splitlines() if not l.startswith("7. Concise mode")]
         if enabled:
             lines.append(_CONCISE_RULE_LINE)
         agents_md.write_text("\n".join(lines) + "\n", encoding="utf-8")

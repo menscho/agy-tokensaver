@@ -391,7 +391,7 @@ def main() -> int:
             print()
         sys.path.insert(0, str(SCRIPTS))
         import transcript_replay
-        transcript_replay.run_modes()
+        transcript_replay.run_modes(json_out=args.json)
     return rc
 
 

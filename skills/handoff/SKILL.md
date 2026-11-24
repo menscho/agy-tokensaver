@@ -1,6 +1,6 @@
 ---
 name: handoff
-description: User-only. Compact continuation packet to restart a 100K+ chat in a fresh one.
+description: User-only. Compact handoff packet for 100K+ chats.
 disable-model-invocation: true
 ---
 

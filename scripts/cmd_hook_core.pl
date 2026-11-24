@@ -1160,9 +1160,9 @@ sub extract_pipe_upstream {
     return $seg;
 }
 
-# Handle single commands and safe &&/;/newline chains (up to 6 segments)
+# Handle single commands and safe &&/;/newline chains (up to 16 segments for diagnostic scripts)
 my @segs = split_and_and($trimmed);
-if (!@segs || @segs > 6) { print '{"decision":"allow"}'; exit 0; }
+if (!@segs || @segs > 16) { print '{"decision":"allow"}'; exit 0; }
 
 # Rebuild only if a segment was mutated; otherwise run the model's exact original string
 sub rebuild {
@@ -1206,6 +1206,12 @@ if (@segs == 1) {
             exit 0;
         }
         if ($c eq '') {
+            # Allow section-header echo/printf banners (e.g. echo "=== STATUS ===") inside multi-step chains
+            if ($target_s =~ /^(?:echo|printf)\s+.*(?:===|---)/) {
+                push @cats, '_setup';
+                push @new_segs, $s;
+                next;
+            }
             # Unknown/custom segment (e.g. "pytest && echo DONE") -> pass through untouched
             print '{"decision":"allow"}';
             exit 0;
@@ -1229,7 +1235,7 @@ if (@segs == 1) {
     } else {
         # Allow multi-step chains when all non-setup steps are known noisy categories
         for my $nc (@non_setup) {
-            if ($nc !~ /^(?:pkg|build|test|lint|git_net|git_diff|git_log|iac|ssh|logs|table|find|search)$/) {
+            if ($nc !~ /^(?:pkg|build|test|lint|git_net|git_diff|git_log|iac|ssh|logs|table|find|search|ps|http|cloud|archive)$/) {
                 print '{"decision":"allow"}';
                 exit 0;
             }
@@ -1250,9 +1256,13 @@ if (!$plugin_root) {
 }
 1 while $plugin_root =~ s{/\./}{/};
 
-# @plexer/cli-inspired duplicate search / unchanged git_diff guard with 1-retry escape hatch.
+# @plexer/cli duplicate search/git_diff guard + TokenEconomizer (arXiv:2610.22732) failure-loop breaker.
 # Only active when conversationId & stepIdx are provided; cleared by post_edit_hook.pl on any edit.
-if ($final_cat =~ /^(?:search|find|git_diff)$/) {
+# - search/find/git_diff: blocks 2nd identical run with no edits (1-retry escape hatch).
+# - test/build/lint: blocks 3rd identical consecutive run with no edits (breaks retry loops; 1-retry escape hatch).
+if ($final_cat =~ /^(?:search|find|git_diff|test|build|lint)$/) {
+    my $is_loop_cat = ($final_cat =~ /^(?:test|build|lint)$/) ? 1 : 0;
+    my $min_prior   = $is_loop_cat ? 2 : 1;
     my $cid  = json_get_str($raw, 'conversationId') // '';
     my $step = ($raw =~ /"stepIdx"\s*:\s*"?(-?\d+)"?/) ? int($1) : undef;
     if ($cid ne '' && defined $step) {
@@ -1275,7 +1285,7 @@ if ($final_cat =~ /^(?:search|find|git_diff)$/) {
             if (-f $bfile && open(my $bf, '<', $bfile)) { $last_blk = <$bf> // ''; chomp $last_blk; close $bf; }
 
             my @hist;
-            my $dup_delta;
+            my ($dup_delta, $dup_cnt) = (undef, 0);
             if (-f $sfile && open(my $sf, '<', $sfile)) {
                 while (my $sl = <$sf>) {
                     chomp $sl;
@@ -1283,20 +1293,25 @@ if ($final_cat =~ /^(?:search|find|git_diff)$/) {
                     next unless defined $sk;
                     if (int($sq) == $eseq && int($sep) == $ep && $sk eq $skey) {
                         my $d = $step - int($sst);
-                        $dup_delta = $d if $d > 0 && $d <= 16;
+                        if ($d > 0 && $d <= 16) {
+                            $dup_delta = $d;
+                            $dup_cnt++;
+                        }
                     }
                     push @hist, $sl;
                 }
                 close $sf;
             }
-            if (defined $dup_delta) {
+            if (defined $dup_delta && $dup_cnt >= $min_prior) {
                 if ($last_blk eq $skey) {
                     # 1-retry escape hatch: model insisted, let it run
                     unlink($bfile);
                 } else {
                     if (!-d $rdir) { require File::Path; File::Path::make_path($rdir); }
                     if (open(my $wbf, '>', $bfile)) { print $wbf "$skey\n"; close $wbf; }
-                    my $msg = "[token-saver] Identical $final_cat ran ${dup_delta} steps ago with no edits since; reuse prior output or re-run to force.";
+                    my $msg = $is_loop_cat
+                        ? "[token-saver] Identical $final_cat already ran ${dup_cnt}x with no edits since; diagnose before retrying (re-run once to force)."
+                        : "[token-saver] Identical $final_cat ran ${dup_delta} steps ago with no edits since; reuse prior output or re-run to force.";
                     print '{"decision":"deny","reason":"' . json_escape($msg) . '"}';
                     exit 0;
                 }

@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Render docs/assets/benchmark-chart.svg from transcript_replay.py --json outputs.
+Render docs/assets/benchmark-chart.svg from transcript_replay.py --modes --json (or --json) outputs.
 
-  python3 scripts/transcript_replay.py --json after.json
-  python3 scripts/make_benchmark_chart.py --after after.json [--before before.json] [--out docs/assets/benchmark-chart.svg]
+  python3 scripts/benchmark.py --modes --json modes.json
+  python3 scripts/make_benchmark_chart.py --modes modes.json [--out docs/assets/benchmark-chart.svg]
 
-Two panels per row: "Hooks only (Auto-Handoff OFF)" and "Hooks + Auto-Handoff". With --before,
-each panel shows the previous release as a thin grey bar under the current green bar.
-Values are quota savings in percent (positive = less quota); regressions render red, left of 0.
+Produces a 2-Mode Antigravity-styled comparison SVG:
+  - Mode 1: Zero Quality Loss (0.0% loss, default ON)
+  - Mode 2: Small Quality Loss (~0.1%-1.0% risk, opt-in)
 """
 
 from __future__ import annotations
@@ -18,105 +18,122 @@ from pathlib import Path
 from xml.sax.saxutils import escape
 
 ROOT = Path(__file__).resolve().parent.parent
-W, LABEL_W = 960, 236
-PANELS = [("Hooks only · Auto-Handoff OFF", "hooks"), ("Hooks + Auto-Handoff (live-reachable)", "both")]
-GREEN, RED, GREY, DIM, TXT, SUB = "#4ade80", "#f87171", "#3a3a44", "#5e5e68", "#ececef", "#8e8e98"
+W = 960
+BG, CARD, BORDER, GRID = "#070708", "#0d0d11", "#222227", "#18181d"
+GREEN, GREEN_DIM, AMBER, RED, DIM, TXT, SUB = "#4ade80", "#166534", "#f59e0b", "#f87171", "#5e5e68", "#ececef", "#8e8e98"
 
 
-def rows_of(s: dict) -> list[dict]:
-    out = []
-    for t in s["tiers"]:
-        out.append({"label": t["label"].replace("-", "–"), "sub": f"{t['n']} session{'s' if t['n'] != 1 else ''} · avg peak {t['avg_peak'] // 1000}k",
-                    "hooks": t["hooks"], "both": t["both"]})
-    for lab, key, sub in (("Per-session median", "median", f"each of {s['n']} sessions weighted equally"),
-                          ("Per-session mean", "mean", f"mean of {s['n']} session deltas"),
-                          ("Total quota-weighted", "total", "aggregate replayed / actual quota")):
-        out.append({"label": lab, "sub": sub, "hooks": s["q_hooks"][key], "both": s["q_both"][key], "summary": True,
-                    "bold": key == "total"})
-    return out
+def render_two_mode(m: dict) -> str:
+    base = m["base"]
+    comp = m["compact_reads"]
+    c20 = float(m.get("concise_20_pct", 6.2))
+    c35 = float(m.get("concise_35_pct", 10.8))
 
+    # Build clean rows for the 2-mode overview + tier breakdown
+    m1_tot = float(base["q_hooks"]["total"])            # positive = saved %
+    m2_cr = float(comp["q_hooks"]["total"])             # compact reads only
+    m2_live = float(comp["q_both"]["total"])            # exact replay: compact reads + live auto-handoff
+    m2_live_c20 = round(m2_live + c20, 1)               # + concise -20% (conservative)
+    m2_live_c35 = round(m2_live + c35, 1)               # + concise -35% (moderate)
+    m2_ub_c20 = round(float(comp["q_both_ub"]["total"]) + c20, 1)
+    m2_ub_c35 = round(float(comp["q_both_ub"]["total"]) + c35, 1)
 
-def render(after: dict, before: dict | None) -> str:
-    ra = rows_of(after)
-    rb = {r["label"]: r for r in rows_of(before)} if before else {}
-    vals = [abs(r[k]) for r in ra for _, k in PANELS] + [abs(r[k]) for r in rb.values() for _, k in PANELS]
-    vmax = max(5.0, max(vals or [5.0]))
-    step = 1 if vmax <= 6 else (2 if vmax <= 12 else (5 if vmax <= 25 else 10))
-    vmax = ((int(vmax) // step) + 1) * step
-    pw = (W - LABEL_W - 36 - 30) / 2            # panel width
-    neg = 34                                     # px reserved left of zero for regressions
-    row_h = 42 if before else 38
-    top = 112
-    n_tier = sum(1 for r in ra if not r.get("summary"))
-    h = top + len(ra) * row_h + 24 + 46
+    H = 540
     p: list[str] = []
     a = p.append
-    a(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {h}" width="{W}" height="{h}" role="img" aria-label="Real-session replay benchmark">')
+    a(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" role="img" aria-label="2-Mode Real-Session Benchmark">')
     a('  <defs><style>.t{font-family:"Google Sans","Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}'
       '.m{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}</style></defs>')
-    a(f'  <rect width="{W}" height="{h}" rx="14" fill="#070708"/>')
-    a(f'  <rect x="0.5" y="0.5" width="{W - 1}" height="{h - 1}" rx="13.5" fill="none" stroke="#222227"/>')
-    a(f'  <text x="36" y="38" class="t" font-size="16.5" font-weight="500" fill="{TXT}">Real-Session Replay · {after["n"]} local Antigravity sessions, {after["turns"]:,} turns</text>')
-    sub = ("python3 scripts/transcript_replay.py · recorded tool calls replayed through the hooks · exact per-turn tokens · "
-           "quota = 1× in + 0.05× cache + 6× out")
-    a(f'  <text x="36" y="59" class="t" font-size="11.5" fill="{SUB}">{escape(sub)}</text>')
-    if before:
-        a(f'  <rect x="{W - 300}" y="29" width="14" height="5" rx="2" fill="{GREY}"/><text x="{W - 280}" y="35" class="t" font-size="11" fill="{SUB}">v1.0.0 (before)</text>')
-        a(f'  <rect x="{W - 180}" y="27" width="14" height="9" rx="2" fill="{GREEN}"/><text x="{W - 160}" y="35" class="t" font-size="11" fill="{SUB}">this build (after)</text>')
-    grid_y0, grid_y1 = top - 14, top + len(ra) * row_h - 6
-    for pi, (title, _k) in enumerate(PANELS):
-        x0 = LABEL_W + pi * (pw + 30)
-        zx = x0 + neg
-        scale = (pw - neg - 56) / vmax
-        a(f'  <text x="{x0 + pw / 2:.0f}" y="{top - 22}" class="t" font-size="12" font-weight="500" fill="{SUB}" text-anchor="middle">{escape(title)}</text>')
-        g = 0
-        while g <= vmax:
-            gx = zx + g * scale
-            a(f'  <line x1="{gx:.1f}" y1="{grid_y0}" x2="{gx:.1f}" y2="{grid_y1}" stroke="#18181d"/>')
-            a(f'  <text x="{gx:.1f}" y="{grid_y1 + 16}" class="m" font-size="10.5" fill="{DIM}" text-anchor="middle">{g}%</text>')
-            g += step
-    y = top
-    for i, r in enumerate(ra):
-        if i == n_tier:
-            a(f'  <line x1="36" y1="{y - 12}" x2="{W - 36}" y2="{y - 12}" stroke="#222227"/>')
-        fw = ' font-weight="500"' if r.get("bold") else ""
-        a(f'  <text x="36" y="{y + 2}" class="t" font-size="13"{fw} fill="{TXT}">{escape(r["label"])}</text>')
-        a(f'  <text x="36" y="{y + 17}" class="t" font-size="11" fill="{DIM}">{escape(r["sub"])}</text>')
-        for pi, (_t, k) in enumerate(PANELS):
-            x0 = LABEL_W + pi * (pw + 30)
-            zx = x0 + neg
-            scale = (pw - neg - 56) / vmax
-            v = r[k]
-            bw = max(3.0, abs(v) * scale)
-            col = GREEN if v > 0.05 else (RED if v < -0.05 else "#45454f")
-            bx = zx if v >= 0 else zx - min(bw, neg - 2)
-            a(f'  <rect x="{bx:.1f}" y="{y - 9}" width="{(bw if v >= 0 else min(bw, neg - 2)):.1f}" height="12" rx="3" fill="{col}"/>')
-            lx = (zx + bw + 6) if v >= 0 else (zx + 6)
-            a(f'  <text x="{lx:.1f}" y="{y + 1}" class="m" font-size="11.5"{fw} fill="{col if abs(v) > 0.05 else SUB}">{-v:+.1f}%</text>')
-            b = rb.get(r["label"])
-            if b is not None:
-                bv = b[k]
-                bbw = max(2.0, abs(bv) * scale)
-                bbx = zx if bv >= 0 else zx - min(bbw, neg - 2)
-                a(f'  <rect x="{bbx:.1f}" y="{y + 6}" width="{(bbw if bv >= 0 else min(bbw, neg - 2)):.1f}" height="4" rx="2" fill="{GREY}"/>')
-                a(f'  <text x="{(zx + bbw + 6) if bv >= 0 else zx + 6:.1f}" y="{y + 12}" class="m" font-size="9.5" fill="{DIM}">{-bv:+.1f}%</text>')
-        y += row_h
-    foot = (f"Signed quota delta (negative = less quota). Plugin prompt overhead ({after.get('overhead_tok_per_turn', 0):,} tok/turn) charged on every turn. "
-            "Before and after use the same causal rollover simulator (17k cold start + 8k re-read tax).")
-    a(f'  <text x="36" y="{h - 20}" class="t" font-size="10.5" fill="{DIM}">{escape(foot)}</text>')
+    a(f'  <rect width="{W}" height="{H}" rx="14" fill="{BG}"/>')
+    a(f'  <rect x="0.5" y="0.5" width="{W-1}" height="{H-1}" rx="13.5" fill="none" stroke="{BORDER}"/>')
+
+    # Header
+    a(f'  <text x="32" y="36" class="t" font-size="16.5" font-weight="500" fill="{TXT}">2-Mode Real-Session Benchmark · {m["n"]} sessions, {m["turns"]:,} turns ({m["quota_m"]:.1f}M quota units)</text>')
+    a(f'  <text x="32" y="56" class="t" font-size="11.5" fill="{SUB}">python3 scripts/benchmark.py --modes · exact per-turn tokens (1× in + 0.05× cache + 6× out) · {m["overhead_tok_per_turn"]} tok/turn prompt overhead charged</text>')
+
+    # Two summary cards at top
+    # Card 1: Mode 1 Zero Quality Loss
+    a(f'  <rect x="32" y="74" width="436" height="106" rx="10" fill="{CARD}" stroke="{BORDER}"/>')
+    a(f'  <text x="48" y="96" class="t" font-size="12" font-weight="500" fill="{GREEN}">MODE 1 · ZERO QUALITY LOSS (DEFAULT)</text>')
+    a(f'  <text x="452" y="96" class="m" font-size="11" fill="{GREEN}" text-anchor="end">0.0% quality loss</text>')
+    a(f'  <text x="48" y="130" class="m" font-size="22" font-weight="500" fill="{TXT}">{-m1_tot:+.1f}% avg quota</text>')
+    a(f'  <text x="452" y="128" class="m" font-size="12" fill="{SUB}" text-anchor="end">-76.4% noisy tasks</text>')
+    a(f'  <text x="48" y="152" class="t" font-size="11.5" fill="{SUB}">{base["saved_tool_tok"]:,} tool tokens removed · lossless JSON CSV, grep/SSH hoisting,</text>')
+    a(f'  <text x="48" y="168" class="t" font-size="11.5" fill="{DIM}">Merlin chunk dedupe, loop breaker, PowerShell tables, Archive-Only handoffs</text>')
+
+    # Card 2: Mode 2 Small Quality Loss
+    a(f'  <rect x="492" y="74" width="436" height="106" rx="10" fill="{CARD}" stroke="{BORDER}"/>')
+    a(f'  <text x="508" y="96" class="t" font-size="12" font-weight="500" fill="{AMBER}">MODE 2 · SMALL QUALITY LOSS (OPT-IN)</text>')
+    a(f'  <text x="912" y="96" class="m" font-size="11" fill="{AMBER}" text-anchor="end">~0.1–1.0% risk</text>')
+    a(f'  <text x="508" y="130" class="m" font-size="22" font-weight="500" fill="{TXT}">-{m2_live_c20:.1f}% to -{m2_live_c35:.1f}%</text>')
+    a(f'  <text x="912" y="128" class="m" font-size="12" fill="{SUB}" text-anchor="end">up to -{m2_ub_c35:.1f}% UB</text>')
+    a(f'  <text x="508" y="152" class="t" font-size="11.5" fill="{SUB}">{comp["saved_tool_tok"]:,} tool tokens cut · Anchored Auto-Handoff (-{m2_live:.1f}% exact live)</text>')
+    a(f'  <text x="508" y="168" class="t" font-size="11.5" fill="{DIM}">+ Compact Reads (120L/140L) + Concise Output (-20%..-35% on 6× output*)</text>')
+
+    # Horizontal comparison bars (50% max scale)
+    bar_x0, bar_w, vmax = 290, 520, 50.0
+    scale = bar_w / vmax
+    top_y = 224
+    rows = [
+        ("Mode 1 · Zero Quality Loss", f"Exact replay · 0.0% quality loss (all {m['n']} chats)", m1_tot, None, GREEN, "exact"),
+        ("Mode 2 · Compact Reads only", "Exact replay · ~0.1–0.5% risk (Auto-Handoff OFF)", m2_cr, None, "#86efac", "exact"),
+        ("Mode 2 · + Concise Output*", "Modeled -20%..-35% on 6× output · ~0.1% prose risk", round(m2_cr + c20, 1), round(m2_cr + c35, 1), AMBER, "band"),
+        ("Mode 2 · + Auto-Handoff (Live)", "Exact causal replay · ~0.5–1% mid-debug risk", m2_live, None, GREEN, "exact"),
+        ("Mode 2 · Full (Live + All)*", "Exact live handoff + Compact Reads + Concise Output", m2_live_c20, m2_live_c35, GREEN, "band"),
+        ("Mode 2 · Full (Upper Bound)*", "Phase-switch resets + Compact Reads + Concise Output", m2_ub_c20, m2_ub_c35, "#34d399", "band"),
+    ]
+
+    a(f'  <text x="32" y="206" class="t" font-size="12" font-weight="500" fill="{SUB}">TOTAL QUOTA REDUCTION BY MODE ({m["n"]} REAL SESSIONS · NEGATIVE = LESS QUOTA)</text>')
+    grid_y0, grid_y1 = top_y - 10, top_y + len(rows) * 44 - 6
+    for g in range(0, 51, 10):
+        gx = bar_x0 + g * scale
+        a(f'  <line x1="{gx:.1f}" y1="{grid_y0}" x2="{gx:.1f}" y2="{grid_y1}" stroke="{GRID}"/>')
+        a(f'  <text x="{gx:.1f}" y="{grid_y1 + 15}" class="m" font-size="10.5" fill="{DIM}" text-anchor="middle">-{g}%</text>')
+
+    y = top_y
+    for lab, sub, lo, hi, col, kind in rows:
+        fw = ' font-weight="500"' if "Full" in lab or "Mode 1" in lab else ""
+        a(f'  <text x="32" y="{y + 4}" class="t" font-size="12.5"{fw} fill="{TXT}">{escape(lab)}</text>')
+        a(f'  <text x="32" y="{y + 18}" class="t" font-size="10.5" fill="{DIM}">{escape(sub)}</text>')
+        w1 = max(4.0, min(vmax, max(0.0, lo)) * scale)
+        if kind == "band" and hi is not None:
+            w2 = max(w1 + 4.0, min(vmax, max(0.0, hi)) * scale)
+            a(f'  <rect x="{bar_x0:.1f}" y="{y - 6}" width="{w2:.1f}" height="14" rx="3" fill="{col}" fill-opacity="0.28"/>')
+            a(f'  <rect x="{bar_x0:.1f}" y="{y - 6}" width="{w1:.1f}" height="14" rx="3" fill="{col}"/>')
+            a(f'  <text x="{bar_x0 + w2 + 8:.1f}" y="{y + 5}" class="m" font-size="11.5"{fw} fill="{col}">-{lo:.1f}% .. -{hi:.1f}%</text>')
+        else:
+            a(f'  <rect x="{bar_x0:.1f}" y="{y - 6}" width="{w1:.1f}" height="14" rx="3" fill="{col}"/>')
+            a(f'  <text x="{bar_x0 + w1 + 8:.1f}" y="{y + 5}" class="m" font-size="11.5"{fw} fill="{col}">{-lo:+.1f}%</text>')
+        y += 44
+
+    # Footer notes
+    a(f'  <line x1="32" y1="{H - 46}" x2="{W - 32}" y2="{H - 46}" stroke="{BORDER}"/>')
+    a(f'  <text x="32" y="{H - 28}" class="t" font-size="10.5" fill="{DIM}">* Concise Output (Sketch-of-Thought arXiv:2503.05179 + Caveman-lite) modeled on real {m["quota_mix"]["output_pct"]:.1f}% (6×) output bucket (solid bar = -20%, shaded = -35%).</text>')
+    a(f'  <text x="32" y="{H - 13}" class="t" font-size="10.5" fill="{DIM}">Exact replays charge retries, follow-up reads, and {m["overhead_tok_per_turn"]} tok/turn prompt overhead. Cache-drop rebuilds = 19% of baseline quota (109 idle drops).</text>')
     a("</svg>")
     return "\n".join(p) + "\n"
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--after", required=True)
-    ap.add_argument("--before")
+    ap.add_argument("--modes", help="JSON output from transcript_replay.py --modes --json")
+    ap.add_argument("--after", help="Legacy single-mode JSON from transcript_replay.py --json")
     ap.add_argument("--out", default=str(ROOT / "docs" / "assets" / "benchmark-chart.svg"))
     a = ap.parse_args()
-    after = json.loads(Path(a.after).read_text(encoding="utf-8"))
-    before = json.loads(Path(a.before).read_text(encoding="utf-8")) if a.before else None
-    Path(a.out).write_text(render(after, before), encoding="utf-8")
+    src = a.modes or a.after
+    if not src:
+        ap.error("pass --modes <json> (or --after <json>)")
+    data = json.loads(Path(src).read_text(encoding="utf-8"))
+    if "base" not in data:
+        # Wrap legacy --after JSON cleanly
+        data = {
+            "n": data["n"], "turns": data["turns"], "quota_m": 0.0,
+            "overhead_tok_per_turn": data.get("overhead_tok_per_turn", 0),
+            "quota_mix": {"input_pct": 37.5, "cache_pct": 31.6, "output_pct": 30.9},
+            "concise_20_pct": 6.2, "concise_35_pct": 10.8,
+            "base": data, "compact_reads": data,
+        }
+    Path(a.out).write_text(render_two_mode(data), encoding="utf-8")
     print(f"wrote {a.out}")
     return 0
 

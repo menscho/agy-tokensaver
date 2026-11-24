@@ -151,5 +151,44 @@ hook cmd_hook.pl "$(printf '{"toolInput":{"CommandLine":"ffmpeg -y -i in.mp4 out
 hook cmd_hook.pl "$(printf '{"toolInput":{"CommandLine":"python3 -c '\''import json; data = [dict(i=x, v=x*2) for x in range(1000)]; print(json.dumps(data))'\''","Cwd":"%s"}}' "$T")" "--cat logs" "long read-only python3 -c wraps"
 hook cmd_hook.pl "$(printf '{"toolInput":{"CommandLine":"python3 -c \"open(\\\"x.txt\\\", \\\"w\\\").write(\\\"a\\\"*500)\"","Cwd":"%s"}}' "$T")" "$ALLOW" "writing python3 -c skipped"
 
+# 13. Merlin non-adjacent chunk deduplication (arXiv:2605.09990)
+"$PY" - <<'PYEOF' > "$T/merlin.log"
+blk = "HEADER: service worker diagnostics report\n  pool_size=32 active=12 queued=0 errors=0\n  memory_rss=412MB cpu_pct=14.2 uptime=86400s\n  region=eu-west-1 cluster=prod-primary-01\n"
+print(blk)
+print("INFO middle unique event alpha=1\n")
+print(blk)
+print("INFO middle unique event beta=2\n")
+print(blk)
+for i in range(40):
+    print(f"INFO tick {i} unique_payload_{i}")
+PYEOF
+o=$($W --cat logs --test-stdin < "$T/merlin.log")
+[[ "$o" == *"[exact dup of lines 1-4 (4L)]"* ]] && ok || bad "Merlin non-adjacent chunk dedupe" "$(head -c 350 <<<"$o")"
+
+# 14. TokenEconomizer 3x failure-loop breaker (arXiv:2610.22732)
+tj() { printf '{"toolInput":{"CommandLine":"pytest tests/test_auth.py","Cwd":"%s"},"stepIdx":%d,"conversationId":"loop1"}' "$T" "$1"; }
+hook cmd_hook.pl "$(tj 1)" "--cat test" "loop breaker: 1st pytest allowed"
+hook cmd_hook.pl "$(tj 2)" "--cat test" "loop breaker: 2nd pytest allowed"
+hook cmd_hook.pl "$(tj 3)" '"decision":"deny"' "loop breaker: 3rd identical pytest without edits blocked"
+hook cmd_hook.pl "$(tj 4)" "--cat test" "loop breaker: 1-retry escape hatch allows 4th"
+
+# 15. Multiline diagnostic banner chain wraps cleanly
+ml_cmd='echo "=== STATUS ===" && ps aux && echo "=== LOGS ===" && journalctl -n 50'
+hook cmd_hook.pl "$("$PY" -c 'import json,sys; print(json.dumps({"toolInput":{"CommandLine":sys.argv[1],"Cwd":sys.argv[2]}}))' "$ml_cmd" "$T")" "--cat chain" "multiline diagnostic banner chain wraps"
+
+# 16. 2-Mode config profile (zero_loss vs small_loss)
+"$PY" - "$ROOT/mcp_app" "$T/cfgdata" <<'PYEOF' && ok || bad "2-mode profile zero_loss vs small_loss" "failed"
+import os, sys
+os.environ["PLUGIN_DATA"] = sys.argv[2]
+sys.path.insert(0, sys.argv[1])
+import core
+c0 = core.load_config()
+assert c0["profile"] == "zero_loss" and c0["mode"] == "prepare_only" and not c0["compact_reads"] and not c0["concise_output"], c0
+c1 = core.save_config({"profile": "small_loss"})
+assert c1["profile"] == "small_loss" and c1["mode"] == "smart_auto" and c1["compact_reads"] and c1["concise_output"], c1
+c2 = core.save_config({"profile": "zero_loss"})
+assert c2["profile"] == "zero_loss" and c2["mode"] == "prepare_only" and not c2["compact_reads"] and not c2["concise_output"], c2
+PYEOF
+
 printf 'PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
 [[ $FAIL -eq 0 ]]

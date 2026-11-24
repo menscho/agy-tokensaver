@@ -107,16 +107,18 @@ def _arg(args: object, *keys: str) -> str:
     return ""
 
 
-def extract_transcript_context(conv_id: str = "") -> tuple[str, str, list[str], str, list[str]]:
+def extract_transcript_context(conv_id: str = "") -> tuple[str, str, list[str], str, list[str], list[str]]:
     tx = resolve_transcript(conv_id)
     if tx is None:
-        return "", "", [], "", []
+        return "", "", [], "", [], []
 
     resolved_cid = tx.parents[2].name
     last_user = ""
     last_assistant = ""
     edited: dict[str, int] = {}
     read: dict[str, int] = {}
+    errors: list[str] = []
+    seen_err: set[str] = set()
     order = 0
 
     try:
@@ -154,12 +156,28 @@ def extract_transcript_context(conv_id: str = "") -> tuple[str, str, list[str], 
                                     read[fp] = order
                     except Exception:
                         pass
+                elif any(tok in line for tok in ("Error:", "FAIL:", "AssertionError", "Command exited with code")):
+                    try:
+                        obj = json.loads(line)
+                        c = str(obj.get("content") or "")
+                        if "Command exited with code 0" in c:
+                            continue
+                        for el in c.splitlines():
+                            el_s = el.strip()
+                            if re.search(r"(?:Error:|FAIL:|AssertionError|Traceback|Exception:)", el_s) and len(el_s) > 10:
+                                key = el_s[:110]
+                                if key not in seen_err:
+                                    seen_err.add(key)
+                                    errors.append(key)
+                                break
+                    except Exception:
+                        pass
     except OSError:
         pass
     ed = [p for p, _ in sorted(edited.items(), key=lambda kv: kv[1])][-MAX_EDITED:]
     ed_l = {p.lower() for p in ed}
     rd = [p for p, _ in sorted(read.items(), key=lambda kv: kv[1]) if p.lower() not in ed_l][-MAX_READ:]
-    return last_user, last_assistant, ed, resolved_cid, rd
+    return last_user, last_assistant, ed, resolved_cid, rd, errors[-3:]
 
 
 def _short(p: str, ws: Path) -> str:
@@ -196,7 +214,7 @@ def build_packet(ws: Path, conv_id: str = "") -> str:
     branch = run_git(ws, ["rev-parse", "--abbrev-ref", "HEAD"])
     commits = run_git(ws, ["log", "-n", "5", "--format=%h %s"])
     changed = changed_files(ws)
-    last_user, last_assistant, edited, resolved_cid, read = extract_transcript_context(conv_id)
+    last_user, last_assistant, edited, resolved_cid, read, errors = extract_transcript_context(conv_id)
 
     lines = [
         "# Session Continuation Handoff",
@@ -209,6 +227,9 @@ def build_packet(ws: Path, conv_id: str = "") -> str:
         lines.append(f"Last state: {last_assistant[:420]}")
     if commits:
         lines.append("Recent commits: " + "; ".join(c[:72] for c in commits.splitlines()[:5]))
+    if errors:
+        lines.append("\n## Recent errors / ruled-out")
+        lines.extend(f"- {e}" for e in errors)
     if changed:
         lines.append("\n## Uncommitted changes")
         lines.extend(f"- {c}" for c in changed)

@@ -1,6 +1,6 @@
 ---
 name: lean-workflow
-description: Isolated workflows for >=5-file audits, refactors or test-fix loops.
+description: Isolated workflows for >=5-file audits/refactors/tests.
 ---
 
 # Phase-Isolated Workflows (`/lean-workflow`)
