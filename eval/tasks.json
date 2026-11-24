@@ -1,0 +1,464 @@
+[
+  {
+    "id": "T01-fix-divide-zero",
+    "category": "fix-failing-test",
+    "fixture": "py_calc",
+    "prompt": "Fix calc.divide so dividing by zero raises ValueError instead of ZeroDivisionError, and confirm test_divide_zero passes.",
+    "verify_cmd": "python3 -m unittest test_calc.TestCalc.test_divide_zero",
+    "reference_edit": {
+      "file": "calc.py",
+      "old": "    # BUG (task-01): does not raise ValueError on b == 0 (raises ZeroDivisionError)\n    return a / b",
+      "new": "    if b == 0:\n        raise ValueError('division by zero')\n    return a / b"
+    },
+    "required_signals": [
+      "ZeroDivisionError",
+      "test_divide_zero",
+      "calc.py"
+    ]
+  },
+  {
+    "id": "T02-fix-clamp",
+    "category": "fix-failing-test",
+    "fixture": "py_calc",
+    "prompt": "Fix the inverted bounds bug in calc.clamp and verify test_clamp passes.",
+    "verify_cmd": "python3 -m unittest test_calc.TestCalc.test_clamp",
+    "reference_edit": {
+      "file": "calc.py",
+      "old": "    if val < lo:\n        return hi\n    if val > hi:\n        return lo",
+      "new": "    if val < lo:\n        return lo\n    if val > hi:\n        return hi"
+    },
+    "required_signals": [
+      "AssertionError",
+      "test_clamp",
+      "calc.py"
+    ]
+  },
+  {
+    "id": "T03-fix-mean-empty",
+    "category": "fix-failing-test",
+    "fixture": "py_calc",
+    "prompt": "Fix calc.mean to return 0.0 for an empty list and verify test_mean_empty passes.",
+    "verify_cmd": "python3 -m unittest test_calc.TestCalc.test_mean_empty",
+    "reference_edit": {
+      "file": "calc.py",
+      "old": "    # BUG (task-03): crashes on empty list instead of returning 0.0\n    return sum(nums) / len(nums)",
+      "new": "    if not nums:\n        return 0.0\n    return sum(nums) / len(nums)"
+    },
+    "required_signals": [
+      "ZeroDivisionError",
+      "test_mean_empty",
+      "calc.py"
+    ]
+  },
+  {
+    "id": "T04-fix-median-even",
+    "category": "fix-failing-test",
+    "fixture": "py_calc",
+    "prompt": "Fix calc.median for even-length lists so it averages the two middle values, and verify test_median_even passes.",
+    "verify_cmd": "python3 -m unittest test_calc.TestCalc.test_median_even",
+    "reference_edit": {
+      "file": "calc.py",
+      "old": "    return float(s[len(s) // 2])",
+      "new": "    m = len(s) // 2\n    return (s[m - 1] + s[m]) / 2.0 if len(s) % 2 == 0 else float(s[m])"
+    },
+    "required_signals": [
+      "AssertionError",
+      "test_median_even",
+      "calc.py"
+    ]
+  },
+  {
+    "id": "T05-fix-normalize",
+    "category": "fix-failing-test",
+    "fixture": "py_calc",
+    "prompt": "Fix calc.normalize to perform min-max normalization ((x - min) / (max - min)) and verify test_normalize passes.",
+    "verify_cmd": "python3 -m unittest test_calc.TestCalc.test_normalize",
+    "reference_edit": {
+      "file": "calc.py",
+      "old": "    hi = max(nums)\n    if hi == 0:\n        return [0.0 for _ in nums]\n    return [x / hi for x in nums]",
+      "new": "    lo, hi = min(nums), max(nums)\n    span = hi - lo\n    if span == 0:\n        return [0.0 for _ in nums]\n    return [(x - lo) / span for x in nums]"
+    },
+    "required_signals": [
+      "AssertionError",
+      "test_normalize",
+      "calc.py"
+    ]
+  },
+  {
+    "id": "T06-fix-parse-csv-ints",
+    "category": "fix-failing-test",
+    "fixture": "py_calc",
+    "prompt": "Fix calc.parse_csv_ints to ignore surrounding spaces and empty segments from trailing commas, and verify test_parse_csv_ints passes.",
+    "verify_cmd": "python3 -m unittest test_calc.TestCalc.test_parse_csv_ints",
+    "reference_edit": {
+      "file": "calc.py",
+      "old": "    return [int(x) for x in text.split(\",\")]",
+      "new": "    return [int(x.strip()) for x in text.split(\",\") if x.strip()]"
+    },
+    "required_signals": [
+      "ValueError",
+      "test_parse_csv_ints",
+      "calc.py"
+    ]
+  },
+  {
+    "id": "T07-add-variance",
+    "category": "add-feature-and-test",
+    "fixture": "py_calc",
+    "prompt": "Add population variance(nums) to calc.py (returning 0.0 for empty lists) and a unit test.",
+    "verify_cmd": "python3 -c 'import calc; assert calc.variance([]) == 0.0 and abs(calc.variance([2,4,4,4,5,5,7,9]) - 4.0) < 1e-9'",
+    "reference_append": {
+      "file": "calc.py",
+      "content": "\ndef variance(nums: list[float]) -> float:\n    if not nums:\n        return 0.0\n    mu = sum(nums) / len(nums)\n    return sum((x - mu) ** 2 for x in nums) / len(nums)\n"
+    },
+    "required_signals": [
+      "def mean"
+    ]
+  },
+  {
+    "id": "T08-add-moving-avg",
+    "category": "add-feature-and-test",
+    "fixture": "py_calc",
+    "prompt": "Add moving_average(nums, window) to calc.py returning sliding window averages.",
+    "verify_cmd": "python3 -c 'import calc; assert calc.moving_average([1,2,3,4], 2) == [1.5, 2.5, 3.5]'",
+    "reference_append": {
+      "file": "calc.py",
+      "content": "\ndef moving_average(nums: list[float], window: int) -> list[float]:\n    if window <= 0 or window > len(nums):\n        return []\n    return [sum(nums[i:i+window]) / window for i in range(len(nums) - window + 1)]\n"
+    },
+    "required_signals": [
+      "def mean"
+    ]
+  },
+  {
+    "id": "T09-add-percentile",
+    "category": "add-feature-and-test",
+    "fixture": "py_calc",
+    "prompt": "Add percentile(nums, p) to calc.py with linear interpolation for p in [0, 100].",
+    "verify_cmd": "python3 -c 'import calc; assert calc.percentile([10,20,30,40], 50) == 25.0 and calc.percentile([10,20,30,40], 100) == 40.0'",
+    "reference_append": {
+      "file": "calc.py",
+      "content": "\ndef percentile(nums: list[float], p: float) -> float:\n    if not nums:\n        return 0.0\n    s = sorted(nums)\n    idx = (len(s) - 1) * (p / 100.0)\n    lo = int(idx)\n    hi = min(len(s) - 1, lo + 1)\n    return s[lo] + (s[hi] - s[lo]) * (idx - lo)\n"
+    },
+    "required_signals": [
+      "def median"
+    ]
+  },
+  {
+    "id": "T10-add-dot-product",
+    "category": "add-feature-and-test",
+    "fixture": "py_calc",
+    "prompt": "Add dot(a, b) to calc.py raising ValueError when vector lengths differ.",
+    "verify_cmd": "python3 -c 'import calc; assert calc.dot([1,2,3],[4,5,6]) == 32; ok=False\ntry: calc.dot([1],[1,2])\nexcept ValueError: ok=True\nassert ok'",
+    "reference_append": {
+      "file": "calc.py",
+      "content": "\ndef dot(a: list[float], b: list[float]) -> float:\n    if len(a) != len(b):\n        raise ValueError('length mismatch')\n    return sum(x * y for x, y in zip(a, b))\n"
+    },
+    "required_signals": [
+      "def add"
+    ]
+  },
+  {
+    "id": "T11-add-dedupe-preserve",
+    "category": "add-feature-and-test",
+    "fixture": "py_calc",
+    "prompt": "Add dedupe_preserve(items) to calc.py removing duplicates while preserving first-seen order.",
+    "verify_cmd": "python3 -c 'import calc; assert calc.dedupe_preserve([3,1,3,2,1]) == [3,1,2]'",
+    "reference_append": {
+      "file": "calc.py",
+      "content": "\ndef dedupe_preserve(items: list) -> list:\n    seen = set()\n    out = []\n    for x in items:\n        if x not in seen:\n            seen.add(x)\n            out.append(x)\n    return out\n"
+    },
+    "required_signals": [
+      "def clamp"
+    ]
+  },
+  {
+    "id": "T12-add-js-unique",
+    "category": "add-feature-and-test",
+    "fixture": "node_api",
+    "prompt": "Add unique(arr) to utils.js and export it.",
+    "verify_cmd": "python3 -c 'import pathlib; s=pathlib.Path(\"utils.js\").read_text(); assert \"function unique\" in s and \"unique\" in s.split(\"module.exports\")[1]'",
+    "reference_edit": {
+      "file": "utils.js",
+      "old": "module.exports = { slugify, formatPrice, chunk };",
+      "new": "function unique(arr) {\n  return Array.from(new Set(arr));\n}\n\nmodule.exports = { slugify, formatPrice, chunk, unique };"
+    },
+    "required_signals": [
+      "module.exports"
+    ]
+  },
+  {
+    "id": "T13-refactor-slugify-trim",
+    "category": "refactor",
+    "fixture": "node_api",
+    "prompt": "Refactor utils.js to extract stripNonAlnum(s) helper used by slugify.",
+    "verify_cmd": "python3 -c 'import pathlib; s=pathlib.Path(\"utils.js\").read_text(); assert \"function stripNonAlnum\" in s and \"stripNonAlnum(\" in s'",
+    "reference_edit": {
+      "file": "utils.js",
+      "old": "function slugify(s) {\n  return String(s).toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');\n}",
+      "new": "function stripNonAlnum(s) {\n  return String(s).toLowerCase().trim().replace(/[^a-z0-9]+/g, '-');\n}\n\nfunction slugify(s) {\n  return stripNonAlnum(s).replace(/^-|-$/g, '');\n}"
+    },
+    "required_signals": [
+      "function slugify"
+    ]
+  },
+  {
+    "id": "T14-refactor-format-currency",
+    "category": "refactor",
+    "fixture": "node_api",
+    "prompt": "Refactor formatPrice(cents, symbol='$') in utils.js to accept an optional currency symbol defaulting to '$'.",
+    "verify_cmd": "python3 -c 'import pathlib; s=pathlib.Path(\"utils.js\").read_text(); assert \"symbol\" in s and \"formatPrice(cents\" in s'",
+    "reference_edit": {
+      "file": "utils.js",
+      "old": "function formatPrice(cents) {\n  return '$' + (cents / 100).toFixed(2);\n}",
+      "new": "function formatPrice(cents, symbol = '$') {\n  return symbol + (cents / 100).toFixed(2);\n}"
+    },
+    "required_signals": [
+      "function formatPrice"
+    ]
+  },
+  {
+    "id": "T15-refactor-chunk-guard",
+    "category": "refactor",
+    "fixture": "node_api",
+    "prompt": "Guard chunk(arr, size) in utils.js so size <= 0 throws RangeError instead of infinite looping.",
+    "verify_cmd": "python3 -c 'import pathlib; s=pathlib.Path(\"utils.js\").read_text(); assert \"RangeError\" in s and \"size <= 0\" in s'",
+    "reference_edit": {
+      "file": "utils.js",
+      "old": "function chunk(arr, size) {\n  const out = [];",
+      "new": "function chunk(arr, size) {\n  if (size <= 0) throw new RangeError('size must be > 0');\n  const out = [];"
+    },
+    "required_signals": [
+      "function chunk"
+    ]
+  },
+  {
+    "id": "T16-refactor-calc-helper",
+    "category": "refactor",
+    "fixture": "py_calc",
+    "prompt": "Extract _require_non_zero(b) helper in calc.py and call it from divide.",
+    "verify_cmd": "python3 -c 'import calc; assert hasattr(calc, \"_require_non_zero\")'",
+    "reference_edit": {
+      "file": "calc.py",
+      "old": "def divide(a: float, b: float) -> float:\n    # BUG (task-01): does not raise ValueError on b == 0 (raises ZeroDivisionError)\n    return a / b",
+      "new": "def _require_non_zero(b: float) -> None:\n    if b == 0:\n        raise ValueError('division by zero')\n\ndef divide(a: float, b: float) -> float:\n    _require_non_zero(b)\n    return a / b"
+    },
+    "required_signals": [
+      "def divide"
+    ]
+  },
+  {
+    "id": "T17-refactor-stats-summary",
+    "category": "refactor",
+    "fixture": "py_calc",
+    "prompt": "Add summary(nums) to calc.py returning a dict with keys count, min, max.",
+    "verify_cmd": "python3 -c 'import calc; assert calc.summary([3,1,5]) == {\"count\":3,\"min\":1,\"max\":5}'",
+    "reference_append": {
+      "file": "calc.py",
+      "content": "\ndef summary(nums: list[float]) -> dict:\n    return {\"count\": len(nums), \"min\": min(nums), \"max\": max(nums)} if nums else {\"count\": 0, \"min\": 0, \"max\": 0}\n"
+    },
+    "required_signals": [
+      "def normalize"
+    ]
+  },
+  {
+    "id": "T18-refactor-log-constants",
+    "category": "refactor",
+    "fixture": "log_ops",
+    "prompt": "Refactor logs.py to expose SERVICE_MAP dict mapping service name to error code.",
+    "verify_cmd": "python3 -c 'import logs; assert logs.SERVICE_MAP[\"auth\"] == \"ERR_JWT_EXPIRED\" and len(logs.SERVICE_MAP) == 6'",
+    "reference_append": {
+      "file": "logs.py",
+      "content": "\nSERVICE_MAP = {name: code for name, code, _ in SERVICES}\n"
+    },
+    "required_signals": [
+      "SERVICES"
+    ]
+  },
+  {
+    "id": "T19-debug-log-auth",
+    "category": "debug-from-log",
+    "fixture": "log_ops",
+    "service": "auth",
+    "prompt": "Inspect the auth service log and write the failing error code to answer.txt.",
+    "verify_cmd": "python3 -c 'import pathlib; assert pathlib.Path(\"answer.txt\").read_text().strip() == \"ERR_JWT_EXPIRED\"'",
+    "reference_write": {
+      "file": "answer.txt",
+      "content": "ERR_JWT_EXPIRED\n"
+    },
+    "required_signals": [
+      "ERR_JWT_EXPIRED",
+      "tenant=acme-42"
+    ]
+  },
+  {
+    "id": "T20-debug-log-billing",
+    "category": "debug-from-log",
+    "fixture": "log_ops",
+    "service": "billing",
+    "prompt": "Inspect the billing service log and write the failing error code to answer.txt.",
+    "verify_cmd": "python3 -c 'import pathlib; assert pathlib.Path(\"answer.txt\").read_text().strip() == \"ERR_STRIPE_429\"'",
+    "reference_write": {
+      "file": "answer.txt",
+      "content": "ERR_STRIPE_429\n"
+    },
+    "required_signals": [
+      "ERR_STRIPE_429",
+      "ch_9981"
+    ]
+  },
+  {
+    "id": "T21-debug-log-worker",
+    "category": "debug-from-log",
+    "fixture": "log_ops",
+    "service": "worker",
+    "prompt": "Inspect the worker service log and write the failing error code to answer.txt.",
+    "verify_cmd": "python3 -c 'import pathlib; assert pathlib.Path(\"answer.txt\").read_text().strip() == \"ERR_REDIS_OOM\"'",
+    "reference_write": {
+      "file": "answer.txt",
+      "content": "ERR_REDIS_OOM\n"
+    },
+    "required_signals": [
+      "ERR_REDIS_OOM",
+      "maxmemory=512mb"
+    ]
+  },
+  {
+    "id": "T22-debug-log-gateway",
+    "category": "debug-from-log",
+    "fixture": "log_ops",
+    "service": "gateway",
+    "prompt": "Inspect the gateway service log and write the failing error code to answer.txt.",
+    "verify_cmd": "python3 -c 'import pathlib; assert pathlib.Path(\"answer.txt\").read_text().strip() == \"ERR_UPSTREAM_504\"'",
+    "reference_write": {
+      "file": "answer.txt",
+      "content": "ERR_UPSTREAM_504\n"
+    },
+    "required_signals": [
+      "ERR_UPSTREAM_504",
+      "10.4.2.19:8080"
+    ]
+  },
+  {
+    "id": "T23-debug-log-indexer",
+    "category": "debug-from-log",
+    "fixture": "log_ops",
+    "service": "indexer",
+    "prompt": "Inspect the indexer service log and write the failing error code to answer.txt.",
+    "verify_cmd": "python3 -c 'import pathlib; assert pathlib.Path(\"answer.txt\").read_text().strip() == \"ERR_DISK_ENOSPC\"'",
+    "reference_write": {
+      "file": "answer.txt",
+      "content": "ERR_DISK_ENOSPC\n"
+    },
+    "required_signals": [
+      "ERR_DISK_ENOSPC",
+      "/var/lib/idx"
+    ]
+  },
+  {
+    "id": "T24-debug-log-mailer",
+    "category": "debug-from-log",
+    "fixture": "log_ops",
+    "service": "mailer",
+    "prompt": "Inspect the mailer service log and write the failing error code to answer.txt.",
+    "verify_cmd": "python3 -c 'import pathlib; assert pathlib.Path(\"answer.txt\").read_text().strip() == \"ERR_SMTP_AUTH\"'",
+    "reference_write": {
+      "file": "answer.txt",
+      "content": "ERR_SMTP_AUTH\n"
+    },
+    "required_signals": [
+      "ERR_SMTP_AUTH",
+      "noreply@acme.test"
+    ]
+  },
+  {
+    "id": "T25-dep-express-version",
+    "category": "lockfile-dependency",
+    "fixture": "node_api",
+    "prompt": "Find the declared express version range in package.json (without dumping package-lock.json) and write it to answer.txt.",
+    "verify_cmd": "python3 -c 'import pathlib; assert pathlib.Path(\"answer.txt\").read_text().strip() == \"^4.19.2\"'",
+    "reference_write": {
+      "file": "answer.txt",
+      "content": "^4.19.2\n"
+    },
+    "required_signals": [
+      "^4.19.2",
+      "express"
+    ]
+  },
+  {
+    "id": "T26-dep-zod-version",
+    "category": "lockfile-dependency",
+    "fixture": "node_api",
+    "prompt": "Find the declared zod version range in package.json and write it to answer.txt.",
+    "verify_cmd": "python3 -c 'import pathlib; assert pathlib.Path(\"answer.txt\").read_text().strip() == \"^3.23.8\"'",
+    "reference_write": {
+      "file": "answer.txt",
+      "content": "^3.23.8\n"
+    },
+    "required_signals": [
+      "^3.23.8",
+      "zod"
+    ]
+  },
+  {
+    "id": "T27-dep-pino-version",
+    "category": "lockfile-dependency",
+    "fixture": "node_api",
+    "prompt": "Find the declared pino version range in package.json and write it to answer.txt.",
+    "verify_cmd": "python3 -c 'import pathlib; assert pathlib.Path(\"answer.txt\").read_text().strip() == \"^9.3.2\"'",
+    "reference_write": {
+      "file": "answer.txt",
+      "content": "^9.3.2\n"
+    },
+    "required_signals": [
+      "^9.3.2",
+      "pino"
+    ]
+  },
+  {
+    "id": "T28-dep-vitest-version",
+    "category": "lockfile-dependency",
+    "fixture": "node_api",
+    "prompt": "Find the devDependency version range for vitest in package.json and write it to answer.txt.",
+    "verify_cmd": "python3 -c 'import pathlib; assert pathlib.Path(\"answer.txt\").read_text().strip() == \"^2.0.5\"'",
+    "reference_write": {
+      "file": "answer.txt",
+      "content": "^2.0.5\n"
+    },
+    "required_signals": [
+      "^2.0.5",
+      "vitest"
+    ]
+  },
+  {
+    "id": "T29-dep-ts-version",
+    "category": "lockfile-dependency",
+    "fixture": "node_api",
+    "prompt": "Find the devDependency version range for typescript in package.json and write it to answer.txt.",
+    "verify_cmd": "python3 -c 'import pathlib; assert pathlib.Path(\"answer.txt\").read_text().strip() == \"^5.5.4\"'",
+    "reference_write": {
+      "file": "answer.txt",
+      "content": "^5.5.4\n"
+    },
+    "required_signals": [
+      "^5.5.4",
+      "typescript"
+    ]
+  },
+  {
+    "id": "T30-dep-count",
+    "category": "lockfile-dependency",
+    "fixture": "node_api",
+    "prompt": "Count the total number of runtime dependencies in package.json and write the integer to answer.txt.",
+    "verify_cmd": "python3 -c 'import pathlib; assert pathlib.Path(\"answer.txt\").read_text().strip() == \"3\"'",
+    "reference_write": {
+      "file": "answer.txt",
+      "content": "3\n"
+    },
+    "required_signals": [
+      "express",
+      "zod",
+      "pino"
+    ]
+  }
+]
