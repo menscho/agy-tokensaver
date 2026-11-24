@@ -342,6 +342,8 @@ def plugin_overhead_bytes() -> int:
             fm = _frontmatter(md.read_text(encoding="utf-8", errors="replace"))
         except OSError:
             continue
+        if fm.get("disable-model-invocation", "").lower() == "true":
+            continue
         name = fm.get("name") or md.parent.name
         tot += _b(f"- {name} ({install_dir}\\skills\\{md.parent.name}\\SKILL.md): {fm.get('description', '')}\n")
     for md in sorted((ROOT / "agents").glob("*.md")):
