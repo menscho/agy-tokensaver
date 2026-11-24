@@ -64,9 +64,28 @@ def _atomic_write_json(path: Path, obj: Any) -> None:
     os.replace(tmp, path)
 
 
+_PROFILE_PRESETS: dict[str, dict[str, Any]] = {
+    "small_loss":         {"mode": "smart_auto",   "auto_rollover": True, "compact_reads": True,  "concise_output": True},
+    "handoff_only":       {"mode": "smart_auto",   "auto_rollover": True, "compact_reads": True,  "concise_output": False},
+    "concise_no_handoff": {"mode": "prepare_only", "auto_rollover": True, "compact_reads": True,  "concise_output": True},
+    "compact_reads":      {"mode": "prepare_only", "auto_rollover": True, "compact_reads": True,  "concise_output": False},
+    "zero_loss":          {"mode": "prepare_only", "auto_rollover": True, "compact_reads": False, "concise_output": False},
+}
+
+
+def _infer_profile(mode: str, compact_reads: bool, concise_output: bool) -> str:
+    if mode == "smart_auto":
+        return "small_loss" if concise_output else "handoff_only"
+    if concise_output:
+        return "concise_no_handoff"
+    if compact_reads:
+        return "compact_reads"
+    return "zero_loss"
+
+
 def load_config() -> dict[str, Any]:
     default = {
-        "profile": "small_loss",       # "small_loss" (~0.1-1% risk, default max savings) | "zero_loss" (0% loss)
+        "profile": "small_loss",       # "small_loss" (Mode 2 Max, default) | "handoff_only" (2c) | "concise_no_handoff" (2b) | "compact_reads" (2a) | "zero_loss" (Mode 1)
         "auto_rollover": True,
         "mode": "smart_auto",          # "smart_auto" (default max savings) | "prepare_only" | "off"
         "threshold_mode": "auto",      # "auto" | "75" | "90" | "110" | "140" | "180"
@@ -89,9 +108,9 @@ def load_config() -> dict[str, Any]:
                 mode = "smart_auto" if auto_on else "off"
             compact_reads = bool(d.get("compact_reads", True))
             concise_output = bool(d.get("concise_output", True))
-            profile = str(d.get("profile") or ("small_loss" if (mode == "smart_auto" or compact_reads or concise_output) else "zero_loss"))
-            if profile not in ("zero_loss", "small_loss"):
-                profile = "zero_loss"
+            profile = str(d.get("profile") or _infer_profile(mode, compact_reads, concise_output))
+            if profile not in _PROFILE_PRESETS:
+                profile = _infer_profile(mode, compact_reads, concise_output)
             tmode = str(d.get("threshold_mode") or "auto")
             if tmode not in ("auto", "75", "90", "110", "140", "180"):
                 tmode = "auto"
@@ -120,25 +139,17 @@ def save_config(patch: dict[str, Any]) -> dict[str, Any]:
         merged = {**cur, **patch}
         if "profile" in patch:
             prof = str(patch["profile"])
-            if prof == "small_loss":
-                merged["profile"] = "small_loss"
-                merged["mode"] = "smart_auto"
-                merged["auto_rollover"] = True
-                merged["compact_reads"] = True
-                merged["concise_output"] = True
-            else:
-                merged["profile"] = "zero_loss"
-                merged["mode"] = "prepare_only"
-                merged["auto_rollover"] = True
-                merged["compact_reads"] = False
-                merged["concise_output"] = False
+            if prof not in _PROFILE_PRESETS:
+                prof = "small_loss"
+            merged["profile"] = prof
+            merged.update(_PROFILE_PRESETS[prof])
         elif "mode" in patch:
             mode = str(patch["mode"])
             if mode not in ("smart_auto", "prepare_only", "off"):
                 mode = "smart_auto"
             merged["mode"] = mode
             merged["auto_rollover"] = mode != "off"
-            merged["profile"] = "small_loss" if (mode == "smart_auto" or merged.get("compact_reads") or merged.get("concise_output")) else "zero_loss"
+            merged["profile"] = _infer_profile(mode, bool(merged.get("compact_reads", True)), bool(merged.get("concise_output", True)))
         elif "auto_rollover" in patch:
             on = bool(patch["auto_rollover"])
             merged["auto_rollover"] = on

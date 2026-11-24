@@ -28,7 +28,13 @@ All notable changes to **agy-tokensaver** (`menscho/agy-tokensaver`) are documen
   - **RTK-inspired compressors (`scripts/cmd_wrap.pl`):** `NO_COLOR=1`/`CLICOLOR=0`/`GIT_PAGER=cat` child env injection, compiler diagnostic grouping on failed builds (`tsc`/`cargo`/`rustc`), and inline `style=""` stripping on large HTML responses.
   - **Command coverage recovery (`scripts/cmd_hook_core.pl`):** added `ps -eo`/`-o`, `export`/`set`/`mkdir`/`rm`/`cp`/`mv`/`chmod`/`touch` chain setup steps, `ls && find` chain recovery, and multi-command `ssh` diagnostic script wrapping.
   - **Image guards (`scripts/read_hook.pl`):** zero-loss duplicate image read dedup + pure-Perl 0.1ms PNG/JPEG header reader auto-downscaling `>1568px` screenshots to `<=1280px` cached JPEG in Mode 2 (4–8× fewer vision tiles, fail-open).
-- **314 assertions across 7 test suites** (`run_tests.sh`, `test_cmd_windows.sh`, `test_read.sh`, `test_rollover.sh`, `test_rules.sh`, `test_tools.sh`, `test_headroom_plexer.sh`) verified in 3-OS CI.
+- **All 5 Benchmark Modes in HUD (Strongest Default):** single HUD dropdown lets users pick directly between `Mode 2 (Max · Default)`, `Mode 2c (Auto-Handoff + Compact)`, `Mode 2b (Compact + Concise, No Auto-Handoff)`, `Mode 2a (Compact Reads Only)`, and `Mode 1 (Zero Quality Loss, Strict 0.0%)`. Updated 76-session benchmark (`-25.3%..-29.9%` automatic / up to `-44.8%` UB; `-19.2%` exact causal live handoff).
+- **5-Agent arXiv & OSS Research Upgrades (0% Loss):**
+  - **Tail-anchored log reads & post-edit dirty-hunk narrowing (`scripts/read_hook.pl`):** unbounded `.log`/`.err`/`.out`/spillback reads anchor to the tail (`OpenAI Codex` / `LogDx-CI` `arXiv:2605.28876`); modified code files (`<=64KB`) narrow unbounded re-reads to `[min_dirty-15..max_dirty+15]` (`squeez` / `Cline`).
+  - **Layer A Deterministic Handoff Artifacts (`scripts/handoff_pack.py`):** appends `L<start>-L<end>` symbol outlines of the top 4 edited files (`Factory.ai` + `Aider`) and last verification command so fresh chats jump straight to exact line ranges.
+  - **`ids_preserved` & SQLite FTS5 BM25 Spill Search (`scripts/cmd_wrap.pl`, `scripts/ts_inspect.py`):** preserves omitted UUIDs/`ERR_*`/URLs in spill footers (`squeez`) and adds `ts_inspect.py query <file> <terms...>` (`mksglu/context-mode`).
+  - **Universal `doom_loop` Guards & Dead-MCP / Transcript Auditor (`scripts/grep_hook.pl`, `scripts/find_hook.pl`, `scripts/audit.py`):** 3× identical call loop breaking across `cmd`/`grep`/`find` (`OpenCode` / `IAL-Scan` `arXiv:2607.01641`) + 0-call MCP schema warnings, dynamic-date cache-buster rule checks, and `audit.py --discover` (`rtk discover`).
+- **321 assertions across 7 test suites** (`run_tests.sh`, `test_cmd_windows.sh`, `test_read.sh`, `test_rollover.sh`, `test_rules.sh`, `test_tools.sh`, `test_headroom_plexer.sh`) verified in 3-OS CI.
 
 ## [1.0.0] — Initial Open-Source Release
 

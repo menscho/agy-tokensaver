@@ -262,5 +262,63 @@ PYEOF
 o=$($W --cat build --test-stdin --test-rc 1 < "$T/tsc.err")
 [[ "$o" == *"Repeated compiler errors collapsed"* && "$o" == *"(+75 more)"* ]] && ok || bad "RTK compiler error grouping in compress_build" "$(head -c 300 <<<"$o")"
 
+# 24. All 5 benchmark HUD modes selectable cleanly (strongest small_loss default)
+"$PY" - "$ROOT/mcp_app" "$T/cfgdata5" <<'PYEOF' && ok || bad "all 5 HUD benchmark profiles" "failed"
+import os, sys
+os.environ["PLUGIN_DATA"] = sys.argv[2]
+sys.path.insert(0, sys.argv[1])
+import core
+c = core.load_config()
+assert c["profile"] == "small_loss" and c["mode"] == "smart_auto" and c["compact_reads"] and c["concise_output"], c
+for prof, exp in [
+    ("handoff_only", ("smart_auto", True, False)),
+    ("concise_no_handoff", ("prepare_only", True, True)),
+    ("compact_reads", ("prepare_only", True, False)),
+    ("zero_loss", ("prepare_only", False, False)),
+    ("small_loss", ("smart_auto", True, True)),
+]:
+    r = core.save_config({"profile": prof})
+    assert (r["mode"], r["compact_reads"], r["concise_output"]) == exp, (prof, r)
+PYEOF
+
+# 25. Tail-anchored unbounded .log read (OpenAI Codex + LogDx-CI)
+"$PY" -c 'for i in range(1, 401): print(f"2026-11-24 INFO line {i} payload_event_0123456789abcdef")' > "$T/app.log"
+o=$(perl "$S/read_hook.pl" <<< "$(printf '{"toolInput":{"Path":"%s"}}' "$T/app.log")")
+[[ "$o" == *'"StartLine":32'* && "$o" == *'"EndLine":40'* ]] && ok || bad "tail-anchored unbounded .log cap" "$o"
+
+# 26. Post-edit dirty-hunk auto-narrowing (squeez/Cline)
+"$PY" -c 'for i in range(1, 321): print(f"def fn_{i}(x): return x + {i}  # padding comment line")' > "$T/dirty.py"
+o1=$(AGY_TS_COMPACT_READS=0 perl "$S/read_hook.pl" <<< "$(printf '{"toolInput":{"Path":"%s"},"conversationId":"dh1","stepIdx":1}' "$T/dirty.py")")
+"$PY" -c 'p=open("'"$T/dirty.py"'").read().splitlines(); p[219]="def fn_220(x): return x * 999  # edited"; open("'"$T/dirty.py"'","w").write("\n".join(p)+"\n")'
+o2=$(perl "$S/read_hook.pl" <<< "$(printf '{"toolInput":{"Path":"%s"},"conversationId":"dh1","stepIdx":3}' "$T/dirty.py")")
+[[ "$o1" == *'"decision":"allow"'* && "$o2" == *'"StartLine":205,"EndLine":235'* ]] && ok || bad "post-edit dirty-hunk narrowing" "o1=$o1 o2=$o2"
+
+# 27. ids_preserved footer surfaces omitted ERR_* / UUIDs (squeez)
+"$PY" - <<'PYEOF' > "$T/ids.log"
+for i in range(1, 500):
+    if i == 250:
+        print("INFO request_id=123e4567-e89b-12d3-a456-426614174000 code=ERR_QUOTA_BURST ok=true")
+    else:
+        print(f"INFO tick {i} normal_log_payload_0123456789abcdef0123456789abcdef")
+PYEOF
+o=$($W --cat logs --test-stdin < "$T/ids.log")
+[[ "$o" == *"ids:"* && "$o" == *"ERR_QUOTA_BURST"* ]] && ok || bad "ids_preserved footer in cmd_wrap" "$(tail -n 3 <<<"$o")"
+
+# 28. ts_inspect.py query BM25/FTS5 chunk retrieval (context-mode)
+o=$("$PY" "$S/ts_inspect.py" query "$T/ids.log" ERR_QUOTA_BURST)
+[[ "$o" == *"L241-270"* || "$o" == *"ERR_QUOTA_BURST"* ]] && ok || bad "ts_inspect query BM25/FTS5" "$(head -c 250 <<<"$o")"
+
+# 29. Universal doom_loop guard in grep_hook.pl (OpenCode + IAL-Scan)
+gj() { printf '{"toolInput":{"SearchPath":"%s","Query":"needle_xyz"},"conversationId":"gl1","stepIdx":%d}' "$T" "$1"; }
+o1=$(perl "$S/grep_hook.pl" <<< "$(gj 1)")
+o2=$(perl "$S/grep_hook.pl" <<< "$(gj 2)")
+o3=$(perl "$S/grep_hook.pl" <<< "$(gj 3)")
+o4=$(perl "$S/grep_hook.pl" <<< "$(gj 4)")
+[[ "$o1" == '{"decision":"allow"}' && "$o2" == '{"decision":"allow"}' && "$o3" == *'"decision":"deny"'* && "$o4" == '{"decision":"allow"}' ]] && ok || bad "grep_hook doom_loop 3x + retry escape" "o3=$o3 o4=$o4"
+
+# 30. audit.py --discover runs cleanly
+o=$("$PY" "$S/audit.py" "$ROOT" --discover 2>&1)
+[[ $? -eq 0 && "$o" == *"Transcript Discovery"* ]] && ok || bad "audit.py --discover" "$(tail -n 5 <<<"$o")"
+
 printf 'PASS=%d FAIL=%d\n' "$PASS" "$FAIL"
 [[ $FAIL -eq 0 ]]

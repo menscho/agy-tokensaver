@@ -283,10 +283,58 @@ def cmd_outline(path: str, args: list[str]) -> int:
     return 0
 
 
+def cmd_query(path: str, args: list[str]) -> int:
+    """BM25/SQLite FTS5 chunk search over huge logs, spillbacks, or docs (context-mode pattern)."""
+    if not args:
+        print("Usage: ts_inspect.py query <file> <term1> [term2 ...]")
+        return 1
+    p = Path(path)
+    lines = p.read_text(encoding="utf-8", errors="replace").splitlines()
+    terms = [t.strip() for t in args if t.strip()]
+    chunk_sz, stride = 30, 20
+    chunks: list[tuple[int, int, str]] = []
+    for i in range(0, max(1, len(lines)), stride):
+        end = min(len(lines), i + chunk_sz)
+        chunks.append((i + 1, end, "\n".join(lines[i:end])))
+        if end >= len(lines):
+            break
+
+    hits: list[tuple[int, int, str]] = []
+    try:
+        con = sqlite3.connect(":memory:")
+        con.execute("CREATE VIRTUAL TABLE c USING fts5(s UNINDEXED, e UNINDEXED, body)")
+        con.executemany("INSERT INTO c(s, e, body) VALUES (?, ?, ?)", chunks)
+        q = " OR ".join('"' + t.replace('"', "") + '"' for t in terms if t.replace('"', ""))
+        if q:
+            rows = con.execute("SELECT s, e, body FROM c WHERE c MATCH ? ORDER BY bm25(c) LIMIT 4", (q,)).fetchall()
+            hits = [(int(s), int(e), str(b)) for s, e, b in rows]
+        con.close()
+    except Exception:
+        # Pure-Python fallback if SQLite was compiled without FTS5
+        scored = []
+        low_terms = [t.lower() for t in terms]
+        for s, e, b in chunks:
+            bl = b.lower()
+            sc = sum(bl.count(t) for t in low_terms)
+            if sc > 0:
+                scored.append((sc, s, e, b))
+        scored.sort(key=lambda x: (-x[0], x[1]))
+        hits = [(s, e, b) for _, s, e, b in scored[:4]]
+
+    print(f"# Query '{' '.join(terms)}' in {p.name} ({len(lines)}L -> {len(hits)} top chunks)")
+    for s, e, b in sorted(hits, key=lambda x: x[0]):
+        print(f"--- L{s}-{e} ---")
+        for idx, ln in enumerate(b.splitlines(), s):
+            print(f"{idx}: {ln[:220]}")
+    if not hits:
+        print("  (no matching chunks)")
+    return 0
+
+
 CMDS = {
     "ipynb": cmd_ipynb, "json": cmd_json, "csv": cmd_csv, "svg": cmd_svg,
     "har": cmd_har, "sql": cmd_sql, "sqlite": cmd_sqlite, "html": cmd_html,
-    "schema": cmd_schema, "outline": cmd_outline,
+    "schema": cmd_schema, "outline": cmd_outline, "query": cmd_query,
 }
 
 

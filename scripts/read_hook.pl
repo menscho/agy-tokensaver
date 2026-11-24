@@ -607,7 +607,76 @@ sub record_read {
     };
 }
 
-# Final decision for an otherwise-allowed read: dedupe/trim, then optional auto-cap, then record.
+# Lightweight per-line hash snapshot for post-edit dirty-hunk narrowing (squeez/Cline pattern).
+sub snap_path_for {
+    my ($k) = @_;
+    my $h = 2166136261;
+    for my $ch (split(//, $k)) { $h = (($h ^ ord($ch)) * 16777619) & 0xffffffff; }
+    return sprintf('%s/reads/snaps/%08x.lines', data_dir(), $h);
+}
+
+sub save_line_snap {
+    return unless $dedupe_on && $size > 4096 && $size <= 65536;
+    return unless defined $file_lines && $file_lines > 160;
+    return if $is_spillback || $base =~ /\.(?:log|err|out|json|jsonl|csv|tsv)$/i;
+    eval {
+        my $sdir = data_dir() . "/reads/snaps";
+        if (!-d $sdir) { require File::Path; File::Path::make_path($sdir); }
+        open(my $fh, '<:raw', $path) or return;
+        my @hashes;
+        while (my $ln = <$fh>) {
+            my $h = 2166136261;
+            for my $b (unpack('C*', $ln)) { $h = (($h ^ $b) * 16777619) & 0xffffffff; }
+            push @hashes, sprintf('%08x', $h);
+        }
+        close $fh;
+        my $sp = snap_path_for($path_key);
+        if (open(my $wfh, '>:raw', $sp)) {
+            print $wfh "$file_md5\n" . join("\n", @hashes) . "\n";
+            close $wfh;
+        }
+    };
+}
+
+sub dirty_hunk_range {
+    return () unless $dedupe_on && !defined $start && !defined $end && $size > 4096 && $size <= 65536;
+    return () unless defined $file_lines && $file_lines > 180;
+    return () if $is_spillback || $base =~ /\.(?:log|err|out|json|jsonl|csv|tsv)$/i;
+    my $sp = snap_path_for($path_key);
+    return () unless -f $sp;
+    open(my $sfh, '<:raw', $sp) or return ();
+    my $old_md5 = <$sfh>;
+    chomp $old_md5 if defined $old_md5;
+    return () if !defined $old_md5 || $old_md5 eq $file_md5;
+    my @old;
+    while (my $h = <$sfh>) { chomp $h; push @old, $h; }
+    close $sfh;
+    return () if !@old;
+    open(my $cfh, '<:raw', $path) or return ();
+    my @cur;
+    while (my $ln = <$cfh>) {
+        my $h = 2166136261;
+        for my $b (unpack('C*', $ln)) { $h = (($h ^ $b) * 16777619) & 0xffffffff; }
+        push @cur, sprintf('%08x', $h);
+    }
+    close $cfh;
+    my ($n_old, $n_cur) = (scalar(@old), scalar(@cur));
+    my $pre = 0;
+    $pre++ while $pre < $n_old && $pre < $n_cur && $old[$pre] eq $cur[$pre];
+    my $suf = 0;
+    $suf++ while $suf < ($n_old - $pre) && $suf < ($n_cur - $pre) && $old[$n_old - 1 - $suf] eq $cur[$n_cur - 1 - $suf];
+    my $lo = $pre + 1;
+    my $hi = $n_cur - $suf;
+    $hi = $lo if $hi < $lo;
+    my $span_dirty = $hi - $lo + 1;
+    return () if $span_dirty <= 0 || $span_dirty > 80 || $n_cur < 180;
+    my $a0 = $lo - 15; $a0 = 1 if $a0 < 1;
+    my $b0 = $hi + 15; $b0 = $n_cur if $b0 > $n_cur;
+    return () if ($b0 - $a0 + 1) >= $n_cur - 40;
+    return ($a0, $b0);
+}
+
+# Final decision for an otherwise-allowed read: dedupe/trim, dirty-hunk narrow, auto-cap, record.
 sub decide_and_emit {
     my ($cap, $cat_label) = @_;
     my ($a, $b);              # effective range after trim/cap (undef = request untouched)
@@ -626,8 +695,12 @@ sub decide_and_emit {
             deny('duplicate_read', "[token-saver] '$base$req' is unchanged and still in context from $p[1]. Reuse that; no re-read needed.", $mok ? $sb : undef);
         }
         if ($p[0] eq 'trim') { ($a, $b, $trim_saved) = @p[1 .. 3]; }
+        if (!defined $a) {
+            my @dh = eval { dirty_hunk_range() };
+            if (@dh == 2) { ($a, $b, $cap_lab) = ($dh[0], $dh[1], 'dirty_hunk'); }
+        }
     }
-    if (defined $cap) {
+    if (defined $cap && !defined $cap_lab) {
         my $s0 = defined $a ? $a : ((defined $start && $start >= 1) ? int($start) : 1);
         my $total = defined $file_lines ? $file_lines : $est_lines;
         my ($want_end, $c, $lab);
@@ -642,7 +715,15 @@ sub decide_and_emit {
         if (defined $want_end) {
             my $rem = $want_end - $s0 + 1;
             if ($rem > $c + 60 && worth_cap($s0, $rem, $c)) {
-                ($a, $b, $cap_lab) = ($s0, $s0 + $c - 1, $lab);
+                # Tail-anchor unbounded log/error/spillback reads (OpenAI Codex + LogDx-CI arXiv:2605.28876):
+                # actual failures/tracebacks live at the tail, avoiding follow-up slice reads.
+                if (!defined $start && !defined $end && !defined $a && ($is_spillback || $base =~ /\.(?:log|err|out)$/i) && $total > $c) {
+                    my $ts = $total - $c + 1;
+                    $ts = 1 if $ts < 1;
+                    ($a, $b, $cap_lab) = ($ts, $total, $lab . '_tail');
+                } else {
+                    ($a, $b, $cap_lab) = ($s0, $s0 + $c - 1, $lab);
+                }
             }
         }
     }
@@ -652,10 +733,12 @@ sub decide_and_emit {
         log_event($cap_lab ? 'capped' : 'trimmed', ($kok ? $kb2 : 0) + $OVERWRITE_NOTICE,
                   $cap_lab ? ($trim_saved ? "$cap_lab+overlap_trim" : $cap_lab) : 'overlap_trim', $mok ? $sb : undef);
         record_read($a, $b);
+        save_line_snap();
         printf('{"decision":"allow","overwrite":{"StartLine":%d,"EndLine":%d}}', $a, $b);
         exit 0;
     }
     record_read($start, $end);
+    save_line_snap();
     print '{"decision":"allow"}';
     exit 0;
 }

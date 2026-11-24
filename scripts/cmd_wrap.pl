@@ -1536,7 +1536,23 @@ sub process_output {
     my $l_info = defined $existing_spill
         ? int($total_raw_bytes / 1024) . "KB->" . scalar(@$comp_lines) . "L"
         : "${n_clean}L->" . scalar(@$comp_lines) . "L";
-    my $note = "[$l_info; full: " . shown_path($spill_path) . "]\n";
+    # squeez-inspired ids_preserved: surface unique UUIDs / ERR_* codes / URLs omitted from $comp
+    # so the model never hallucinates dropped IDs or spends an extra read_file turn.
+    my $ids_str = '';
+    if (!defined $existing_spill && length($safe) <= 524288 && $cat ne 'git_diff') {
+        my (%in_comp, %seen_id, @omitted_ids);
+        $in_comp{$_} = 1 for ($comp =~ /\b(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|ERR_[A-Z0-9_]{3,32}|https?:\/\/[^\s"'<>)\]]{8,90})\b/g);
+        for my $id ($safe =~ /\b(?:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|ERR_[A-Z0-9_]{3,32}|https?:\/\/[^\s"'<>)\]]{8,90})\b/g) {
+            next if $in_comp{$id} || $seen_id{$id}++;
+            push @omitted_ids, $id;
+            last if @omitted_ids >= 5;
+        }
+        if (@omitted_ids) {
+            my $joined_ids = join(', ', @omitted_ids);
+            $ids_str = "ids: $joined_ids; " if length($joined_ids) <= 140;
+        }
+    }
+    my $note = "[$l_info; ${ids_str}full: " . shown_path($spill_path) . "]\n";
 
     my $final = $comp . ($comp ne '' && $comp !~ /\n\z/ ? "\n" : '') . $note;
     if (!defined $existing_spill && length($final) >= length($safe)) {

@@ -251,8 +251,54 @@ def inspect_workspace(ws: Path) -> tuple[list[dict], list[str]]:
     return sorted(traps, key=lambda x: x["bytes"], reverse=True)[:15], ig_warns
 
 
+def discover_transcript_leaks(max_sessions: int = 30) -> tuple[dict[str, int], list[tuple[str, int, int]], list[tuple[str, int]]]:
+    """Mine recent transcripts for 0-call MCP servers and top unwrapped/large CLI commands (rtk discover style)."""
+    gemini = Path.home() / ".gemini"
+    txs: list[Path] = []
+    for sub in ("antigravity", "antigravity-cli"):
+        txs.extend((gemini / sub / "brain").glob("*/.system_generated/logs/transcript.jsonl"))
+    txs.sort(key=lambda p: p.stat().st_mtime if p.is_file() else 0, reverse=True)
+    mcp_calls: dict[str, int] = {}
+    cmd_counts: dict[str, int] = {}
+    cmd_bytes: dict[str, int] = {}
+    big_reads: dict[str, int] = {}
+    for tx in txs[:max_sessions]:
+        try:
+            with tx.open("r", encoding="utf-8", errors="replace") as f:
+                for line in f:
+                    if '"tool_calls"' not in line:
+                        continue
+                    try:
+                        obj = json.loads(line)
+                    except Exception:
+                        continue
+                    for tc in obj.get("tool_calls") or []:
+                        s = str(tc)
+                        for m in re.finditer(r"mcp_([a-zA-Z0-9_-]+)_", s):
+                            mcp_calls[m.group(1)] = mcp_calls.get(m.group(1), 0) + 1
+                        if "CommandLine" in s:
+                            mc = re.search(r'"CommandLine"\s*:\s*"([^"]{2,120})"', s)
+                            if mc:
+                                head = re.sub(r"^\s*(?:cd\s+\S+\s*&&\s*)?", "", mc.group(1)).split()[0]
+                                head = Path(head.replace("\\", "/")).name.lower()
+                                cmd_counts[head] = cmd_counts.get(head, 0) + 1
+                                cmd_bytes[head] = cmd_bytes.get(head, 0) + len(s)
+                        if "read_file" in s and "EndLine" not in s:
+                            mp = re.search(r'"Path"\s*:\s*"([^"]+)"', s)
+                            if mp:
+                                ext = Path(mp.group(1)).suffix.lower() or "(noext)"
+                                big_reads[ext] = big_reads.get(ext, 0) + 1
+        except OSError:
+            continue
+    top_cmds = sorted(((k, cmd_counts[k], cmd_bytes[k]) for k in cmd_counts), key=lambda x: -x[1])[:12]
+    top_unb = sorted(big_reads.items(), key=lambda x: -x[1])[:8]
+    return mcp_calls, top_cmds, top_unb
+
+
 def main() -> int:
-    ws = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else Path.cwd()
+    discover_mode = "--discover" in sys.argv
+    pos_args = [a for a in sys.argv[1:] if not a.startswith("-")]
+    ws = Path(pos_args[0]).resolve() if pos_args else Path.cwd()
     cfg = Path.home() / ".gemini" / "config"
 
     plugins = resolve_plugins(cfg, ws)
@@ -274,6 +320,19 @@ def main() -> int:
     mcps, mcp_warns = inspect_mcps(mcp_paths)
     skill_tok, comp_warns = inspect_skills_and_agents(comp_roots)
     traps, ig_warns = inspect_workspace(ws)
+    mcp_calls, top_cmds, top_unb = discover_transcript_leaks()
+    for m in mcps:
+        nm = m["name"]
+        if nm not in ("token_saver_ui", "usage_counter_ui") and not any(nm.replace("-", "_") in k.replace("-", "_") for k in mcp_calls):
+            mcp_warns.append(f"MCP '{nm}' had 0 calls in the last 30 sessions — disabling it removes its schema tax on every turn.")
+    for r in rules:
+        if r["trigger"] == "always_on":
+            try:
+                txt = Path(r["path"]).read_text(encoding="utf-8", errors="replace")
+                if re.search(r"\b(?:current[_\s]?date|timestamp|\$\(date\)|today'?s date)\b", txt, re.I):
+                    rule_warns.append(f"Cache-buster warning: always-on rule '{r['path']}' references dynamic date/timestamp (arXiv:2601.06007).")
+            except OSError:
+                pass
 
     print("=== Antigravity Context & Cache Audit (v2) ===")
     print(f"Workspace : {ws}")
@@ -313,6 +372,19 @@ def main() -> int:
         print(f"   - [{t['type']}] {t['path']} ({t['bytes'] // 1024:,}KB, ~{est_tokens(min(t['bytes'], 46080)):,} tok/read)")
     if not traps and not ig_warns:
         print("   OK — no obvious workspace bloat traps in top 3 directory levels.")
+
+    if discover_mode:
+        print("\n5. Transcript Discovery (last 30 sessions — rtk discover style)")
+        print("   Top run_command prefixes:")
+        for bn, cnt, _b in top_cmds:
+            print(f"     - {bn:20s}: {cnt:4d} calls")
+        print("   Top unbounded read_file extensions:")
+        for ext, cnt in top_unb:
+            print(f"     - {ext:16s}: {cnt:4d} unbounded reads")
+        if mcp_calls:
+            print("   Active MCP tool calls:")
+            for k, v in sorted(mcp_calls.items(), key=lambda kv: -kv[1]):
+                print(f"     - {k:24s}: {v:4d} calls")
 
     return 0
 

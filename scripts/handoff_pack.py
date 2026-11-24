@@ -20,6 +20,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -107,14 +108,15 @@ def _arg(args: object, *keys: str) -> str:
     return ""
 
 
-def extract_transcript_context(conv_id: str = "") -> tuple[str, str, list[str], str, list[str], list[str]]:
+def extract_transcript_context(conv_id: str = "") -> tuple[str, str, list[str], str, list[str], list[str], str]:
     tx = resolve_transcript(conv_id)
     if tx is None:
-        return "", "", [], "", [], []
+        return "", "", [], "", [], [], ""
 
     resolved_cid = tx.parents[2].name
     last_user = ""
     last_assistant = ""
+    last_verify = ""
     edited: dict[str, int] = {}
     read: dict[str, int] = {}
     errors: list[str] = []
@@ -154,6 +156,10 @@ def extract_transcript_context(conv_id: str = "") -> tuple[str, str, list[str], 
                                 fp = _arg(args, "AbsolutePath", "Path", "path")
                                 if fp:
                                     read[fp] = order
+                            elif name == "run_command":
+                                cmdline = _arg(args, "CommandLine", "command")
+                                if cmdline and any(k in cmdline for k in ("pytest", "cargo test", "npm test", "go test", "run_tests.sh", "test_")):
+                                    last_verify = " ".join(cmdline.split())[:110]
                     except Exception:
                         pass
                 elif any(tok in line for tok in ("Error:", "FAIL:", "AssertionError", "Command exited with code")):
@@ -177,7 +183,7 @@ def extract_transcript_context(conv_id: str = "") -> tuple[str, str, list[str], 
     ed = [p for p, _ in sorted(edited.items(), key=lambda kv: kv[1])][-MAX_EDITED:]
     ed_l = {p.lower() for p in ed}
     rd = [p for p, _ in sorted(read.items(), key=lambda kv: kv[1]) if p.lower() not in ed_l][-MAX_READ:]
-    return last_user, last_assistant, ed, resolved_cid, rd, errors[-3:]
+    return last_user, last_assistant, ed, resolved_cid, rd, errors[-3:], last_verify
 
 
 def _short(p: str, ws: Path) -> str:
@@ -210,11 +216,42 @@ def changed_files(ws: Path) -> list[str]:
     return out
 
 
+def _edited_symbols(edited: list[str], ws: Path, budget: int = 1200) -> list[str]:
+    """Layer A deterministic artifact map (Factory.ai + Aider): compact L<start>-L<end> outlines for top edited files."""
+    insp = Path(__file__).resolve().parent / "ts_inspect.py"
+    if not insp.is_file():
+        return []
+    code_exts = {".py", ".ts", ".tsx", ".js", ".mjs", ".rs", ".go", ".pl", ".sh", ".java", ".kt", ".cs", ".cpp", ".c"}
+    out: list[str] = []
+    used = 0
+    for p in reversed(edited):
+        fp = Path(p)
+        if not fp.is_file() or fp.suffix.lower() not in code_exts or fp.stat().st_size > 200_000:
+            continue
+        try:
+            r = subprocess.run([sys.executable, str(insp), "outline", str(fp)], text=True, capture_output=True, timeout=2)
+            if r.returncode != 0:
+                continue
+            syms = [l.strip() for l in r.stdout.splitlines()[1:9] if l.strip()]
+            if not syms:
+                continue
+            entry = f"- `{_short(p, ws)}`: " + "; ".join(syms[:6])
+            if used + len(entry) > budget:
+                break
+            out.append(entry)
+            used += len(entry)
+            if len(out) >= 4:
+                break
+        except Exception:
+            continue
+    return out
+
+
 def build_packet(ws: Path, conv_id: str = "") -> str:
     branch = run_git(ws, ["rev-parse", "--abbrev-ref", "HEAD"])
     commits = run_git(ws, ["log", "-n", "5", "--format=%h %s"])
     changed = changed_files(ws)
-    last_user, last_assistant, edited, resolved_cid, read, errors = extract_transcript_context(conv_id)
+    last_user, last_assistant, edited, resolved_cid, read, errors, last_verify = extract_transcript_context(conv_id)
 
     lines = [
         "# Session Continuation Handoff",
@@ -227,6 +264,8 @@ def build_packet(ws: Path, conv_id: str = "") -> str:
         lines.append(f"Last state: {last_assistant[:420]}")
     if commits:
         lines.append("Recent commits: " + "; ".join(c[:72] for c in commits.splitlines()[:5]))
+    if last_verify:
+        lines.append(f"Last verification: `{last_verify}`")
     if errors:
         lines.append("\n## Recent errors / ruled-out")
         lines.extend(f"- {e}" for e in errors)
@@ -236,6 +275,10 @@ def build_packet(ws: Path, conv_id: str = "") -> str:
     if edited:
         lines.append("\n## Edited in that conversation")
         lines.extend(f"- {_short(p, ws)}" for p in edited)
+        sym_lines = _edited_symbols(edited, ws)
+        if sym_lines:
+            lines.append("\n## Edited File Symbols")
+            lines.extend(sym_lines)
     if read:
         lines.append("\n## Also consulted (re-read only if needed)")
         lines.append(", ".join(_short(p, ws) for p in read))

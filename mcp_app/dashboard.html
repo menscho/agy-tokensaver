@@ -486,11 +486,14 @@
         <div class="row">
           <div class="row-info">
             <div class="row-title">Optimization Mode</div>
-            <div class="row-desc" id="profile-desc">Zero Quality Loss (0% loss): lossless hooks + archive-only handoffs. Small Quality Loss (~0.1–1% risk): adds Anchored Auto-Handoff + Compact Reads + Concise Output.</div>
+            <div class="row-desc" id="profile-desc">Mode 2 (Max): Cold/Live Auto-Handoff + Compact Reads + Image Downscale + Concise Output (-25%..-45% quota, ~0.1–1% risk).</div>
           </div>
           <select id="sel-profile" aria-label="Optimization mode">
-            <option value="small_loss">Small Quality Loss (~0.1–1% risk — Default / Max)</option>
-            <option value="zero_loss">Zero Quality Loss (0% loss — Strict)</option>
+            <option value="small_loss">Mode 2 (Max · Default) — Auto-Handoff + Compact + Concise</option>
+            <option value="handoff_only">Mode 2c — Auto-Handoff + Compact Reads (Normal Prose)</option>
+            <option value="concise_no_handoff">Mode 2b — Compact + Concise (No Auto-Handoff)</option>
+            <option value="compact_reads">Mode 2a — Compact Reads Only (No Auto-Handoff)</option>
+            <option value="zero_loss">Mode 1 — Zero Quality Loss (Strict 0.0%)</option>
           </select>
         </div>
 
@@ -713,8 +716,16 @@
     const bd = sav.breakdown || {};
 
     // Controls
-    const prof = cfg.profile || (cfg.mode === 'smart_auto' || cfg.compact_reads || cfg.concise_output ? 'small_loss' : 'zero_loss');
+    const PROFILE_DESCS = {
+      small_loss: 'Mode 2 (Max · Default): Cold/Live Anchored Auto-Handoff + Compact Reads + Screenshot Downscale + Concise Output (~0.1–1% risk; ~25–29% auto / up to 45% with phase resets).',
+      handoff_only: 'Mode 2c: Cold/Live Anchored Auto-Handoff + Compact Reads + Lossless Hooks, normal verbose replies (~0.5–1% mid-debug risk; ~18.5% exact live savings).',
+      concise_no_handoff: 'Mode 2b (No Auto-Handoff): Archive Only (0% memory resets) + Compact Reads + Concise Output (~0.1–0.5% risk; ~7–12% quota saved).',
+      compact_reads: 'Mode 2a (No Auto-Handoff): Archive Only + tighter unbounded read caps (120L/140L) + Screenshot Downscale, normal replies (~0.1–0.5% risk).',
+      zero_loss: 'Mode 1 (Strict 0.0% Loss): Lossless hooks, dedupe, RTK error grouping, cache-safe prefixes, Archive-Only handoffs (0.0% quality loss).'
+    };
+    const prof = (cfg.profile && PROFILE_DESCS[cfg.profile]) ? cfg.profile : (cfg.mode === 'smart_auto' ? (cfg.concise_output ? 'small_loss' : 'handoff_only') : (cfg.concise_output ? 'concise_no_handoff' : (cfg.compact_reads ? 'compact_reads' : 'zero_loss')));
     document.getElementById('sel-profile').value = prof;
+    document.getElementById('profile-desc').textContent = PROFILE_DESCS[prof];
     document.getElementById('sel-thresh').value = cfg.threshold_mode || 'auto';
     document.getElementById('adaptive-reason').textContent = adp.reason || '';
 
@@ -965,7 +976,14 @@
     if (res && res.state) {
       render(res.state);
       const pending = !!(res.config && res.config.pending_concise_sync);
-      const baseMsg = profile === 'small_loss' ? 'Small Quality Loss mode enabled.' : 'Zero Quality Loss mode enabled.';
+      const NAMES = {
+        small_loss: 'Mode 2 (Max)',
+        handoff_only: 'Mode 2c (Auto-Handoff + Compact)',
+        concise_no_handoff: 'Mode 2b (Compact + Concise, No Auto-Handoff)',
+        compact_reads: 'Mode 2a (Compact Reads Only)',
+        zero_loss: 'Mode 1 (Zero Quality Loss)'
+      };
+      const baseMsg = `${NAMES[profile] || profile} enabled.`;
       setStatus(pending ? `${baseMsg} Concise rule queued until warm cache cools (protects KV cache).` : baseMsg);
     } else {
       setStatus('Failed to save settings.');
