@@ -10,13 +10,13 @@ transcript_replay.py calls, for every recorded tool call it has no built-in hand
 Each handler runs the REAL hook script of this checkout on the recorded arguments and computes the
 post-hook tool result size from the recorded content (never from a guess about the model):
 
-  grep_search  -> grep_hook.pl. When it rewrites a single-file SearchPath to <dir> + Includes, the
+  grep_search  -> grep_hook.py. When it rewrites a single-file SearchPath to <dir> + Includes, the
                   recorded "No results found" would have been the real matches. The post-hook
                   result is rebuilt by running the same search over the file on disk (Antigravity's
                   JSON-lines format) plus the overwrite notice, so this category is usually NEGATIVE
                   bytes (the model now gets data). The turns the model spent on fallbacks
                   (view_file / Select-String / python one-liners) are NOT credited.
-  find_by_name -> find_hook.pl. When it injects Excludes, recorded result lines under an excluded
+  find_by_name -> find_hook.py. When it injects Excludes, recorded result lines under an excluded
                   directory are dropped and the overwrite notice is charged.
 
 Tools with no hook (webview_browser, list_dir, manage_task, search_web, ...) return None.
@@ -28,6 +28,7 @@ import collections
 import json
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parent
@@ -44,7 +45,7 @@ def _b(s: str) -> int:
 
 def _run_hook(script: str, payload: dict, env: dict | None) -> dict | None:
     try:
-        p = subprocess.run(["perl", str(SCRIPTS / script)], input=json.dumps(payload).encode("utf-8"),
+        p = subprocess.run([sys.executable, "-S", str(SCRIPTS / script)], input=json.dumps(payload).encode("utf-8"),
                            capture_output=True, env=env, cwd=str(ROOT), timeout=20)
         return json.loads(p.stdout.decode("utf-8", errors="replace"))
     except Exception:
@@ -102,7 +103,7 @@ def grep_file(path: str, args: dict) -> str | None:
 
 
 def _grep(args: dict, content: str, env: dict | None):
-    res = _run_hook("grep_hook.pl", {"toolCall": {"name": "grep_search", "args": args}}, env)
+    res = _run_hook("grep_hook.py", {"toolCall": {"name": "grep_search", "args": args}}, env)
     ov = (res or {}).get("overwrite") or {}
     if not ov.get("SearchPath"):
         return None
@@ -119,7 +120,7 @@ def _grep(args: dict, content: str, env: dict | None):
 # ----------------------------------------------------------------------------- find_by_name
 def _find(args: dict, content: str, env: dict | None):
     ti = {k: (str(v) if not isinstance(v, (int, float, list)) else v) for k, v in args.items()}
-    res = _run_hook("find_hook.pl", {"toolInput": ti}, env)
+    res = _run_hook("find_hook.py", {"toolInput": ti}, env)
     if not res:
         return None
     if res.get("decision") == "deny":

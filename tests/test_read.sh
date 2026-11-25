@@ -4,13 +4,14 @@
 set -u
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 S="$ROOT/scripts"
+PY="$(command -v python3 || command -v python)"
 T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
 export PLUGIN_DATA="$T/pdata"; mkdir -p "$PLUGIN_DATA"
 export HOME="$T/home"; mkdir -p "$HOME"          # fake ~/.gemini: never touch real transcripts
 PASS=0; FAIL=0
 ok()  { PASS=$((PASS+1)); }
 bad() { FAIL=$((FAIL+1)); printf 'FAIL: %s\n  got: %s\n' "$1" "$2"; }
-hook()  { local o; o=$(printf "%s" "$1" | perl "$S/read_hook.pl" 2>&1); [[ "$o" =~ $2 ]] && ok || bad "$3" "$o"; }
+hook()  { local o; o=$(printf "%s" "$1" | "$PY" -S "$S/read_hook.py" 2>&1); [[ "$o" =~ $2 ]] && ok || bad "$3" "$o"; }
 ALLOW='^\{"decision":"allow"\}$'
 DENY='"decision":"deny"'
 # rd <file> <cid> <step> [extra json]
@@ -32,7 +33,7 @@ hook "$(rd "$T/a.py" c1 40 ',"StartLine":50,"EndLine":120')" "$ALLOW" "legacy: >
 mktx c2 antigravity "$(pl 9 view_file)" "$(gen 10)" "$(pl 11 run_command)" "$(gen 12)" "$(pl 59 view_file)"
 hook "$(rd "$T/a.py" c2 10 ',"StartLine":1,"EndLine":200')"  "$ALLOW" "verified: first read allowed"
 hook "$(rd "$T/a.py" c2 60 ',"StartLine":50,"EndLine":120')" "$DENY"  "verified: covered slice 50 steps later denied"
-o=$(printf '%s' "$(rd "$T/a.py" c2 60 ',"StartLine":50,"EndLine":120')" | perl "$S/read_hook.pl")
+o=$(printf '%s' "$(rd "$T/a.py" c2 60 ',"StartLine":50,"EndLine":120')" | "$PY" -S "$S/read_hook.py")
 [[ "$o" == *unchanged*"in context"* && ${#o} -lt 260 ]] && ok || bad "dedupe reason short and recognisable" "$o"
 
 # CHECKPOINT between the reads -> allowed (content was truncated from context)
@@ -59,7 +60,9 @@ hook "$(rd "$T/a.py" c6 60 ',"StartLine":50,"EndLine":120' ",\"transcriptPath\":
 # --- 3. same size + same mtime but different content -> MD5 says changed -> allowed
 seq 1 300 | sed 's/^/def func_line(): return 12345  # realistic python code/' > "$T/b.py"
 hook "$(rd "$T/b.py" c7 10 ',"StartLine":1,"EndLine":200')"  "$ALLOW" "md5: first read allowed"
-cp -p "$T/b.py" "$T/b.ref"; perl -pi -e 's/12345/54321/' "$T/b.py"; touch -r "$T/b.ref" "$T/b.py"
+cp -p "$T/b.py" "$T/b.ref"
+"$PY" -c 'import sys; p=sys.argv[1]; open(p,"w",encoding="utf-8").write(open(p,encoding="utf-8").read().replace("12345","54321"))' "$T/b.py"
+touch -r "$T/b.ref" "$T/b.py"
 hook "$(rd "$T/b.py" c7 12 ',"StartLine":50,"EndLine":120')" "$ALLOW" "same size+mtime edit detected by fingerprint"
 
 # --- 4. overlap trim: covered prefix -> serve only the missing lines (no deny, no retry)

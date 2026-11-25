@@ -8,6 +8,7 @@ import os
 import re
 import sqlite3
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -180,9 +181,9 @@ def _b(s: str) -> int:
     return len(s.encode("utf-8"))
 
 
-def _run_perl(script: str, payload: dict, env: dict, stdin_text: str | None = None, args: list[str] | None = None) -> tuple[int, str]:
+def _run_hook(script: str, payload: dict, env: dict, stdin_text: str | None = None, args: list[str] | None = None) -> tuple[int, str]:
     data = (json.dumps(payload) if stdin_text is None else stdin_text).encode("utf-8")
-    p = subprocess.run(["perl", str(SCRIPTS / script), *(args or [])], input=data, capture_output=True, env=env, cwd=str(ROOT))
+    p = subprocess.run([sys.executable, "-S", str(SCRIPTS / script), *(args or [])], input=data, capture_output=True, env=env, cwd=str(ROOT))
     return p.returncode, p.stdout.decode("utf-8", errors="replace")
 
 

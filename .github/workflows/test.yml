@@ -23,17 +23,11 @@ jobs:
       - name: Install dev-only linters (runtime stays 0-dep)
         run: |
           python3 -m pip install -q ruff mypy coverage
-          sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck libperl-critic-perl
+          sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
       - name: Python lint (ruff) and type check (mypy)
         run: |
           ruff check mcp_app scripts/*.py eval/*.py install.py tests/test_python_unit.py
           mypy mcp_app scripts/*.py eval/*.py install.py tests/test_python_unit.py
-      - name: Perl lint (perl -c + perlcritic severity 4)
-        run: |
-          for f in scripts/*.pl scripts/lib/*.pm scripts/lib/*.pl; do
-            perl -Iscripts/lib -c "$f"
-          done
-          perlcritic --profile .perlcriticrc --severity 4 scripts/*.pl scripts/lib/*.pm scripts/lib/*.pl
       - name: Shell lint (shellcheck)
         run: |
           shellcheck -S error tests/*.sh install.sh Install-TokenSaver.command
@@ -88,17 +82,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Require Perl on Windows (fail loudly if missing)
-        shell: pwsh
-        run: |
-          $gitPerl = "C:\Program Files\Git\usr\bin\perl.exe"
-          if (-not (Get-Command perl -ErrorAction SilentlyContinue) -and (Test-Path $gitPerl)) {
-            "C:\Program Files\Git\usr\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-            $env:PATH = "C:\Program Files\Git\usr\bin;$env:PATH"
-          }
-          $perl = Get-Command perl -ErrorAction SilentlyContinue
-          if (-not $perl) { throw "Perl is required on Windows CI and was not found" }
-          & perl -MJSON::PP -e 'print "Windows Perl $^V ($^O) JSON::PP $JSON::PP::VERSION OK\n"'
       - name: Run full test suites via Git Bash (matching Linux & macOS)
         shell: bash
         run: |
@@ -125,6 +108,8 @@ jobs:
               assert p.returncode == 0, p.stdout + p.stderr
               cfg = json.loads((pathlib.Path(td)/'.gemini/config/plugins/token-saver/mcp_config.json').read_text())
               assert cfg['mcpServers']['token_saver_ui']['command'] == sys.executable
+              hcfg = json.loads((pathlib.Path(td)/'.gemini/config/plugins/token-saver/hooks.json').read_text())
+              assert sys.executable in hcfg['token-saver-read']['PreToolUse'][0]['hooks'][0]['command']
           print('Windows MCP + installer OK')
           "@
           $tmp = Join-Path $env:TEMP "agy-win-pwsh-test"
@@ -132,16 +117,11 @@ jobs:
           $lock = Join-Path $tmp "package-lock.json"
           ('{"lockfileVersion":3}' + "`n") * 1000 | Set-Content -Path $lock -NoNewline
           $esc = $lock.Replace('\', '\\')
-          $out = ('{"toolInput":{"Path":"' + $esc + '"},"cwd":"C:\\"}') | & perl scripts/read_hook.pl
+          $out = ('{"toolInput":{"Path":"' + $esc + '"},"cwd":"C:\\"}') | & python -S scripts/read_hook.py
           if ($out -notmatch '"decision":"deny"') { throw "read_hook failed on Windows path: $out" }
           $target = Join-Path $tmp "sample.txt"
           "line1`nneedle_win" | Set-Content -Path $target -NoNewline
           $tesc = $target.Replace('\', '\\')
-          $gout = ('{"toolInput":{"Query":"needle_win","SearchPath":"' + $tesc + '"}}') | & perl scripts/grep_hook.pl
+          $gout = ('{"toolInput":{"Query":"needle_win","SearchPath":"' + $tesc + '"}}') | & python -S scripts/grep_hook.py
           if ($gout -notmatch '"Includes":\["sample.txt"\]') { throw "grep_hook failed on Windows path: $gout" }
-          $sbPerl = 'C:\Strawberry\perl\bin\perl.exe'
-          if (Test-Path $sbPerl) {
-            $sbOut = ('{"toolInput":{"Path":"' + $esc + '"},"cwd":"C:\\"}') | & $sbPerl scripts/read_hook.pl
-            if ($sbOut -notmatch '"decision":"deny"') { throw "Strawberry Perl read_hook failed on Windows path: $sbOut" }
-          }
           Write-Host "Native Windows PowerShell checks OK"

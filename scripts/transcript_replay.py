@@ -55,7 +55,7 @@ APP_DIRS = [GEMINI / "antigravity", GEMINI / "antigravity-cli"]
 
 
 from replay_io import (  # noqa: E402, F401
-    NUM_LINE, VirtualFS, _b, _cmd_output, _frontmatter, _pb_fields, _run_perl, _rv, _tool_calls,
+    NUM_LINE, VirtualFS, _b, _cmd_output, _frontmatter, _pb_fields, _run_hook, _rv, _tool_calls,
     db_turns, discover_sessions, load_session, plugin_overhead_bytes,
 )
 from replay_modes import run_modes  # noqa: E402, F401
@@ -101,7 +101,7 @@ def replay_session(sess: dict, tmp: Path, perl_env: dict) -> dict:
                 if key in args and str(args[key]).lstrip("-").isdigit():
                     ti[key] = int(args[key])
             payload = {"toolInput": ti, "stepIdx": ev["step"], "conversationId": sid}
-            rc, out = _run_perl("read_hook.pl", payload, env)
+            rc, out = _run_hook("read_hook.py", payload, env)
             try:
                 res = json.loads(out)
             except Exception:
@@ -156,7 +156,7 @@ def replay_session(sess: dict, tmp: Path, perl_env: dict) -> dict:
                 continue
         if name in ("find_by_name",):
             payload = {"toolInput": {k2: (str(v) if not isinstance(v, (int, float)) else v) for k2, v in args.items()}}
-            _rc, out = _run_perl("find_hook.pl", payload, env)
+            _rc, out = _run_hook("find_hook.py", payload, env)
             try:
                 res = json.loads(out)
             except Exception:

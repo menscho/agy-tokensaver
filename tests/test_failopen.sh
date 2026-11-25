@@ -34,8 +34,9 @@ for name, events in hooks_cfg.items():
             for h in hlist:
                 cmd = h.get("command", "")
                 parts = cmd.split()
-                if len(parts) >= 2 and parts[0] == "perl":
-                    script = (root / parts[1]).resolve()
+                sarg = next((p for p in parts[1:] if p.endswith(".py")), "")
+                if parts and parts[0].startswith("python") and sarg:
+                    script = (root / sarg).resolve()
                     timeout = float(h.get("timeout", 5))
                     hook_specs.append((ev_name, script, timeout))
 
@@ -102,7 +103,7 @@ for ev_name, script, timeout in hook_specs:
         t0 = time.perf_counter()
         try:
             p = subprocess.run(
-                ["perl", str(script)],
+                [sys.executable, "-S", str(script)],
                 input=payload,
                 capture_output=True,
                 timeout=timeout,

@@ -4,8 +4,8 @@ Reproducible benchmark suite for agy-tokensaver.
 
 Modes:
   python3 scripts/benchmark.py --demo
-      Runs deterministic checks against the active Perl guards (read_hook.pl,
-      find_hook.pl, write_hook.pl) and prints exact Before vs. After byte/token
+      Runs deterministic checks against the active Python hooks (read_hook.py,
+      find_hook.py, write_hook.py) and prints exact Before vs. After byte/token
       counts plus median PreToolUse hook latency in milliseconds.
 
   python3 scripts/benchmark.py --replay
@@ -44,7 +44,7 @@ HOOK_OVERWRITE_NOTICE = 94     # bytes added when PreToolUse overwrites args
 def _run_hook(script: str, payload: dict, env: dict[str, str]) -> tuple[dict, float]:
     t0 = time.perf_counter()
     p = subprocess.run(
-        ["perl", str(SCRIPTS / script)],
+        [sys.executable, "-S", str(SCRIPTS / script)],
         input=json.dumps(payload).encode("utf-8"),
         capture_output=True,
         env=env,
@@ -92,14 +92,14 @@ def run_demo() -> int:
 
         # Step 1: Unbounded read_file on package-lock.json -> denied
         raw_b = min(lock_file.stat().st_size, NATIVE_READ_CAP)
-        res, ms = _run_hook("read_hook.pl", {"toolInput": {"Path": str(lock_file)}, "stepIdx": 1, "conversationId": "bench"}, env)
+        res, ms = _run_hook("read_hook.py", {"toolInput": {"Path": str(lock_file)}, "stepIdx": 1, "conversationId": "bench"}, env)
         latencies.append(ms)
         kept_b = len(res.get("reason", "").encode("utf-8")) if res.get("decision") == "deny" else raw_b
         rows.append(("1. read_file package-lock.json (unbounded)", raw_b, kept_b, "blocked (lockfile guard)"))
 
         # Step 2: Unbounded read_file on 900-line service.py -> auto-capped 1..250
         raw_b = min(py_file.stat().st_size, NATIVE_READ_CAP)
-        res, ms = _run_hook("read_hook.pl", {"toolInput": {"Path": str(py_file)}, "stepIdx": 2, "conversationId": "bench"}, env)
+        res, ms = _run_hook("read_hook.py", {"toolInput": {"Path": str(py_file)}, "stepIdx": 2, "conversationId": "bench"}, env)
         latencies.append(ms)
         ov = res.get("overwrite") or {}
         if "EndLine" in ov:
@@ -112,7 +112,7 @@ def run_demo() -> int:
         # Step 3: Redundant sub-slice read_file service.py:50-120 four steps later -> denied
         slice_b = sum(len(x.encode("utf-8")) for x in py_lines[49:120])
         res, ms = _run_hook(
-            "read_hook.pl",
+            "read_hook.py",
             {"toolInput": {"Path": str(py_file), "StartLine": 50, "EndLine": 120}, "stepIdx": 6, "conversationId": "bench"},
             env,
         )
@@ -122,7 +122,7 @@ def run_demo() -> int:
 
         # Step 4: Unbounded read_file on 350-line events.json -> capped 1..120
         raw_b = min(json_file.stat().st_size, NATIVE_READ_CAP)
-        res, ms = _run_hook("read_hook.pl", {"toolInput": {"Path": str(json_file)}, "stepIdx": 7, "conversationId": "bench"}, env)
+        res, ms = _run_hook("read_hook.py", {"toolInput": {"Path": str(json_file)}, "stepIdx": 7, "conversationId": "bench"}, env)
         latencies.append(ms)
         ov = res.get("overwrite") or {}
         if "EndLine" in ov:
@@ -134,7 +134,7 @@ def run_demo() -> int:
 
         # Step 5: Unbounded read_file on 900-line (>46KB) api.log -> tail-anchored cap
         raw_b = min(log_file.stat().st_size, NATIVE_READ_CAP)
-        res, ms = _run_hook("read_hook.pl", {"toolInput": {"Path": str(log_file)}, "stepIdx": 8, "conversationId": "bench"}, env)
+        res, ms = _run_hook("read_hook.py", {"toolInput": {"Path": str(log_file)}, "stepIdx": 8, "conversationId": "bench"}, env)
         latencies.append(ms)
         ov = res.get("overwrite") or {}
         if "StartLine" in ov and "EndLine" in ov:
@@ -147,7 +147,7 @@ def run_demo() -> int:
 
         # Step 6: find_by_name on project with node_modules -> injects Excludes
         raw_find = len(find_raw.encode("utf-8"))
-        res, ms = _run_hook("find_hook.pl", {"toolInput": {"SearchDirectory": str(proj), "Pattern": "*.js"}}, env)
+        res, ms = _run_hook("find_hook.py", {"toolInput": {"SearchDirectory": str(proj), "Pattern": "*.js"}}, env)
         latencies.append(ms)
         ov = res.get("overwrite") or {}
         if ov.get("Excludes"):
@@ -159,7 +159,7 @@ def run_demo() -> int:
 
         # Step 7: write_hook blocking lazy placeholder truncation on 900L service.py
         res, ms = _run_hook(
-            "write_hook.pl",
+            "write_hook.py",
             {"toolInput": {"Path": str(py_file), "Overwrite": True, "Content": "def handler_001():\n    # ... existing code ...\n    pass\n"}},
             env,
         )
@@ -176,7 +176,7 @@ def run_demo() -> int:
 
     med_ms = statistics.median(latencies)
 
-    print("=== Reproducible Guard Benchmark (Measured Through Real Perl Hooks) ===")
+    print("=== Reproducible Guard Benchmark (Measured Through Real Python Hooks) ===")
     print(f"Native read ceiling in baseline: read_file <= {NATIVE_READ_CAP:,}B")
     print(f"Median PreToolUse hook latency : {med_ms:.1f} ms ({len(latencies)} calls)\n")
     print(f"{'Task Step':44s} | {'Without':>9s} | {'With':>9s} | {'Saved':>7s} | Result")

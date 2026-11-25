@@ -11,10 +11,10 @@ export PLUGIN_DATA="$T/pdata"; mkdir -p "$PLUGIN_DATA"
 PASS=0; FAIL=0
 ok()  { PASS=$((PASS+1)); }
 bad() { FAIL=$((FAIL+1)); printf 'FAIL: %s\n  got: %s\n' "$1" "$2"; }
-hook()  { local o; o=$(printf '%s' "$2" | perl "$S/$1" 2>&1); [[ "$o" =~ $3 ]] && ok || bad "$4" "$o"; }
+hook()  { local o; o=$(printf '%s' "$2" | "$PY" -S "$S/$1" 2>&1); [[ "$o" =~ $3 ]] && ok || bad "$4" "$o"; }
 ALLOW='^\{"decision":"allow"\}$'
 
-# A Windows-style absolute path to a real temp file (cygwin/msys perl accepts C:/... and C:\...).
+# A Windows-style absolute path to a real temp file (Windows Python accepts C:/... and C:\...).
 WT=""
 if command -v cygpath >/dev/null 2>&1; then WT="$(cygpath -m "$T")"; fi   # e.g. C:/Users/x/AppData/Local/Temp/tmp.abc
 mkdir -p "$T/proj/sub"
@@ -23,40 +23,40 @@ printf 'x\n' > "$T/proj/we[ird].txt"
 gj() { printf '{"toolCall":{"name":"grep_search","args":{"Query":"%s","SearchPath":"%s","MatchPerLine":true}},"lastUserInput":"see \\"SearchPath\\":\\"C:/nope\\""}' "$1" "$2"; }
 
 # ---------- grep_hook: safety / fail-open ----------
-hook grep_hook.pl ''                                   "$ALLOW" "grep: empty stdin"
-hook grep_hook.pl 'garbage{"SearchPath'                "$ALLOW" "grep: garbage stdin"
-hook grep_hook.pl "$(gj x /etc/passwd)"                "$ALLOW" "grep: POSIX path untouched"
-hook grep_hook.pl "$(gj x 'C:/definitely/not/here.html')" "$ALLOW" "grep: missing file untouched"
-hook grep_hook.pl '{"toolCall":{"name":"grep_search","args":{"Query":"x"}}}' "$ALLOW" "grep: no SearchPath"
+hook grep_hook.py ''                                   "$ALLOW" "grep: empty stdin"
+hook grep_hook.py 'garbage{"SearchPath'                "$ALLOW" "grep: garbage stdin"
+hook grep_hook.py "$(gj x /etc/passwd)"                "$ALLOW" "grep: POSIX path untouched"
+hook grep_hook.py "$(gj x 'C:/definitely/not/here.html')" "$ALLOW" "grep: missing file untouched"
+hook grep_hook.py '{"toolCall":{"name":"grep_search","args":{"Query":"x"}}}' "$ALLOW" "grep: no SearchPath"
 
 if [[ -n "$WT" ]]; then
   # ---------- grep_hook: single-file SearchPath -> parent dir + Includes ----------
-  hook grep_hook.pl "$(gj DOCTYPE "$WT/proj/index.html")" \
+  hook grep_hook.py "$(gj DOCTYPE "$WT/proj/index.html")" \
        "^\\{\"decision\":\"allow\",\"overwrite\":\\{\"SearchPath\":\"$WT/proj\",\"Includes\":\\[\"index.html\"\\]\\}\\}$" \
        "grep: file -> dir + Includes (forward slashes)"
   BS="${WT//\//\\\\}"   # JSON-escaped backslash form C:\\Users\\...
-  hook grep_hook.pl "$(gj DOCTYPE "$BS\\\\proj\\\\index.html")" '"SearchPath":"[A-Za-z]:\\\\.*\\\\proj","Includes":\["index.html"\]' \
+  hook grep_hook.py "$(gj DOCTYPE "$BS\\\\proj\\\\index.html")" '"SearchPath":"[A-Za-z]:\\\\.*\\\\proj","Includes":\["index.html"\]' \
        "grep: file -> dir + Includes (backslashes, re-escaped)"
-  hook grep_hook.pl "$(gj x "$WT/proj")"               "$ALLOW" "grep: directory SearchPath untouched"
-  hook grep_hook.pl "$(gj x "$WT/proj/")"              "$ALLOW" "grep: directory with trailing slash untouched"
-  hook grep_hook.pl "$(gj x "$WT/proj/we[ird].txt")"   "$ALLOW" "grep: glob metachar basename untouched"
+  hook grep_hook.py "$(gj x "$WT/proj")"               "$ALLOW" "grep: directory SearchPath untouched"
+  hook grep_hook.py "$(gj x "$WT/proj/")"              "$ALLOW" "grep: directory with trailing slash untouched"
+  hook grep_hook.py "$(gj x "$WT/proj/we[ird].txt")"   "$ALLOW" "grep: glob metachar basename untouched"
   # Includes already present (pointing elsewhere) is replaced by the file's own name
-  o=$(printf '{"toolCall":{"name":"grep_search","args":{"Query":"x","SearchPath":"%s","Includes":["*.js"]}}}' "$WT/proj/index.html" | perl "$S/grep_hook.pl")
+  o=$(printf '{"toolCall":{"name":"grep_search","args":{"Query":"x","SearchPath":"%s","Includes":["*.js"]}}}' "$WT/proj/index.html" | "$PY" -S "$S/grep_hook.py")
   [[ "$o" == *'"Includes":["index.html"]'* ]] && ok || bad "grep: Includes replaced by basename" "$o"
   # Output must be valid JSON
-  o=$(printf '%s' "$(gj DOCTYPE "$WT/proj/index.html")" | perl "$S/grep_hook.pl")
+  o=$(printf '%s' "$(gj DOCTYPE "$WT/proj/index.html")" | "$PY" -S "$S/grep_hook.py")
   printf '%s' "$o" | "$PY" -c 'import json,sys; json.load(sys.stdin)' 2>/dev/null && ok || bad "grep: output is valid JSON" "$o"
 else
   echo "note: cygpath not available; Windows-path grep_hook cases skipped"
 fi
 
 # ---------- hooks.json wiring ----------
-"$PY" - "$ROOT/hooks.json" <<'EOF' && ok || bad "hooks.json: grep_search wired to grep_hook.pl" "see above"
+"$PY" - "$ROOT/hooks.json" <<'EOF' && ok || bad "hooks.json: grep_search wired to grep_hook.py" "see above"
 import json, re, sys
 h = json.load(open(sys.argv[1]))
 g = h["token-saver-grep"]["PreToolUse"][0]
 assert re.fullmatch(g["matcher"], "grep_search")
-assert g["hooks"][0]["command"] == "perl ./scripts/grep_hook.pl"
+assert g["hooks"][0]["command"] == "python3 -S ./scripts/grep_hook.py"
 f = h["token-saver-find"]["PreToolUse"][0]["matcher"]
 assert re.fullmatch(f, "find_by_name") and re.fullmatch(f, "find") and not re.fullmatch(f, "find_all_references")
 EOF

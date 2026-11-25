@@ -499,7 +499,7 @@ class TestMcpAppModules(unittest.TestCase):
         self.assertIn("Pass Rate", summary_txt)
         self.assertIn("LOSS >2pp", summary_txt)
 
-    def test_installer_doctor_and_perl_wiring(self) -> None:
+    def test_installer_doctor_and_python_wiring(self) -> None:
         sys.path.insert(0, str(ROOT))
         import install as inst
 
@@ -508,20 +508,20 @@ class TestMcpAppModules(unittest.TestCase):
         (pdir / "scripts").mkdir(parents=True)
         (pdir / "plugin.json").write_text(json.dumps({"version": "1.2.1"}), encoding="utf-8")
         (pdir / "mcp_app" / "server.py").write_text("# srv\n", encoding="utf-8")
-        (pdir / "scripts" / "read_hook.pl").write_text("# hook\n", encoding="utf-8")
+        (pdir / "scripts" / "read_hook.py").write_text("# hook\n", encoding="utf-8")
         (pdir / "hooks.json").write_text(
-            json.dumps({"r": {"PreToolUse": [{"matcher": "read_file", "hooks": [{"type": "command", "command": "perl ./scripts/read_hook.pl"}]}]}}),
+            json.dumps({"r": {"PreToolUse": [{"matcher": "read_file", "hooks": [{"type": "command", "command": "python3 -S ./scripts/read_hook.py"}]}]}}),
             encoding="utf-8",
         )
-        # Verify _wire_hooks_perl replaces leading "perl " cleanly with explicit path
-        changed = inst._wire_hooks_perl(pdir, r"C:\Program Files\Git\usr\bin\perl.exe")
+        # Verify _wire_hooks_python replaces leading "python3 " cleanly with explicit path
+        changed = inst._wire_hooks_python(pdir, r"C:\Program Files\Python312\python.exe")
         self.assertTrue(changed)
         wired = json.loads((pdir / "hooks.json").read_text(encoding="utf-8"))
-        self.assertIn("Git", wired["r"]["PreToolUse"][0]["hooks"][0]["command"])
+        self.assertEqual(wired["r"]["PreToolUse"][0]["hooks"][0]["command"], r'"C:\Program Files\Python312\python.exe" -S ./scripts/read_hook.py')
 
-        # Restore plain "perl ./scripts/..." and verify run_doctor succeeds on valid env
+        # Restore plain "python3 -S ./scripts/..." (or sys.executable) and verify run_doctor succeeds on valid env
         (pdir / "hooks.json").write_text(
-            json.dumps({"r": {"PreToolUse": [{"matcher": "read_file", "hooks": [{"type": "command", "command": "perl ./scripts/read_hook.pl"}]}]}}),
+            json.dumps({"r": {"PreToolUse": [{"matcher": "read_file", "hooks": [{"type": "command", "command": f'"{sys.executable}" -S ./scripts/read_hook.py'}]}]}}),
             encoding="utf-8",
         )
         lines: list[str] = []
@@ -536,6 +536,28 @@ class TestMcpAppModules(unittest.TestCase):
             rc_bad = inst.run_doctor(log=lines_bad.append)
         self.assertEqual(rc_bad, 1)
         self.assertTrue(any("Fix:" in ln for ln in lines_bad))
+
+    def test_rollover_parses_nested_agentapi_conversation_id(self) -> None:
+        import snapshots as sn
+
+        ws = self.tmp / "ws"
+        ws.mkdir()
+        (ws / "a.py").write_text("x = 1\n", encoding="utf-8")
+        proc = mock.MagicMock(
+            returncode=0,
+            stdout=json.dumps({"response": {"newConversation": {"conversationId": "new-conv-uuid-123"}}}),
+            stderr="",
+        )
+        with (
+            mock.patch.object(sn, "build_handoff_packet", return_value={"packet": "## Handoff\npacket", "est_tokens": 12}),
+            mock.patch.object(sn, "_find_agentapi_cmd", return_value=["/usr/bin/agentapi"]),
+            mock.patch.object(sn, "append_rollover_history"),
+            mock.patch.object(sn.subprocess, "run", return_value=proc),
+        ):
+            res = sn.perform_rollover(str(ws), {"conversation_id": "old-conv-1", "cur_tot": 50000, "turns": 8})
+        self.assertTrue(res["ok"], res)
+        self.assertEqual(res["to_conv"], "new-conv-uuid-123")
+        self.assertEqual(res["entry"]["to_conv"], "new-conv")
 
 
 if __name__ == "__main__":

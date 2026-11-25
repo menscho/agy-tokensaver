@@ -87,8 +87,11 @@ def perform_rollover(
         raw_out = p.stdout.strip()
         try:
             parsed = json.loads(raw_out) if raw_out else {}
+            resp_conv = (parsed.get("response") or {}).get("newConversation") or {}
             to_conv = str(
-                parsed.get("conversationId")
+                resp_conv.get("conversationId")
+                or resp_conv.get("conversation_id")
+                or parsed.get("conversationId")
                 or parsed.get("conversation_id")
                 or parsed.get("id")
                 or ""

@@ -4,7 +4,7 @@ Signal-retention & live task evaluation harness for agy-tokensaver.
 
 Supports four drivers (zero third-party dependencies):
   1. --verify-fixtures : proves every task fails cleanly on unpatched fixtures and passes after reference edits.
-  2. --driver hook-replay : deterministic replay of read_file calls through `read_hook.pl` across modes
+  2. --driver hook-replay : deterministic replay of read_file calls through `read_hook.py` across modes
      (in `off`, unmodified full file content is delivered with zero truncation).
   3. --driver antigravity : live end-to-end execution via Antigravity's local `ConversationService` HTTP+JSON
      API (requires `ANTIGRAVITY_LS_ADDRESS` and `ANTIGRAVITY_CSRF_TOKEN`), testing BOTH:
@@ -133,7 +133,7 @@ def verify_fixtures() -> int:
 
 
 def _call_read_hook(path: Path, cid: str, step: int, env: dict[str, str], start: int | None = None, end: int | None = None) -> tuple[str, int, int, bool]:
-    """Run read_hook.pl (unless mode=='off') and return (delivered_text, tokens, retries, was_reread)."""
+    """Run read_hook.py (unless mode=='off') and return (delivered_text, tokens, retries, was_reread)."""
     raw_text = path.read_text(encoding="utf-8", errors="replace")
     lines = raw_text.splitlines()
     if env.get("AGY_TS_HOOKS") == "off":
@@ -144,7 +144,7 @@ def _call_read_hook(path: Path, cid: str, step: int, env: dict[str, str], start:
     if end is not None:
         ti["EndLine"] = end
     payload = json.dumps({"toolInput": ti, "conversationId": cid, "stepIdx": step}).encode("utf-8")
-    p = subprocess.run(["perl", str(SCRIPTS / "read_hook.pl")], input=payload, capture_output=True, env=env, timeout=5)
+    p = subprocess.run([sys.executable, "-S", str(SCRIPTS / "read_hook.py")], input=payload, capture_output=True, env=env, timeout=5)
     dec = json.loads(p.stdout.decode("utf-8"))
     if dec.get("decision") == "deny":
         reason = dec.get("reason", "")

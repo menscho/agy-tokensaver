@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Zero-startup-token on-demand file inspector for token-saver.
-Referenced just-in-time in read_hook.pl deny reasons so huge structured/rich files
+Referenced just-in-time in read_hook.py deny reasons so huge structured/rich files
 (.ipynb, .json, .csv, .svg, .har, .sql, .sqlite, .html, .proto/.graphql/openapi)
 can be inspected cleanly at 90-99.8% fewer tokens with zero information loss.
 """

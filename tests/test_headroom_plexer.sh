@@ -15,17 +15,17 @@ export PLUGIN_DATA="$T/pdata"; mkdir -p "$PLUGIN_DATA"
 PASS=0; FAIL=0
 ok()  { PASS=$((PASS+1)); }
 bad() { FAIL=$((FAIL+1)); printf 'FAIL: %s\n  got: %s\n' "$1" "$2"; }
-hook() { local o; o=$(printf '%s' "$2" | perl "$S/$1" 2>&1); [[ "$o" =~ $3 ]] && ok || bad "$4" "$o"; }
+hook() { local o; o=$(printf '%s' "$2" | "$PY" -S "$S/$1" 2>&1); [[ "$o" =~ $3 ]] && ok || bad "$4" "$o"; }
 ALLOW='^\{"decision":"allow"\}$'
 
 # 1. initialNumSteps compaction reset + post_edit_hook read invalidation
 "$PY" -c 'print(("def f(): return 1234567890 # padding text\n") * 200, end="")' > "$T/comp.py"
-hook read_hook.pl "$(printf '{"toolInput":{"Path":"%s","StartLine":1,"EndLine":100},"stepIdx":10,"initialNumSteps":10,"conversationId":"creset"}' "$T/comp.py")" "$ALLOW" "initial read recorded"
-hook read_hook.pl "$(printf '{"toolInput":{"Path":"%s","StartLine":1,"EndLine":100},"stepIdx":12,"initialNumSteps":10,"conversationId":"creset"}' "$T/comp.py")" '"decision":"deny"' "duplicate read denied before compaction"
-hook read_hook.pl "$(printf '{"toolInput":{"Path":"%s","StartLine":1,"EndLine":100},"stepIdx":14,"initialNumSteps":2,"conversationId":"creset"}' "$T/comp.py")" "$ALLOW" "initialNumSteps drop resets read dedup"
-hook read_hook.pl "$(printf '{"toolInput":{"Path":"%s","StartLine":1,"EndLine":100},"stepIdx":15,"initialNumSteps":2,"conversationId":"creset"}' "$T/comp.py")" '"decision":"deny"' "re-recorded after reset"
-printf '{"toolInput":{"Path":"%s"},"conversationId":"creset"}' "$T/comp.py" | perl "$S/post_edit_hook.pl" >/dev/null
-hook read_hook.pl "$(printf '{"toolInput":{"Path":"%s","StartLine":1,"EndLine":100},"stepIdx":16,"initialNumSteps":2,"conversationId":"creset"}' "$T/comp.py")" "$ALLOW" "post_edit_hook invalidates read_hook entry"
+hook read_hook.py "$(printf '{"toolInput":{"Path":"%s","StartLine":1,"EndLine":100},"stepIdx":10,"initialNumSteps":10,"conversationId":"creset"}' "$T/comp.py")" "$ALLOW" "initial read recorded"
+hook read_hook.py "$(printf '{"toolInput":{"Path":"%s","StartLine":1,"EndLine":100},"stepIdx":12,"initialNumSteps":10,"conversationId":"creset"}' "$T/comp.py")" '"decision":"deny"' "duplicate read denied before compaction"
+hook read_hook.py "$(printf '{"toolInput":{"Path":"%s","StartLine":1,"EndLine":100},"stepIdx":14,"initialNumSteps":2,"conversationId":"creset"}' "$T/comp.py")" "$ALLOW" "initialNumSteps drop resets read dedup"
+hook read_hook.py "$(printf '{"toolInput":{"Path":"%s","StartLine":1,"EndLine":100},"stepIdx":15,"initialNumSteps":2,"conversationId":"creset"}' "$T/comp.py")" '"decision":"deny"' "re-recorded after reset"
+printf '{"toolInput":{"Path":"%s"},"conversationId":"creset"}' "$T/comp.py" | "$PY" -S "$S/post_edit_hook.py" >/dev/null
+hook read_hook.py "$(printf '{"toolInput":{"Path":"%s","StartLine":1,"EndLine":100},"stepIdx":16,"initialNumSteps":2,"conversationId":"creset"}' "$T/comp.py")" "$ALLOW" "post_edit_hook invalidates read_hook entry"
 
 # 10. @plexer/cli ts_inspect.py outline (Python AST + Rust/JS fallback)
 cat > "$T/sample.py" <<'EOF'
@@ -48,11 +48,11 @@ o=$("$PY" "$S/ts_inspect.py" outline "$T/sample.rs")
 
 # 11. Opt-in Compact Reads mode (default OFF vs ON)
 "$PY" -c 'print(("def fn_item(x): return x * 42  # realistic source code line\n") * 260, end="")' > "$T/mid15k.py"
-o=$(AGY_TS_COMPACT_READS=0 perl "$S/read_hook.pl" <<< "$(printf '{"toolInput":{"Path":"%s"}}' "$T/mid15k.py")")
+o=$(AGY_TS_COMPACT_READS=0 "$PY" -S "$S/read_hook.py" <<< "$(printf '{"toolInput":{"Path":"%s"}}' "$T/mid15k.py")")
 [[ "$o" == '{"decision":"allow"}' ]] && ok || bad "compact_reads OFF leaves 15KB code uncapped" "$o"
-o=$(AGY_TS_COMPACT_READS=1 perl "$S/read_hook.pl" <<< "$(printf '{"toolInput":{"Path":"%s"}}' "$T/mid15k.py")")
+o=$(AGY_TS_COMPACT_READS=1 "$PY" -S "$S/read_hook.py" <<< "$(printf '{"toolInput":{"Path":"%s"}}' "$T/mid15k.py")")
 [[ "$o" == *'"EndLine":120'* ]] && ok || bad "compact_reads ON caps 15KB code to 120L" "$o"
-o=$(AGY_TS_COMPACT_READS=1 perl "$S/read_hook.pl" <<< "$(printf '{"toolInput":{"Path":"%s","StartLine":50,"EndLine":220}}' "$T/mid15k.py")")
+o=$(AGY_TS_COMPACT_READS=1 "$PY" -S "$S/read_hook.py" <<< "$(printf '{"toolInput":{"Path":"%s","StartLine":50,"EndLine":220}}' "$T/mid15k.py")")
 [[ "$o" == '{"decision":"allow"}' ]] && ok || bad "compact_reads ON leaves bounded slice untouched" "$o"
 
 # 4. 2-Mode & 5-profile config (auto_handoff default -> small_loss -> zero_loss)
@@ -116,8 +116,8 @@ PYEOF
 
 # 6. Duplicate image read guard (0% loss)
 printf '\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x01\x00\x00\x00\x01\x00\x08\x02\x00\x00\x00' > "$T/shot.png"
-o1=$(perl "$S/read_hook.pl" <<< "$(printf '{"toolInput":{"Path":"%s"},"conversationId":"imgc1","stepIdx":1}' "$T/shot.png")")
-o2=$(perl "$S/read_hook.pl" <<< "$(printf '{"toolInput":{"Path":"%s"},"conversationId":"imgc1","stepIdx":3}' "$T/shot.png")")
+o1=$("$PY" -S "$S/read_hook.py" <<< "$(printf '{"toolInput":{"Path":"%s"},"conversationId":"imgc1","stepIdx":1}' "$T/shot.png")")
+o2=$("$PY" -S "$S/read_hook.py" <<< "$(printf '{"toolInput":{"Path":"%s"},"conversationId":"imgc1","stepIdx":3}' "$T/shot.png")")
 [[ "$o1" == '{"decision":"allow"}' && "$o2" == *'"decision":"deny"'* ]] && ok || bad "duplicate image read guard" "o1=$o1 o2=$o2"
 
 # 7. All HUD benchmark modes selectable cleanly (auto_handoff default)
@@ -142,17 +142,17 @@ PYEOF
 
 # 8. Tail-anchored unbounded >46KB .log read (small <46KB logs stay whole)
 "$PY" -c 'for i in range(1, 861): print(f"2026-11-24 INFO line {i:03d} payload_event_0123456789abcde")' > "$T/app.log"
-o=$(perl "$S/read_hook.pl" <<< "$(printf '{"toolInput":{"Path":"%s"}}' "$T/app.log")")
+o=$("$PY" -S "$S/read_hook.py" <<< "$(printf '{"toolInput":{"Path":"%s"}}' "$T/app.log")")
 [[ "$o" == *'"StartLine":712'* && "$o" == *'"EndLine":861'* ]] && ok || bad "tail-anchored unbounded >46KB .log cap" "$o"
 "$PY" -c 'for i in range(1, 201): print(f"2026-11-24 INFO line {i:03d} small_log_payload_0123456789abcdef")' > "$T/small.log"
-o=$(perl "$S/read_hook.pl" <<< "$(printf '{"toolInput":{"Path":"%s"}}' "$T/small.log")")
+o=$("$PY" -S "$S/read_hook.py" <<< "$(printf '{"toolInput":{"Path":"%s"}}' "$T/small.log")")
 [[ "$o" == '{"decision":"allow"}' ]] && ok || bad "small <46KB .log stays uncapped" "$o"
 
 # 9. Post-edit dirty-hunk auto-narrowing
 "$PY" -c 'for i in range(1, 321): print(f"def fn_{i}(x): return x + {i}  # padding comment line")' > "$T/dirty.py"
-o1=$(AGY_TS_COMPACT_READS=0 perl "$S/read_hook.pl" <<< "$(printf '{"toolInput":{"Path":"%s"},"conversationId":"dh1","stepIdx":1}' "$T/dirty.py")")
+o1=$(AGY_TS_COMPACT_READS=0 "$PY" -S "$S/read_hook.py" <<< "$(printf '{"toolInput":{"Path":"%s"},"conversationId":"dh1","stepIdx":1}' "$T/dirty.py")")
 "$PY" -c 'import sys; p=open(sys.argv[1]).read().splitlines(); p[219]="def fn_220(x): return x * 999  # edited"; open(sys.argv[1],"w").write("\n".join(p)+"\n")' "$T/dirty.py"
-o2=$(perl "$S/read_hook.pl" <<< "$(printf '{"toolInput":{"Path":"%s"},"conversationId":"dh1","stepIdx":3}' "$T/dirty.py")")
+o2=$("$PY" -S "$S/read_hook.py" <<< "$(printf '{"toolInput":{"Path":"%s"},"conversationId":"dh1","stepIdx":3}' "$T/dirty.py")")
 [[ "$o1" == *'"decision":"allow"'* && "$o2" == *'"StartLine":205,"EndLine":235'* ]] && ok || bad "post-edit dirty-hunk narrowing" "o1=$o1 o2=$o2"
 
 # 10. ts_inspect.py query BM25/FTS5 chunk retrieval
@@ -166,15 +166,15 @@ PYEOF
 o=$("$PY" "$S/ts_inspect.py" query "$T/ids.log" ERR_QUOTA_BURST)
 [[ "$o" == *"L241-270"* || "$o" == *"ERR_QUOTA_BURST"* ]] && ok || bad "ts_inspect query BM25/FTS5" "$(head -c 250 <<<"$o")"
 
-# 11. Universal doom_loop guard in grep_hook.pl + find_hook.pl + post_edit_hook editseq reset
+# 11. Universal doom_loop guard in grep_hook.py + find_hook.py + post_edit_hook editseq reset
 gj() { printf '{"toolInput":{"SearchPath":"%s","Query":"needle_xyz"},"conversationId":"gl1","stepIdx":%d}' "$T" "$1"; }
-o1=$(perl "$S/grep_hook.pl" <<< "$(gj 1)")
-o2=$(perl "$S/grep_hook.pl" <<< "$(gj 2)")
-o3=$(perl "$S/grep_hook.pl" <<< "$(gj 3)")
-o4=$(perl "$S/grep_hook.pl" <<< "$(gj 4)")
+o1=$("$PY" -S "$S/grep_hook.py" <<< "$(gj 1)")
+o2=$("$PY" -S "$S/grep_hook.py" <<< "$(gj 2)")
+o3=$("$PY" -S "$S/grep_hook.py" <<< "$(gj 3)")
+o4=$("$PY" -S "$S/grep_hook.py" <<< "$(gj 4)")
 [[ "$o1" == '{"decision":"allow"}' && "$o2" == '{"decision":"allow"}' && "$o3" == *'"decision":"deny"'* && "$o4" == '{"decision":"allow"}' ]] && ok || bad "grep_hook doom_loop 3x + retry escape" "o3=$o3 o4=$o4"
-printf '{"toolInput":{"Path":"%s/dirty.py"},"conversationId":"gl1"}' "$T" | perl "$S/post_edit_hook.pl" >/dev/null
-o5=$(perl "$S/grep_hook.pl" <<< "$(gj 5)")
+printf '{"toolInput":{"Path":"%s/dirty.py"},"conversationId":"gl1"}' "$T" | "$PY" -S "$S/post_edit_hook.py" >/dev/null
+o5=$("$PY" -S "$S/grep_hook.py" <<< "$(gj 5)")
 [[ "$o5" == '{"decision":"allow"}' ]] && ok || bad "post_edit_hook resets grep_hook loop guard" "$o5"
 
 # 30. audit.py --discover runs cleanly
@@ -183,7 +183,7 @@ o=$("$PY" "$S/audit.py" "$ROOT" --discover 2>&1)
 
 # 31. Auto-generated header file blocked when unbounded >24KB
 { echo "// Code generated by protoc-gen-go. DO NOT EDIT."; seq 1 900 | sed 's/^/func generatedFieldAccessor(x int) int { return x + 1 } \/\/ pad /'; } > "$T/types.go"
-o=$(perl "$S/read_hook.pl" <<< "$(printf '{"toolInput":{"Path":"%s"}}' "$T/types.go")")
+o=$("$PY" -S "$S/read_hook.py" <<< "$(printf '{"toolInput":{"Path":"%s"}}' "$T/types.go")")
 [[ "$o" == *'"decision":"deny"'* && "$o" == *"auto-generated"* ]] && ok || bad "auto-generated header gate" "$o"
 
 # 33. SPDX/License banner auto-skip advances StartLine past leading comments (0% loss)
@@ -194,12 +194,12 @@ for i in range(18):
 for i in range(1, 350):
     print(f"pub fn handler_{i}(x: usize) -> usize {{ x + {i} }} // realistic rust code line")
 PYEOF
-o=$(perl "$S/read_hook.pl" <<< "$(printf '{"toolInput":{"Path":"%s"}}' "$T/licensed.rs")")
+o=$("$PY" -S "$S/read_hook.py" <<< "$(printf '{"toolInput":{"Path":"%s"}}' "$T/licensed.rs")")
 [[ "$o" == *'"StartLine":20,"EndLine":269'* ]] && ok || bad "SPDX license banner StartLine skip" "$o"
 
 # 34. CHANGELOG.md compact cap to 80L in Mode 2 (opt-in)
 "$PY" -c 'for i in range(1, 300): print(f"- v0.{i}.0: release changelog entry with details and notes 1234567890")' > "$T/CHANGELOG.md"
-o=$(AGY_TS_COMPACT_READS=1 perl "$S/read_hook.pl" <<< "$(printf '{"toolInput":{"Path":"%s"}}' "$T/CHANGELOG.md")")
+o=$(AGY_TS_COMPACT_READS=1 "$PY" -S "$S/read_hook.py" <<< "$(printf '{"toolInput":{"Path":"%s"}}' "$T/CHANGELOG.md")")
 [[ "$o" == *'"StartLine":1,"EndLine":80'* ]] && ok || bad "CHANGELOG.md compact cap to 80L" "$o"
 
 # 35. TokenEconomizer cross-session microskills promotion (>=2 confirmations)

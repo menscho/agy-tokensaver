@@ -59,7 +59,7 @@ for s in audit stats handoff_pack repo_digest ts_inspect; do
     [[ -f "$ROOT/scripts/$s.py" ]] && ok || bad "referenced scripts/$s.py exists" "missing"
   fi
 done
-grep -rqsE 'cmd_hook|cmd_wrap|lean-workflow|swarm-prep|vision-scout|contact_sheet' "$ROOT/skills" "$ROOT/plugin.json" "$ROOT/hooks.json" "$ROOT/scripts"/*.pl "$ROOT/scripts/lib"/*.pl \
+grep -rqsE 'cmd_hook|cmd_wrap|lean-workflow|swarm-prep|vision-scout|contact_sheet' "$ROOT/skills" "$ROOT/plugin.json" "$ROOT/hooks.json" "$ROOT/scripts"/*.py \
   && bad "no references to removed components" "found stale reference" || ok
 
 printf 'test_rules: %d passed, %d failed\n' "$PASS" "$FAIL"

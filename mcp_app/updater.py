@@ -53,29 +53,13 @@ def check_requirements() -> list[dict[str, Any]]:
     py_ver = f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}"
     py_ok = (sys.version_info.major, sys.version_info.minor) >= (3, 9)
 
-    perl_ok = False
-    perl_ver = "Not found"
-    try:
-        p = subprocess.run(["perl", "-e", "print $^V"], text=True, capture_output=True, timeout=3)
-        if p.returncode == 0 and p.stdout.strip():
-            perl_ok = True
-            perl_ver = p.stdout.strip()
-    except Exception:
-        pass
-
     plugin_writable = os.access(PLUGIN_ROOT, os.W_OK)
     data_exists = DATA_DIR.is_dir() or os.access(DATA_DIR.parent, os.W_OK)
     return [
         {
-            "name": "Python 3.9+",
+            "name": "Python 3.9+ (single zero-dep runtime)",
             "status": "ok" if py_ok else "bad",
             "detail": f"Python {py_ver}",
-            "required": True,
-        },
-        {
-            "name": "Perl 5 (fast ~2ms hooks)",
-            "status": "ok" if perl_ok else "warn",
-            "detail": perl_ver,
             "required": True,
         },
         {
@@ -289,8 +273,28 @@ def apply_update() -> dict[str, Any]:
                             mcp_cfg.write_text(json.dumps(cfg_data, indent=2) + "\n", encoding="utf-8")
                     except Exception:
                         pass
+                hj = PLUGIN_ROOT / "hooks.json"
+                if hj.is_file():
+                    try:
+                        hdata = json.loads(hj.read_text(encoding="utf-8"))
+                        quoted_py = f'"{sys.executable}"'
+                        for grp in hdata.values():
+                            if not isinstance(grp, dict):
+                                continue
+                            for entries in grp.values():
+                                if not isinstance(entries, list):
+                                    continue
+                                for ent in entries:
+                                    hlist = ent.get("hooks") if isinstance(ent.get("hooks"), list) else [ent]
+                                    for hk in hlist:
+                                        cmd = str(hk.get("command") or "")
+                                        if cmd.startswith("python3 "):
+                                            hk["command"] = quoted_py + cmd[7:]
+                        hj.write_text(json.dumps(hdata, indent=2) + "\n", encoding="utf-8")
+                    except Exception:
+                        pass
             else:
-                for pat in ("scripts/*.pl", "scripts/*.py", "mcp_app/*.py", "tests/*.sh", "install.py", "install.sh", "Install-TokenSaver.command"):
+                for pat in ("scripts/*.py", "mcp_app/*.py", "tests/*.sh", "install.py", "install.sh", "Install-TokenSaver.command"):
                     for fp in PLUGIN_ROOT.glob(pat):
                         try:
                             fp.chmod(fp.stat().st_mode | 0o111)

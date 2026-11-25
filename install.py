@@ -34,7 +34,7 @@ PLUGIN_DIR = Path.home() / ".gemini" / "config" / "plugins" / "token-saver"
 DATA_DIR = Path.home() / ".gemini" / "antigravity" / "plugin_data" / "token-saver"
 
 PRESERVE_NAMES = {".git", ".data", "__pycache__"}
-EXEC_GLOBS = ("scripts/*.pl", "scripts/*.py", "mcp_app/*.py", "tests/*.sh", "install.py", "install.sh", "Install-TokenSaver.command")
+EXEC_GLOBS = ("scripts/*.py", "mcp_app/*.py", "tests/*.sh", "install.py", "install.sh", "Install-TokenSaver.command")
 
 
 def read_version(root: Path) -> str | None:
@@ -54,34 +54,13 @@ def local_bundle_root() -> Path | None:
     return None
 
 
-def find_perl_exe() -> tuple[str | None, bool, str]:
-    """Locate Perl 5 on PATH or (on Windows) standard Git-for-Windows / Strawberry install paths.
-    Returns (exe_path_or_None, on_path_bool, source_label)."""
-    on_path = shutil.which("perl")
-    if on_path:
-        return on_path, True, "PATH"
-    if os.name == "nt":
-        candidates: list[tuple[Path, str]] = [
-            (Path(r"C:\Program Files\Git\usr\bin\perl.exe"), "Git for Windows"),
-            (Path(r"C:\Program Files (x86)\Git\usr\bin\perl.exe"), "Git for Windows (x86)"),
-            (Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Git" / "usr" / "bin" / "perl.exe", "Git for Windows (Local)"),
-            (Path(r"C:\Strawberry\perl\bin\perl.exe"), "Strawberry Perl"),
-        ]
-        git_bin = shutil.which("git")
-        if git_bin:
-            candidates.insert(0, (Path(git_bin).resolve().parent.parent / "usr" / "bin" / "perl.exe", "Git for Windows"))
-        for cand, label in candidates:
-            if cand.is_file():
-                return str(cand), False, label
-    return None, False, "not found"
-
-
-def _wire_hooks_perl(plugin_dir: Path, perl_exe: str) -> bool:
-    """Point installed hooks.json at an absolute perl.exe when Perl is missing from PATH."""
+def _wire_hooks_python(plugin_dir: Path, python_exe: str | None = None) -> bool:
+    """Point installed hooks.json at an explicit Python executable when python3 isn't directly usable."""
     hj = plugin_dir / "hooks.json"
     if not hj.is_file():
         return False
-    quoted = f'"{perl_exe}"' if (" " in perl_exe or os.name == "nt") else perl_exe
+    exe = python_exe or sys.executable
+    quoted = f'"{exe}"' if (" " in exe or os.name == "nt") else exe
     data = json.loads(hj.read_text(encoding="utf-8"))
     changed = False
     for group in data.values():
@@ -91,10 +70,11 @@ def _wire_hooks_perl(plugin_dir: Path, perl_exe: str) -> bool:
             if not isinstance(entries, list):
                 continue
             for entry in entries:
-                for hook in (entry.get("hooks") or []):
+                hlist = entry.get("hooks") if isinstance(entry.get("hooks"), list) else [entry]
+                for hook in hlist:
                     cmd = str(hook.get("command") or "")
-                    if cmd.startswith("perl "):
-                        hook["command"] = quoted + cmd[4:]
+                    if cmd.startswith("python3 "):
+                        hook["command"] = quoted + cmd[7:]
                         changed = True
     if changed:
         hj.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
@@ -265,13 +245,9 @@ def install_or_update(remote: bool = False, log: Callable[[str], None] = print) 
         except Exception:
             pass
 
-    perl_exe, on_path, perl_src = find_perl_exe()
-    if perl_exe and not on_path:
-        if _wire_hooks_perl(PLUGIN_DIR, perl_exe):
-            log(f"Perl not on PATH; detected {perl_src} ({perl_exe}) and wired it into installed hooks.json.")
-    elif not perl_exe:
-        log("Note: Perl 5 was not found (needed for CLI/read hooks; HUD & Archive still work).")
-        log("      Fix: install Git for Windows (https://git-scm.com/download/win) or run: winget install StrawberryPerl.StrawberryPerl")
+    if os.name == "nt" or not shutil.which("python3"):
+        if _wire_hooks_python(PLUGIN_DIR, sys.executable):
+            log(f"Wired hooks.json to Python executable ({sys.executable}).")
 
     msg = (
         f"Token Saver v{new_ver} {'updated' if is_update else 'installed'} successfully!\n"
@@ -284,7 +260,7 @@ def install_or_update(remote: bool = False, log: Callable[[str], None] = print) 
 
 
 def run_doctor(log: Callable[[str], None] = print) -> int:
-    """Check Python, Perl, JSON::PP, plugin paths, and hook registration with fix-it instructions."""
+    """Check Python 3.9+, plugin paths, data dir, and hook registration with fix-it instructions."""
     import shlex
 
     ok_all = True
@@ -302,30 +278,6 @@ def run_doctor(log: Callable[[str], None] = print) -> int:
         row("OK", "Python 3.9+", f"{py_ver} ({sys.executable})")
     else:
         row("FAIL", "Python 3.9+", f"{py_ver} too old", "Install Python 3.9+ from https://www.python.org/downloads/")
-
-    perl_exe, on_path, perl_src = find_perl_exe()
-    if perl_exe:
-        try:
-            pv = subprocess.run([perl_exe, "-e", "print $^V"], capture_output=True, text=True, timeout=5)
-            pver = pv.stdout.strip() if pv.returncode == 0 else "unknown"
-            note = f"{pver} ({perl_exe}, via {perl_src})" + ("" if on_path else " [not on PATH; run install.py to wire hooks.json]")
-            row("OK", "Perl 5", note)
-        except Exception as exc:
-            row("FAIL", "Perl 5", f"failed executing {perl_exe}: {exc}", "Reinstall Perl 5 (Git for Windows or Strawberry Perl)")
-            perl_exe = None
-    else:
-        fix_perl = "Install Git for Windows or run: winget install StrawberryPerl.StrawberryPerl" if os.name == "nt" else "Install Perl 5 via system package manager"
-        row("FAIL", "Perl 5", "not found on PATH or standard Windows paths", fix_perl)
-
-    if perl_exe:
-        try:
-            jp = subprocess.run([perl_exe, "-MJSON::PP", "-e", "print $JSON::PP::VERSION"], capture_output=True, text=True, timeout=5)
-            if jp.returncode == 0 and jp.stdout.strip():
-                row("OK", "JSON::PP", f"v{jp.stdout.strip()} (Perl core)")
-            else:
-                row("FAIL", "JSON::PP", "module missing", "Upgrade to Perl 5.14+ (includes JSON::PP in core)")
-        except Exception as exc:
-            row("FAIL", "JSON::PP", str(exc), "Ensure Perl 5.14+ is installed cleanly")
 
     pj = PLUGIN_DIR / "plugin.json"
     srv = PLUGIN_DIR / "mcp_app" / "server.py"
@@ -357,7 +309,8 @@ def run_doctor(log: Callable[[str], None] = print) -> int:
                     if not isinstance(entries, list):
                         continue
                     for entry in entries:
-                        for h in (entry.get("hooks") or []):
+                        hlist = entry.get("hooks") if isinstance(entry.get("hooks"), list) else [entry]
+                        for h in hlist:
                             count += 1
                             parts = shlex.split(str(h.get("command") or ""), posix=(os.name != "nt"))
                             if parts:
@@ -369,8 +322,8 @@ def run_doctor(log: Callable[[str], None] = print) -> int:
                                 if clean_arg.startswith("./") and not (PLUGIN_DIR / clean_arg[2:]).is_file():
                                     missing_scripts.append(clean_arg)
             if missing_scripts or missing_bins:
-                detail = "; ".join(([f"missing scripts: {','.join(missing_scripts)}"] if missing_scripts else []) + ([f"unresolvable perl: {','.join(sorted(set(missing_bins)))}"] if missing_bins else []))
-                row("FAIL", "Hook registration", detail, "Run: python3 install.py --yes (auto-wires Git/Strawberry Perl on Windows)")
+                detail = "; ".join(([f"missing scripts: {','.join(missing_scripts)}"] if missing_scripts else []) + ([f"unresolvable python: {','.join(sorted(set(missing_bins)))}"] if missing_bins else []))
+                row("FAIL", "Hook registration", detail, "Run: python3 install.py --yes")
             else:
                 row("OK", "Hook registration", f"{count} hook command(s) registered cleanly in {hj}")
         except Exception as exc:
@@ -464,7 +417,7 @@ def main() -> int:
     ap.add_argument("--yes", "-y", action="store_true", help="Non-interactive CLI install/update")
     ap.add_argument("--cli", action="store_true", help="Force terminal mode (no GUI window)")
     ap.add_argument("--remote", action="store_true", help="Always download latest release from GitHub")
-    ap.add_argument("--doctor", action="store_true", help="Diagnose Perl, JSON::PP, Python, plugin paths, and hook registration")
+    ap.add_argument("--doctor", action="store_true", help="Diagnose Python, plugin paths, data dir, and hook registration")
     ap.add_argument("--uninstall", action="store_true", help="Uninstall Token Saver plugin")
     ap.add_argument("--purge-stats", action="store_true", help="Also delete plugin_data stats when uninstalling")
     args = ap.parse_args()

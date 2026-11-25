@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "perl ./scripts/read_hook.pl",
+            "command": "python3 -S ./scripts/read_hook.py",
             "timeout": 5
           }
         ]
@@ -20,7 +20,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "perl ./scripts/write_hook.pl",
+            "command": "python3 -S ./scripts/write_hook.py",
             "timeout": 5
           }
         ]
@@ -34,7 +34,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "perl ./scripts/find_hook.pl",
+            "command": "python3 -S ./scripts/find_hook.py",
             "timeout": 5
           }
         ]
@@ -48,7 +48,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "perl ./scripts/grep_hook.pl",
+            "command": "python3 -S ./scripts/grep_hook.py",
             "timeout": 5
           }
         ]
@@ -62,7 +62,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "perl ./scripts/post_edit_hook.pl",
+            "command": "python3 -S ./scripts/post_edit_hook.py",
             "timeout": 5
           }
         ]
@@ -73,7 +73,7 @@
     "PostInvocation": [
       {
         "type": "command",
-        "command": "perl ./scripts/post_invocation_alerts.pl",
+        "command": "python3 -S ./scripts/post_invocation_alerts.py",
         "timeout": 5
       }
     ]
@@ -82,7 +82,7 @@
     "Stop": [
       {
         "type": "command",
-        "command": "perl ./scripts/stop_telemetry.pl",
+        "command": "python3 -S ./scripts/stop_telemetry.py",
         "timeout": 5
       }
     ]
