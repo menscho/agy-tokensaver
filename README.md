@@ -2,7 +2,7 @@
 
 <p align="left">
   <a href="https://github.com/menscho/agy-tokensaver/actions/workflows/test.yml"><img src="https://github.com/menscho/agy-tokensaver/actions/workflows/test.yml/badge.svg" alt="CI"/></a>
-  <a href="https://github.com/menscho/agy-tokensaver/releases"><img src="https://img.shields.io/badge/release-v1.2.4-4ade80?style=flat-square&labelColor=0d0d11" alt="Release v1.2.4"/></a>
+  <a href="https://github.com/menscho/agy-tokensaver/releases"><img src="https://img.shields.io/badge/release-v1.2.5-4ade80?style=flat-square&labelColor=0d0d11" alt="Release v1.2.5"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-8e8e98?style=flat-square&labelColor=0d0d11" alt="MIT"/></a>
 </p>
 
@@ -23,7 +23,7 @@ Every number below comes from runnable commands in this repository (`scripts/ben
 
 ## Install and remove
 
-Download `agy-tokensaver-v1.2.4.zip` from [Releases](https://github.com/menscho/agy-tokensaver/releases), extract it, and run:
+Download `agy-tokensaver-v1.2.5.zip` from [Releases](https://github.com/menscho/agy-tokensaver/releases), extract it, and run:
 
 - **Windows:** `Install-TokenSaver.bat`
 - **macOS:** `Install-TokenSaver.command`

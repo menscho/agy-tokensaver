@@ -82,6 +82,14 @@ class TestMcpAppModules(unittest.TestCase):
 
         self.config.save_config({"threshold_mode": "auto", "mode": "off"})
         self.assertEqual(self.config.load_config()["mode"], "off")
+        self.config.save_config({"auto_rollover": True})
+        self.assertEqual(self.config.load_config()["mode"], "smart_auto")
+        self.config.save_config({"profile": "off"})
+        self.assertEqual(self.config.load_config()["mode"], "off")
+        self.config.save_config({"auto_rollover": False})
+        self.assertFalse(self.config.load_config()["auto_rollover"])
+        self.config.CFG_FILE.write_text("{corrupt", encoding="utf-8")
+        self.assertEqual(self.config.load_config()["profile"], "auto_handoff")
         self.assertEqual(self.config._infer_profile("smart_auto", False, False), "auto_handoff")
         self.assertEqual(self.config._infer_profile("smart_auto", True, True), "small_loss")
         self.assertEqual(self.config._infer_profile("smart_auto", True, False), "handoff_only")
@@ -117,6 +125,20 @@ class TestMcpAppModules(unittest.TestCase):
         self.assertTrue(self.rules_sync.flush_pending_concise_sync(force=True))
         self.assertFalse(self.config.load_config()["pending_concise_sync"])
 
+        # Warm-cache (>30k, idle <150s) triggers deferral guard when not sandboxed
+        warm_rec = {"cur_tot": 45_000, "last_ts": time.time() - 10, "ttl_cliff_sec": 150}
+        with mock.patch.object(self.rules_sync, "_is_sandbox_data_dir", return_value=False), \
+             mock.patch.dict(os.environ, {}, clear=False), \
+             mock.patch("transcript_io.discover_session_sources", return_value=[(time.time(), "cid1", self.tmp / "tx", None)]), \
+             mock.patch("transcript_io.parse_session_cached", return_value=warm_rec):
+            os.environ.pop("AGY_TS_SYNC_RULES", None)
+            self.assertTrue(self.rules_sync._should_defer_concise_sync())
+        with mock.patch.object(self.rules_sync, "_should_defer_concise_sync", return_value=True):
+            cfg2 = self.config.load_config()
+            cfg2["pending_concise_sync"] = True
+            self.config._atomic_write_json(self.config.CFG_FILE, cfg2)
+            self.assertFalse(self.rules_sync.flush_pending_concise_sync(force=False))
+
     def test_auto_rollover_tick_and_server_stream(self) -> None:
         # Exercise run_smart_rollover_tick cold-cache & warm-cache paths safely with mocked state/rollover
         self.config.save_config({"profile": "small_loss"})
@@ -136,6 +158,17 @@ class TestMcpAppModules(unittest.TestCase):
              mock.patch.object(self.snapshots, "perform_rollover", return_value={"ok": True, "to_conv": "new-1234", "entry": {"kind": "auto"}}) as m_pr:
             self.snapshots.run_smart_rollover_tick()
             self.assertTrue(m_pr.called)
+        # Mocked spawn_chat=True rollover via agentapi (success + failure branches)
+        with mock.patch.object(self.snapshots, "_find_agentapi_cmd", return_value=["agentapi"]), \
+             mock.patch.object(self.snapshots, "build_handoff_packet", return_value={"packet": "# Handoff", "est_tokens": 50}), \
+             mock.patch.object(self.snapshots.subprocess, "run", return_value=mock.Mock(returncode=0, stdout=json.dumps({"conversationId": "conv-new-99"}), stderr="")):
+            sp_res = self.snapshots.perform_rollover(str(ROOT), fake_act, kind="manual", spawn_chat=True, cap_k=90)
+            self.assertTrue(sp_res["ok"])
+            self.assertEqual(sp_res["to_conv"], "conv-new-99")
+        with mock.patch.object(self.snapshots, "_find_agentapi_cmd", return_value=None), \
+             mock.patch.object(self.snapshots, "build_handoff_packet", return_value={"packet": "# Handoff", "est_tokens": 50}):
+            sp_err = self.snapshots.perform_rollover(str(ROOT), fake_act, kind="manual", spawn_chat=True, cap_k=90)
+            self.assertFalse(sp_err["ok"])
         # Exercise server._read_messages on NDJSON + Content-Length framed input
         nd = b'{"jsonrpc":"2.0","id":1,"method":"ping"}\n'
         body = b'{"jsonrpc":"2.0","id":2,"method":"ping"}'
@@ -355,8 +388,14 @@ class TestMcpAppModules(unittest.TestCase):
             self.server._dispatch({"jsonrpc": "2.0", "id": 12, "method": "tools/call", "params": {"name": "unknown_tool_xyz", "arguments": {}}})
             self.server._dispatch({"jsonrpc": "2.0", "id": 13, "method": "resources/read", "params": {"uri": "ui://nope"}})
             self.server._dispatch({"jsonrpc": "2.0", "id": 14, "method": "unknown/method", "params": {}})
+            self.server._dispatch({"jsonrpc": "2.0", "id": 15, "method": "resources/templates/list", "params": {}})
+            self.server._dispatch({"jsonrpc": "2.0", "id": 16, "method": "tools/call", "params": {"name": "ts_save_settings", "arguments": {"profile": "auto_handoff"}}})
+            self.server._dispatch({"jsonrpc": "2.0", "id": 17, "method": "tools/call", "params": {"name": "ts_build_handoff", "arguments": {"workspace": str(ROOT), "archive": True}}})
+            self.server._dispatch({"jsonrpc": "2.0", "id": 18, "method": "tools/call", "params": {"name": "ts_rollover_now", "arguments": {"workspace": str(ROOT), "spawn_chat": False}}})
+            self.server._dispatch({"jsonrpc": "2.0", "id": 19, "method": "tools/call", "params": {"name": "ts_clear_history", "arguments": {"id": "__all__"}}})
+            self.server._dispatch({"jsonrpc": "2.0", "method": "notifications/initialized", "params": {}})
         resps = [json.loads(ln) for ln in out_buf.getvalue().splitlines() if ln.strip()]
-        self.assertEqual(len(resps), 14)
+        self.assertEqual(len(resps), 19)
         self.assertIn("tools", resps[1]["result"])
         self.assertIn("contents", resps[3]["result"])
         self.assertIn("error", resps[12])

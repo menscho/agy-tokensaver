@@ -2,6 +2,11 @@
 
 All notable changes to **agy-tokensaver** (`menscho/agy-tokensaver`) are documented here.
 
+## [1.2.5] — 2026-11-25
+
+### Added
+- **Unit test coverage (`tests/test_python_unit.py`):** added tests for `mcp_app/config.py` (`off` and fallback paths), `mcp_app/rules_sync.py` (warm-cache deferral), `mcp_app/snapshots.py` (`spawn_chat=True` rollover), and `mcp_app/server.py` (`ts_save_settings`, `ts_build_handoff`, `ts_rollover_now`, `ts_clear_history`) to bring `mcp_app/` coverage cleanly above 80%.
+
 ## [1.2.4] — 2026-11-25
 
 ### Changed
