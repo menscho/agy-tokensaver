@@ -1,24 +1,24 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" width="960" height="600" role="img" aria-label="Real-Session Measured Benchmark">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" width="960" height="600" role="img" aria-label="Real-Session Replay Estimate Benchmark">
   <defs><style>.t{font-family:"Google Sans","Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}.m{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}</style></defs>
   <rect width="960" height="600" rx="14" fill="#070708"/>
   <rect x="0.5" y="0.5" width="959" height="599" rx="13.5" fill="none" stroke="#222227"/>
-  <text x="32" y="36" class="t" font-size="16.5" font-weight="500" fill="#ececef">Real-Session Replay · 79 sessions, 4,294 turns (123.3M cost-proxy units)</text>
+  <text x="32" y="36" class="t" font-size="16.5" font-weight="500" fill="#ececef">Real-Session Replay Estimate · 81 sessions, 4,466 turns (134.7M cost-proxy units)</text>
   <text x="32" y="56" class="t" font-size="11.5" fill="#8e8e98">python3 scripts/benchmark.py --modes --report · Cost weights (1× in + 0.05× cache + 6× out) · 0 tok/turn prompt overhead</text>
   <rect x="32" y="74" width="436" height="106" rx="10" fill="#0d0d11" stroke="#4ade80"/>
   <text x="48" y="96" class="t" font-size="12" font-weight="500" fill="#4ade80">AUTO-HANDOFF + READ GUARDS (DEFAULT)</text>
-  <text x="452" y="96" class="m" font-size="11" fill="#4ade80" text-anchor="end">measured</text>
-  <text x="48" y="130" class="m" font-size="21" font-weight="500" fill="#ececef">19.4% saved · med 0.0%</text>
-  <text x="452" y="128" class="m" font-size="12" fill="#8e8e98" text-anchor="end">p90 25.3%</text>
+  <text x="452" y="96" class="m" font-size="11" fill="#4ade80" text-anchor="end">replay estimate</text>
+  <text x="48" y="130" class="m" font-size="21" font-weight="500" fill="#ececef">20.7% saved · med 0.0%</text>
+  <text x="452" y="128" class="m" font-size="12" fill="#8e8e98" text-anchor="end">p90 24.5%</text>
   <text x="48" y="152" class="t" font-size="11.5" fill="#8e8e98">Starts a fresh chat above cap or on cold cache (+8k re-read tax charged)</text>
-  <text x="48" y="168" class="t" font-size="11.5" fill="#5e5e68">With Compact Reads: 19.3% saved · ~0% change on short chats</text>
+  <text x="48" y="168" class="t" font-size="11.5" fill="#5e5e68">With Compact Reads: 20.6% saved · ~0% change on short chats</text>
   <rect x="492" y="74" width="436" height="106" rx="10" fill="#0d0d11" stroke="#222227"/>
   <text x="508" y="96" class="t" font-size="12" font-weight="500" fill="#8e8e98">GUARDS ONLY (SAME CHAT)</text>
-  <text x="912" y="96" class="m" font-size="11" fill="#4ade80" text-anchor="end">measured</text>
-  <text x="508" y="130" class="m" font-size="21" font-weight="500" fill="#ececef">0.5% saved · med 0.0%</text>
-  <text x="912" y="128" class="m" font-size="12" fill="#8e8e98" text-anchor="end">p90 1.7%</text>
-  <text x="508" y="152" class="t" font-size="11.5" fill="#8e8e98">177,153 tool tok cut (lockfile, binary, dup-read, find/grep guards)</text>
+  <text x="912" y="96" class="m" font-size="11" fill="#4ade80" text-anchor="end">replay estimate</text>
+  <text x="508" y="130" class="m" font-size="21" font-weight="500" fill="#ececef">0.4% saved · med 0.0%</text>
+  <text x="912" y="128" class="m" font-size="12" fill="#8e8e98" text-anchor="end">p90 1.8%</text>
+  <text x="508" y="152" class="t" font-size="11.5" fill="#8e8e98">182,348 tool tok cut (lockfile, binary, dup-read, find/grep guards)</text>
   <text x="508" y="168" class="t" font-size="11.5" fill="#5e5e68">Keeps same chat intact · with Compact Reads: 0.6% saved</text>
-  <text x="32" y="204" class="t" font-size="12" font-weight="500" fill="#8e8e98">MEASURED COST REDUCTION ACROSS 79 SESSIONS (% LOWER COST)</text>
+  <text x="32" y="204" class="t" font-size="12" font-weight="500" fill="#8e8e98">REPLAY-ESTIMATED COST REDUCTION ACROSS 81 SESSIONS (% LOWER COST)</text>
   <line x1="300.0" y1="212" x2="300.0" y2="376" stroke="#18181d"/>
   <text x="300.0" y="390" class="m" font-size="10.5" fill="#5e5e68" text-anchor="middle">0%</text>
   <line x1="415.0" y1="212" x2="415.0" y2="376" stroke="#18181d"/>
@@ -31,20 +31,20 @@
   <text x="760.0" y="390" class="m" font-size="10.5" fill="#5e5e68" text-anchor="middle">40%</text>
   <text x="32" y="226" class="t" font-size="12" font-weight="500" fill="#ececef">Auto-Handoff + Read Guards (Default)</text>
   <text x="32" y="239" class="t" font-size="10" fill="#5e5e68">New chat above cap + lossless read guards</text>
-  <rect x="300.0" y="217" width="222.5" height="13" rx="3" fill="#4ade80"/>
-  <text x="530.5" y="227" class="m" font-size="11" font-weight="500" fill="#4ade80">19.4% lower cost (measured)</text>
+  <rect x="300.0" y="217" width="237.5" height="13" rx="3" fill="#4ade80"/>
+  <text x="545.5" y="227" class="m" font-size="11" font-weight="500" fill="#4ade80">20.7% lower cost (replay est.)</text>
   <text x="32" y="266" class="t" font-size="12" fill="#ececef">Auto-Handoff + Compact Reads</text>
   <text x="32" y="279" class="t" font-size="10" fill="#5e5e68">Adds tighter 120L/80L file caps</text>
-  <rect x="300.0" y="257" width="221.7" height="13" rx="3" fill="#86efac"/>
-  <text x="529.7" y="267" class="m" font-size="11" fill="#86efac">19.3% lower cost (measured)</text>
+  <rect x="300.0" y="257" width="236.7" height="13" rx="3" fill="#86efac"/>
+  <text x="544.7" y="267" class="m" font-size="11" fill="#86efac">20.6% lower cost (replay est.)</text>
   <text x="32" y="306" class="t" font-size="12" fill="#ececef">Guards Only (Same Chat)</text>
   <text x="32" y="319" class="t" font-size="10" fill="#5e5e68">Lockfile, duplicate-read, and loop guards only</text>
-  <rect x="300.0" y="297" width="5.3" height="13" rx="3" fill="#f59e0b"/>
-  <text x="313.3" y="307" class="m" font-size="11" fill="#f59e0b">0.5% lower cost (measured)</text>
+  <rect x="300.0" y="297" width="5.0" height="13" rx="3" fill="#f59e0b"/>
+  <text x="313.0" y="307" class="m" font-size="11" fill="#f59e0b">0.4% lower cost (replay est.)</text>
   <text x="32" y="346" class="t" font-size="12" fill="#ececef">Guards + Compact Reads</text>
   <text x="32" y="359" class="t" font-size="10" fill="#5e5e68">Tighter file caps without chat resets</text>
-  <rect x="300.0" y="337" width="7.3" height="13" rx="3" fill="#fcd34d"/>
-  <text x="315.3" y="347" class="m" font-size="11" fill="#fcd34d">0.6% lower cost (measured)</text>
+  <rect x="300.0" y="337" width="6.7" height="13" rx="3" fill="#fcd34d"/>
+  <text x="314.7" y="347" class="m" font-size="11" fill="#fcd34d">0.6% lower cost (replay est.)</text>
   <line x1="32" y1="398" x2="928" y2="398" stroke="#222227"/>
   <text x="32" y="416" class="t" font-size="12" font-weight="500" fill="#8e8e98">PER-SESSION COST REDUCTION (DOTS = SESSIONS · BOX = IQR · TICK = MEDIAN · DIAMOND = P90)</text>
   <line x1="338.2" y1="428" x2="338.2" y2="558" stroke="#2c2c34"/>
@@ -119,30 +119,32 @@
   <circle cx="338.2" cy="436.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
   <circle cx="338.2" cy="438.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
   <circle cx="338.2" cy="440.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="338.3" cy="442.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="341.8" cy="434.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="342.2" cy="436.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="343.1" cy="438.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="345.0" cy="440.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="345.3" cy="442.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="347.3" cy="434.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="347.9" cy="436.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="348.7" cy="438.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="349.2" cy="440.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="350.6" cy="442.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="351.2" cy="434.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="352.2" cy="436.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="352.8" cy="438.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="353.1" cy="440.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="353.3" cy="442.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="355.5" cy="434.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="356.7" cy="436.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="372.2" cy="438.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="390.4" cy="440.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="338.2" cy="442.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="338.3" cy="434.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="339.5" cy="436.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="341.8" cy="438.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="342.2" cy="440.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="343.1" cy="442.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="345.0" cy="434.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="345.3" cy="436.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="347.3" cy="438.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="347.9" cy="440.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="348.7" cy="442.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="350.6" cy="434.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="351.2" cy="436.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="352.2" cy="438.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="352.8" cy="440.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="353.1" cy="442.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="353.3" cy="434.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="354.3" cy="436.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="355.5" cy="438.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="356.7" cy="440.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="372.2" cy="442.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="390.4" cy="434.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
   <rect x="338.2" y="432" width="2.0" height="12" rx="2" fill="#f59e0b" fill-opacity="0.25" stroke="#f59e0b" stroke-width="1.2"/>
   <line x1="338.2" y1="430" x2="338.2" y2="446" stroke="#ececef" stroke-width="2"/>
-  <polygon points="351.2,433 355.7,438 351.2,443 346.7,438" fill="#f59e0b"/>
-  <text x="732.0" y="442" class="m" font-size="10.5" fill="#8e8e98">med 0.0% · p90 1.7% · &gt;5%: 1%</text>
+  <polygon points="351.9,433 356.4,438 351.9,443 347.4,438" fill="#f59e0b"/>
+  <text x="732.0" y="442" class="m" font-size="10.5" fill="#8e8e98">med 0.0% · p90 1.8% · &gt;5%: 1%</text>
   <text x="32" y="474" class="t" font-size="11.5" fill="#ececef">Guards + Compact Reads</text>
   <circle cx="310.7" cy="466.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
   <circle cx="313.7" cy="468.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
@@ -155,13 +157,8 @@
   <circle cx="336.0" cy="472.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
   <circle cx="336.7" cy="474.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
   <circle cx="337.6" cy="466.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="337.6" cy="468.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="338.0" cy="470.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="338.1" cy="472.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="338.2" cy="474.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="338.2" cy="466.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="338.2" cy="468.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="338.2" cy="470.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="338.0" cy="468.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="338.1" cy="470.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
   <circle cx="338.2" cy="472.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
   <circle cx="338.2" cy="474.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
   <circle cx="338.2" cy="466.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
@@ -201,32 +198,39 @@
   <circle cx="338.2" cy="474.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
   <circle cx="338.2" cy="466.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
   <circle cx="338.2" cy="468.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="338.3" cy="470.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="339.9" cy="472.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="341.2" cy="474.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="341.3" cy="466.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="343.1" cy="468.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="345.9" cy="470.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="346.9" cy="472.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="347.0" cy="474.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="351.4" cy="466.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="351.9" cy="468.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="352.8" cy="470.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="354.1" cy="472.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="355.1" cy="474.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="355.3" cy="466.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="356.9" cy="468.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="358.4" cy="470.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="361.4" cy="472.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="362.9" cy="474.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="363.2" cy="466.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="369.0" cy="468.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="417.0" cy="470.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <circle cx="427.5" cy="472.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
-  <rect x="338.2" y="464" width="2.3" height="12" rx="2" fill="#f59e0b" fill-opacity="0.25" stroke="#f59e0b" stroke-width="1.2"/>
+  <circle cx="338.2" cy="470.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="338.2" cy="472.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="338.2" cy="474.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="338.2" cy="466.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="338.2" cy="468.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="338.2" cy="470.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="338.3" cy="472.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="338.9" cy="474.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="339.9" cy="466.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="341.2" cy="468.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="341.3" cy="470.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="343.1" cy="472.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="345.9" cy="474.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="346.9" cy="466.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="347.0" cy="468.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="351.4" cy="470.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="351.9" cy="472.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="352.8" cy="474.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="354.1" cy="466.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="355.1" cy="468.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="355.3" cy="470.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="356.9" cy="472.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="358.4" cy="474.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="359.4" cy="466.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="362.9" cy="468.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="364.0" cy="470.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="369.0" cy="472.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="417.0" cy="474.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <circle cx="427.5" cy="466.0" r="2.1" fill="#f59e0b" fill-opacity="0.35"/>
+  <rect x="338.2" y="464" width="2.0" height="12" rx="2" fill="#f59e0b" fill-opacity="0.25" stroke="#f59e0b" stroke-width="1.2"/>
   <line x1="338.2" y1="462" x2="338.2" y2="478" stroke="#ececef" stroke-width="2"/>
-  <polygon points="355.7,465 360.2,470 355.7,475 351.2,470" fill="#f59e0b"/>
-  <text x="732.0" y="474" class="m" font-size="10.5" fill="#8e8e98">med 0.0% · p90 2.3% · &gt;5%: 2%</text>
+  <polygon points="355.0,465 359.5,470 355.0,475 350.5,470" fill="#f59e0b"/>
+  <text x="732.0" y="474" class="m" font-size="10.5" fill="#8e8e98">med 0.0% · p90 2.2% · &gt;5%: 2%</text>
   <text x="32" y="506" class="t" font-size="11.5" fill="#ececef">Auto-Handoff + Read Guards</text>
   <circle cx="308.4" cy="498.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
   <circle cx="312.4" cy="500.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
@@ -279,38 +283,40 @@
   <circle cx="338.2" cy="504.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
   <circle cx="338.2" cy="506.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
   <circle cx="338.2" cy="498.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="338.3" cy="500.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="343.1" cy="502.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="345.0" cy="504.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="345.3" cy="506.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="347.3" cy="498.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="347.9" cy="500.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="348.7" cy="502.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="350.6" cy="504.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="351.2" cy="506.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="352.2" cy="498.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="352.8" cy="500.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="353.1" cy="502.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="353.3" cy="504.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="355.5" cy="506.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="356.7" cy="498.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="372.2" cy="500.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="390.4" cy="502.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="449.6" cy="504.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="480.7" cy="506.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="524.3" cy="498.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="560.0" cy="500.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="576.6" cy="502.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="613.6" cy="504.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="621.0" cy="506.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="630.2" cy="498.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="653.3" cy="500.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="689.6" cy="502.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="694.6" cy="504.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <rect x="338.2" y="496" width="13.0" height="12" rx="2" fill="#4ade80" fill-opacity="0.25" stroke="#4ade80" stroke-width="1.2"/>
+  <circle cx="338.2" cy="500.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="338.2" cy="502.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="338.3" cy="504.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="343.1" cy="506.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="345.0" cy="498.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="345.3" cy="500.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="347.3" cy="502.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="347.9" cy="504.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="348.7" cy="506.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="350.6" cy="498.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="351.2" cy="500.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="352.2" cy="502.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="352.8" cy="504.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="353.1" cy="506.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="353.3" cy="498.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="355.5" cy="500.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="356.7" cy="502.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="372.2" cy="504.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="390.4" cy="506.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="449.6" cy="498.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="485.8" cy="500.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="525.6" cy="502.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="576.6" cy="504.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="593.2" cy="506.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="613.6" cy="498.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="621.0" cy="500.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="630.2" cy="502.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="653.3" cy="504.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="689.6" cy="506.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="694.6" cy="498.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <rect x="338.2" y="496" width="12.2" height="12" rx="2" fill="#4ade80" fill-opacity="0.25" stroke="#4ade80" stroke-width="1.2"/>
   <line x1="338.2" y1="494" x2="338.2" y2="510" stroke="#ececef" stroke-width="2"/>
-  <polygon points="531.4,497 535.9,502 531.4,507 526.9,502" fill="#4ade80"/>
-  <text x="732.0" y="506" class="m" font-size="10.5" fill="#8e8e98">med 0.0% · p90 25.3% · &gt;5%: 15%</text>
+  <polygon points="525.3,497 529.8,502 525.3,507 520.8,502" fill="#4ade80"/>
+  <text x="732.0" y="506" class="m" font-size="10.5" fill="#8e8e98">med 0.0% · p90 24.5% · &gt;5%: 15%</text>
   <text x="32" y="538" class="t" font-size="11.5" fill="#ececef">Auto-Handoff + Compact Reads</text>
   <circle cx="303.7" cy="530.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
   <circle cx="305.8" cy="532.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
@@ -361,40 +367,42 @@
   <circle cx="338.2" cy="532.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
   <circle cx="338.2" cy="534.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
   <circle cx="338.2" cy="536.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="338.3" cy="538.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="339.9" cy="530.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="341.3" cy="532.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="345.9" cy="534.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="346.9" cy="536.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="347.0" cy="538.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="348.7" cy="530.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="351.4" cy="532.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="351.9" cy="534.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="352.8" cy="536.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="354.1" cy="538.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="355.1" cy="530.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="355.3" cy="532.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="356.9" cy="534.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="358.4" cy="536.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="362.9" cy="538.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="363.2" cy="530.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="369.0" cy="532.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="417.0" cy="534.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="425.2" cy="536.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="427.5" cy="538.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="523.7" cy="530.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="559.9" cy="532.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="576.6" cy="534.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="613.6" cy="536.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="621.0" cy="538.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="629.7" cy="530.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="653.9" cy="532.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="685.9" cy="534.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <circle cx="692.7" cy="536.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
-  <rect x="338.2" y="528" width="15.3" height="12" rx="2" fill="#4ade80" fill-opacity="0.25" stroke="#4ade80" stroke-width="1.2"/>
+  <circle cx="338.2" cy="538.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="338.2" cy="530.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="338.3" cy="532.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="339.9" cy="534.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="341.3" cy="536.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="345.9" cy="538.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="346.9" cy="530.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="347.0" cy="532.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="351.2" cy="534.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="351.4" cy="536.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="351.9" cy="538.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="352.8" cy="530.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="354.1" cy="532.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="355.1" cy="534.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="355.3" cy="536.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="356.9" cy="538.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="358.4" cy="530.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="359.4" cy="532.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="362.9" cy="534.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="369.0" cy="536.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="417.0" cy="538.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="425.2" cy="530.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="427.5" cy="532.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="525.0" cy="534.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="576.6" cy="536.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="593.2" cy="538.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="613.6" cy="530.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="621.0" cy="532.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="629.7" cy="534.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="653.9" cy="536.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="685.9" cy="538.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <circle cx="692.7" cy="530.0" r="2.1" fill="#4ade80" fill-opacity="0.35"/>
+  <rect x="338.2" y="528" width="14.5" height="12" rx="2" fill="#4ade80" fill-opacity="0.25" stroke="#4ade80" stroke-width="1.2"/>
   <line x1="338.2" y1="526" x2="338.2" y2="542" stroke="#ececef" stroke-width="2"/>
-  <polygon points="530.6,529 535.1,534 530.6,539 526.1,534" fill="#4ade80"/>
-  <text x="732.0" y="538" class="m" font-size="10.5" fill="#8e8e98">med 0.0% · p90 25.2% · &gt;5%: 15%</text>
+  <polygon points="525.3,529 529.8,534 525.3,539 520.8,534" fill="#4ade80"/>
+  <text x="732.0" y="538" class="m" font-size="10.5" fill="#8e8e98">med 0.0% · p90 24.5% · &gt;5%: 15%</text>
   <line x1="32" y1="556" x2="928" y2="556" stroke="#222227"/>
   <text x="32" y="573" class="t" font-size="10.5" fill="#5e5e68">Measured via local transcript replay (retries + 0 tok/turn overhead + 8k/rollover tax charged).</text>
   <text x="32" y="588" class="t" font-size="10.5" fill="#5e5e68">Cost weights (1× input, 0.05× cache read, 6× output) are a configurable proxy (--weights), not Antigravity billing weights.</text>

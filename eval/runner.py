@@ -408,24 +408,47 @@ def _wait_conv_idle(cid: str, poll_timeout: int = 300, min_turns: int = 0) -> di
 
 def _start_agentapi_conv(title: str, prompt: str, model: str = "gemini-4-hydrogen-high", poll_timeout: int = 300) -> tuple[str, dict[str, Any]]:
     bin_p = _find_agentapi()
-    cmd = [bin_p, "new-conversation", "--model", model, "--title", title, prompt]
-    p = subprocess.run(cmd, capture_output=True, text=True, timeout=poll_timeout)
-    if p.returncode != 0:
-        raise RuntimeError(f"agentapi new-conversation failed ({p.returncode}): {p.stderr.strip() or p.stdout.strip()}")
-    parsed = json.loads(p.stdout.strip() or "{}")
-    resp_conv = (parsed.get("response") or {}).get("newConversation") or {}
-    cid = str(resp_conv.get("conversationId") or resp_conv.get("conversation_id") or parsed.get("conversationId") or parsed.get("id") or "")
-    if not cid:
-        raise RuntimeError(f"agentapi new-conversation missing conversationId: {p.stdout.strip()}")
-    return cid, _wait_conv_idle(cid, poll_timeout=poll_timeout, min_turns=1)
+    for attempt in range(3):
+        cmd = [bin_p, "new-conversation", "--model", model, "--title", title, prompt]
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=poll_timeout)
+        if p.returncode != 0:
+            if attempt < 2:
+                time.sleep(30 * (attempt + 1))
+                continue
+            raise RuntimeError(f"agentapi new-conversation failed ({p.returncode}): {p.stderr.strip() or p.stdout.strip()}")
+        parsed = json.loads(p.stdout.strip() or "{}")
+        resp_conv = (parsed.get("response") or {}).get("newConversation") or {}
+        cid = str(resp_conv.get("conversationId") or resp_conv.get("conversation_id") or parsed.get("conversationId") or parsed.get("id") or "")
+        if not cid:
+            if attempt < 2:
+                time.sleep(30 * (attempt + 1))
+                continue
+            raise RuntimeError(f"agentapi new-conversation missing conversationId: {p.stdout.strip()}")
+        m = _wait_conv_idle(cid, poll_timeout=poll_timeout, min_turns=1)
+        if int(m.get("total_tokens", 0)) > 0:
+            return cid, m
+        _delete_conversation_quiet(cid)
+        if attempt < 2:
+            time.sleep(45 * (attempt + 1))
+    raise RuntimeError(f"agentapi returned 0 tokens after retries (model={model}; likely transient quota/rate limit)")
 
 
 def _continue_agentapi_conv(cid: str, prompt: str, min_turns: int, poll_timeout: int = 300) -> dict[str, Any]:
     bin_p = _find_agentapi()
-    p = subprocess.run([bin_p, "send-message", cid, prompt], capture_output=True, text=True, timeout=poll_timeout)
-    if p.returncode != 0:
-        raise RuntimeError(f"agentapi send-message failed ({p.returncode}): {p.stderr.strip() or p.stdout.strip()}")
-    return _wait_conv_idle(cid, poll_timeout=poll_timeout, min_turns=min_turns)
+    m: dict[str, Any] = {}
+    for attempt in range(3):
+        p = subprocess.run([bin_p, "send-message", cid, prompt], capture_output=True, text=True, timeout=poll_timeout)
+        if p.returncode != 0:
+            if attempt < 2:
+                time.sleep(30 * (attempt + 1))
+                continue
+            raise RuntimeError(f"agentapi send-message failed ({p.returncode}): {p.stderr.strip() or p.stdout.strip()}")
+        m = _wait_conv_idle(cid, poll_timeout=poll_timeout, min_turns=min_turns)
+        if int(m.get("turns", 0)) >= min_turns:
+            return m
+        if attempt < 2:
+            time.sleep(45 * (attempt + 1))
+    return m
 
 
 def _run_antigravity_conversation(title: str, prompt: str, model: str = "flash", poll_timeout: int = 240) -> tuple[str, dict[str, Any]]:
@@ -742,6 +765,7 @@ def main() -> int:
     ap.add_argument("--model", default="flash", help="Model for --driver antigravity/agentapi (default: flash)")
     ap.add_argument("--agy-cmd", default="", help="Override headless agy command template with {workspace} and {prompt}")
     ap.add_argument("--out", default=None, help="Output JSON path (defaults to eval/results/hook_eval.json or live_eval.json)")
+    ap.add_argument("--resume", action="store_true", help="Keep valid completed records in --out and only run missing ones")
     ap.add_argument("--summarize", default=None, help="Summarize an existing results JSON file")
     a = ap.parse_args()
 
@@ -766,17 +790,39 @@ def main() -> int:
         return 2
 
     records: list[dict[str, Any]] = []
+    done_keys: set[tuple[str, str, int]] = set()
+    if a.resume and out_path.is_file():
+        try:
+            prev = json.loads(out_path.read_text(encoding="utf-8"))
+            if prev.get("driver") == a.driver and prev.get("model") == a.model:
+                for r in prev.get("records") or []:
+                    valid_tok = int(r.get("total_tokens", 0)) > 0 and not (r.get("handoff_reset") and int(r.get("phase2_tokens") or 0) <= 0)
+                    if valid_tok:
+                        records.append(r)
+                        done_keys.add((str(r["mode"]), str(r["task_id"]), int(r["run"])))
+                print(f"[resume] Loaded {len(records)} completed records from {out_path}", flush=True)
+        except Exception:
+            records = []
+            done_keys = set()
     rec_lock = threading.Lock()
     if a.driver in ("antigravity", "agentapi", "agy", "manual"):
         saved_cfg = _snapshot_hud_state() if a.driver in ("antigravity", "agentapi", "agy") else None
         try:
             for mode in sel_modes:
+                pending_jobs = [
+                    (run_idx, task)
+                    for run_idx in range(1, a.runs + 1)
+                    for task in tasks
+                    if (mode, str(task["id"]), run_idx) not in done_keys
+                ]
+                if not pending_jobs:
+                    continue
                 if a.driver in ("antigravity", "agentapi", "agy"):
                     _set_hud_mode(mode)
                 else:
                     input(f"\nSwitch Token Saver HUD to '{mode}', then press ENTER to begin {mode}...")
                 if a.driver in ("antigravity", "agentapi") and a.workers > 1:
-                    jobs = [(run_idx, task) for run_idx in range(1, a.runs + 1) for task in tasks]
+                    jobs = pending_jobs
 
                     def _exec_job(job: tuple[int, dict[str, Any]]) -> dict[str, Any] | None:
                         r_idx, t_obj = job
@@ -801,13 +847,24 @@ def main() -> int:
                             if rec is not None:
                                 records.append(rec)
                 else:
-                    for run_idx in range(1, a.runs + 1):
-                        for task in tasks:
-                            print(f"[{a.driver}] mode={mode} run={run_idx}/{a.runs} task={task['id']} ...", flush=True)
+                    for run_idx, task in pending_jobs:
+                        print(f"[{a.driver}] mode={mode} run={run_idx}/{a.runs} task={task['id']} ...", flush=True)
+                        try:
                             rec = run_live_task(task, mode, run_idx, a.driver, agy_cmd=a.agy_cmd, model=a.model)
-                            if rec is not None:
-                                print(f"  -> passed={rec['passed']} tok={rec['total_tokens']} cost={rec['cost_proxy']} wall={rec['wall_ms']}ms", flush=True)
-                                records.append(rec)
+                        except Exception as exc:
+                            print(f"  ERROR: {exc}", flush=True)
+                            rec = None
+                        if rec is not None:
+                            print(f"  -> passed={rec['passed']} tok={rec['total_tokens']} cost={rec['cost_proxy']} wall={rec['wall_ms']}ms", flush=True)
+                            records.append(rec)
+                out_path.parent.mkdir(parents=True, exist_ok=True)
+                out_path.write_text(json.dumps({
+                    "driver": a.driver,
+                    "model": a.model if a.driver in ("antigravity", "agentapi") else ("hooks" if a.driver == "hook-replay" else "manual"),
+                    "n_tasks": len(tasks), "runs": a.runs, "modes": sel_modes,
+                    "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    "records": records,
+                }, indent=2) + "\n", encoding="utf-8")
         except KeyboardInterrupt:
             print("\nStopped early; saving completed records.")
         finally:

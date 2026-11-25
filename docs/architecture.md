@@ -1,12 +1,12 @@
 # Architecture
 
-`agy-tokensaver` is a dependency-free Perl 5 + Python 3 stdlib plugin for Google Antigravity.
+`agy-tokensaver` is a dependency-free Python 3.9+ stdlib plugin for Google Antigravity centered on Auto-Handoff for long chats, supported by lightweight PreToolUse/PostInvocation hooks.
 
 ## Lifecycle
 
 ```mermaid
 flowchart LR
-    A["Antigravity Tool Call"] --> B["PreToolUse Hook (Perl + TsJson / JSON::PP)"]
+    A["Antigravity Tool Call"] --> B["PreToolUse Hook (python3 -S + hook_common)"]
     B -->|off / small / safe| C["{\"decision\":\"allow\"} (fail-open)"]
     B -->|read_file / write / find / grep| D["Block lockfile/binary/dup, trim overlap, or cap range"]
     D --> E["PostToolUse / PostInvocation / Stop Hooks"]
@@ -19,15 +19,16 @@ Notice that `run_command` and shell execution are not wrapped or modified.
 
 ## Modules
 
-- **Perl hooks (`scripts/`):**
-  - `scripts/lib/TsJson.pm`: shared `JSON::PP` decoder with type checks, `hooks_disabled()` kill-switch check, and a 2 MB fail-open payload cap.
-  - `scripts/read_hook.pl` + `scripts/lib/{read_media,read_dedupe}.pl`: binary/lockfile/generated-code gate, compaction-safe duplicate & overlap guard, dirty-hunk narrowing, and optional Compact Reads.
-  - `scripts/{write_hook,find_hook,grep_hook,post_edit_hook,post_invocation_alerts,stop_telemetry}.pl` + `scripts/lib/TsLoopGuard.pl`.
-- **MCP App dashboard (`mcp_app/`):**
-  - `server.py`: JSON-RPC stdio server rendering `dashboard.html` with vendored `@modelcontextprotocol/ext-apps`.
-  - `config.py`, `rules_sync.py`, `rollover.py`, `transcript_io.py`, `telemetry.py`, `snapshots.py`, `updater.py`, and facade `core.py`.
+- **Auto-Handoff & MCP App dashboard (`mcp_app/` + `scripts/handoff_pack.py`):**
+  - `scripts/handoff_pack.py`: extracts user/assistant state, git changes, recent errors, verified test commands, and edited symbols into a compact (~300–550 token) handoff packet.
+  - `mcp_app/server.py`: JSON-RPC stdio server rendering `dashboard.html` with vendored `@modelcontextprotocol/ext-apps`.
+  - `mcp_app/`: `config.py`, `rules_sync.py`, `rollover.py`, `transcript_io.py`, `telemetry.py`, `snapshots.py`, `updater.py`, and facade `core.py`.
+- **Python 3.9+ stdlib hooks (`scripts/`, invoked with `python3 -S`):**
+  - `scripts/hook_common.py`: shared `json.loads` payload decoder with strict type checks, `hooks_disabled()` kill-switch check, loop-guard state, and a 2 MB fail-open payload cap.
+  - `scripts/read_hook.py`: binary/lockfile/generated-code gate, compaction-safe duplicate & overlap guard, dirty-hunk narrowing, duplicate image guard, and optional Compact Reads.
+  - `scripts/{write_hook,find_hook,grep_hook,post_edit_hook,post_invocation_alerts,stop_telemetry}.py`.
 - **Utilities (`scripts/`):**
-  - `handoff_pack.py`, `ts_inspect.py`, `audit.py`, `benchmark.py`, `transcript_replay.py` + `replay_io.py` + `replay_modes.py`, `make_benchmark_chart.py`, `stats.py`.
+  - `ts_inspect.py`, `audit.py`, `benchmark.py`, `transcript_replay.py` + `replay_io.py` + `replay_modes.py`, `make_benchmark_chart.py`, `stats.py`.
 
 ## On-Disk State
 

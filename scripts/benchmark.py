@@ -14,7 +14,7 @@ Modes:
       and reports Guards-only, Auto-Handoff-only, and Combined quota deltas.
 
   python3 scripts/benchmark.py --modes --report
-      Prints measured savings across modes, distributions (median/p90/>5% share),
+      Prints replay-estimated savings across modes, distributions (median/p90/>5% share),
       session types, and cost-weight sensitivity.
 
   python3 scripts/benchmark.py --transcripts

@@ -37,26 +37,26 @@ def render_two_mode(m: dict) -> str:
     ho_p90 = float(base["q_both"].get("p90", 0.0))
     hc_tot = float(comp["q_both"]["total"])
 
-    dists = [d for d in (m.get("distributions") or []) if d.get("type") == "measured"]
+    dists = [d for d in (m.get("distributions") or []) if d.get("type") in ("replay", "measured")]
     has_dist = bool(dists and any(d.get("per_session") for d in dists))
     H = 600 if has_dist else 440
 
     p: list[str] = []
     a = p.append
-    a(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" role="img" aria-label="Real-Session Measured Benchmark">')
+    a(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {W} {H}" width="{W}" height="{H}" role="img" aria-label="Real-Session Replay Estimate Benchmark">')
     a('  <defs><style>.t{font-family:"Google Sans","Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}'
       '.m{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}</style></defs>')
     a(f'  <rect width="{W}" height="{H}" rx="14" fill="{BG}"/>')
     a(f'  <rect x="0.5" y="0.5" width="{W-1}" height="{H-1}" rx="13.5" fill="none" stroke="{BORDER}"/>')
 
     w = m.get("weights") or [1, 0.05, 6]
-    a(f'  <text x="32" y="36" class="t" font-size="16.5" font-weight="500" fill="{TXT}">Real-Session Replay · {m["n"]} sessions, {m["turns"]:,} turns ({m["quota_m"]:.1f}M cost-proxy units)</text>')
+    a(f'  <text x="32" y="36" class="t" font-size="16.5" font-weight="500" fill="{TXT}">Real-Session Replay Estimate · {m["n"]} sessions, {m["turns"]:,} turns ({m["quota_m"]:.1f}M cost-proxy units)</text>')
     a(f'  <text x="32" y="56" class="t" font-size="11.5" fill="{SUB}">python3 scripts/benchmark.py --modes --report · Cost weights ({w[0]:g}× in + {w[1]:g}× cache + {w[2]:g}× out) · {m["overhead_tok_per_turn"]} tok/turn prompt overhead</text>')
 
     # Two summary cards: Auto-Handoff + Read Guards (Default) vs Guards Only (Same Chat)
     a(f'  <rect x="32" y="74" width="436" height="106" rx="10" fill="{CARD}" stroke="{GREEN}"/>')
     a(f'  <text x="48" y="96" class="t" font-size="12" font-weight="500" fill="{GREEN}">AUTO-HANDOFF + READ GUARDS (DEFAULT)</text>')
-    a(f'  <text x="452" y="96" class="m" font-size="11" fill="{GREEN}" text-anchor="end">measured</text>')
+    a(f'  <text x="452" y="96" class="m" font-size="11" fill="{GREEN}" text-anchor="end">replay estimate</text>')
     a(f'  <text x="48" y="130" class="m" font-size="21" font-weight="500" fill="{TXT}">{ho_tot:.1f}% saved · med {ho_med:.1f}%</text>')
     a(f'  <text x="452" y="128" class="m" font-size="12" fill="{SUB}" text-anchor="end">p90 {ho_p90:.1f}%</text>')
     a(f'  <text x="48" y="152" class="t" font-size="11.5" fill="{SUB}">Starts a fresh chat above cap or on cold cache (+8k re-read tax charged)</text>')
@@ -64,7 +64,7 @@ def render_two_mode(m: dict) -> str:
 
     a(f'  <rect x="492" y="74" width="436" height="106" rx="10" fill="{CARD}" stroke="{BORDER}"/>')
     a(f'  <text x="508" y="96" class="t" font-size="12" font-weight="500" fill="{SUB}">GUARDS ONLY (SAME CHAT)</text>')
-    a(f'  <text x="912" y="96" class="m" font-size="11" fill="{GREEN}" text-anchor="end">measured</text>')
+    a(f'  <text x="912" y="96" class="m" font-size="11" fill="{GREEN}" text-anchor="end">replay estimate</text>')
     a(f'  <text x="508" y="130" class="m" font-size="21" font-weight="500" fill="{TXT}">{g_tot:.1f}% saved · med {g_med:.1f}%</text>')
     a(f'  <text x="912" y="128" class="m" font-size="12" fill="{SUB}" text-anchor="end">p90 {g_p90:.1f}%</text>')
     a(f'  <text x="508" y="152" class="t" font-size="11.5" fill="{SUB}">{base["saved_tool_tok"]:,} tool tok cut (lockfile, binary, dup-read, find/grep guards)</text>')
@@ -81,7 +81,7 @@ def render_two_mode(m: dict) -> str:
         ("Guards + Compact Reads", "Tighter file caps without chat resets", gc_tot, "#fcd34d"),
     ]
 
-    a(f'  <text x="32" y="204" class="t" font-size="12" font-weight="500" fill="{SUB}">MEASURED COST REDUCTION ACROSS {m["n"]} SESSIONS (% LOWER COST)</text>')
+    a(f'  <text x="32" y="204" class="t" font-size="12" font-weight="500" fill="{SUB}">REPLAY-ESTIMATED COST REDUCTION ACROSS {m["n"]} SESSIONS (% LOWER COST)</text>')
     grid_y0, grid_y1 = top_y - 10, top_y + len(rows) * 40 - 6
     for g in range(0, 41, 10):
         gx = bar_x0 + g * scale
@@ -95,7 +95,7 @@ def render_two_mode(m: dict) -> str:
         a(f'  <text x="32" y="{y + 17}" class="t" font-size="10" fill="{DIM}">{escape(sub)}</text>')
         w1 = max(4.0, min(vmax, max(0.0, lo)) * scale)
         a(f'  <rect x="{bar_x0:.1f}" y="{y - 5}" width="{w1:.1f}" height="13" rx="3" fill="{col}"/>')
-        a(f'  <text x="{bar_x0 + w1 + 8:.1f}" y="{y + 5}" class="m" font-size="11"{fw} fill="{col}">{lo:.1f}% lower cost (measured)</text>')
+        a(f'  <text x="{bar_x0 + w1 + 8:.1f}" y="{y + 5}" class="m" font-size="11"{fw} fill="{col}">{lo:.1f}% lower cost (replay est.)</text>')
         y += 40
 
     if has_dist:

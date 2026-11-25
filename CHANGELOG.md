@@ -2,6 +2,19 @@
 
 All notable changes to **agy-tokensaver** (`menscho/agy-tokensaver`) are documented here.
 
+## [1.3.0] — 2026-11-25
+
+### Changed
+- **Single zero-dependency Python 3.9+ runtime (`scripts/*.py`, `hooks.json`, `install.py`):** replaced all 7 Perl hook scripts and `scripts/lib/*.{pm,pl}` with `python3 -S` Python 3.9+ stdlib hooks (`scripts/hook_common.py`, `read_hook.py`, `write_hook.py`, `find_hook.py`, `grep_hook.py`, `post_edit_hook.py`, `post_invocation_alerts.py`, `stop_telemetry.py`). Eliminates Perl installation and path issues on Windows, macOS, and Linux, removes `.perlcriticrc` and Perl CI checks, and drops ~1,850 lines of Perl code.
+- **Auto-Handoff product focus & honest replay labeling (`README.md`, `plugin.json`, `mcp_app/dashboard.html`, `scripts/replay_modes.py`, `scripts/make_benchmark_chart.py`, `docs/`):** leads clearly with Auto-Handoff for long or cold-cache chats as the primary feature (read/write/search guards as a lightweight extra), labels counterfactual transcript numbers explicitly as **replay estimates**, and removes `docs/review-response.md`.
+
+### Added
+- **Hard multi-module tasks & 6-turn A/B benchmarks (`eval/hard_tasks.json`, `eval/fixtures/{order_engine,log_router}/`, `eval/runner.py`):** added `--driver agentapi` (using `agentapi new-conversation` + `send-message`), `--tasks-file`, `--resume`, zero-token rate-limit retry backoff, 6 hard cross-module tasks (`X01`–`X06` tested across 54 live runs on `gemini-4-hydrogen-xhigh`), and 3 six-turn A/B sequences (`L01`–`L03` tested across 18 live sessions / 108 user turns on `gemini-4-hydrogen-high`).
+
+### Fixed
+- **Live rollover conversation ID parsing (`mcp_app/snapshots.py`):** fixed `perform_rollover` to extract the nested `response.newConversation.conversationId` field returned by `agentapi new-conversation`.
+- **Installer & updater 7-hook wiring (`install.py`, `mcp_app/updater.py`):** updated `_wire_hooks_python`, `run_doctor`, and `apply_update` to iterate direct `PostInvocation` and `Stop` hook entries alongside `PreToolUse`/`PostToolUse` arrays so all 7 hooks are verified and wired to `sys.executable` on Windows.
+
 ## [1.2.5] — 2026-11-25
 
 ### Added

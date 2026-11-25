@@ -2,7 +2,7 @@
 
 ## Reporting a Vulnerability
 
-Please report security issues privately through GitHub Security Advisories on `menscho/agy-tokensaver` rather than opening a public issue. Include reproduction steps, OS/Perl/Python versions, and any relevant input payload.
+Please report security issues privately through GitHub Security Advisories on `menscho/agy-tokensaver` rather than opening a public issue. Include reproduction steps, OS and Python versions, and any relevant input payload.
 
 ## Outbound and Local Network Calls
 

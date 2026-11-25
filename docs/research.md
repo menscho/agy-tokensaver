@@ -12,11 +12,11 @@ Every paper and project listed below corresponds directly to an active module in
 
 - **Sketch-of-Thought** ([arXiv:2503.05179](https://arxiv.org/abs/2503.05179)) — Opt-in concise reply rule (`mcp_app/rules_sync.py`).
 - **TokenEconomizer** ([arXiv:2610.22732](https://arxiv.org/abs/2610.22732)) — Cross-session verified command promotion (`scripts/handoff_pack.py`).
-- **AdaEdit** ([arXiv:2604.27296](https://arxiv.org/abs/2604.27296)) — Non-blocking full-file overwrite warning (`scripts/write_hook.pl`, `scripts/post_invocation_alerts.pl`).
-- **IAL-Scan** ([arXiv:2607.01641](https://arxiv.org/abs/2607.01641)) — 3x identical `grep_search` and `find_by_name` loop guards with 1-retry override (`scripts/lib/TsLoopGuard.pl`).
-- **LogDx-CI** ([arXiv:2605.28876](https://arxiv.org/abs/2605.28876)) — Tail-anchoring unbounded `>46KB` log and spillback reads (`scripts/lib/read_dedupe.pl`).
+- **AdaEdit** ([arXiv:2604.27296](https://arxiv.org/abs/2604.27296)) — Non-blocking full-file overwrite warning (`scripts/write_hook.py`, `scripts/post_invocation_alerts.py`).
+- **IAL-Scan** ([arXiv:2607.01641](https://arxiv.org/abs/2607.01641)) — 3x identical `grep_search` and `find_by_name` loop guards with 1-retry override (`scripts/hook_common.py`).
+- **LogDx-CI** ([arXiv:2605.28876](https://arxiv.org/abs/2605.28876)) — Tail-anchoring unbounded `>46KB` log and spillback reads (`scripts/read_hook.py`).
 
 ## Open-Source Inspirations
 
-- **`@plexer/cli`** — `PostToolUse` edit-sequence invalidation (`scripts/post_edit_hook.pl`), `initialNumSteps` compaction resets (`scripts/lib/read_dedupe.pl`), and `ts_inspect.py outline`.
-- **`context-mode` and `squeez`** — In-memory SQLite FTS5 chunk search (`scripts/ts_inspect.py query`) and post-edit dirty-hunk read narrowing (`scripts/lib/read_dedupe.pl`).
+- **`@plexer/cli`** — `PostToolUse` edit-sequence invalidation (`scripts/post_edit_hook.py`), `initialNumSteps` compaction resets (`scripts/read_hook.py`), and `ts_inspect.py outline`.
+- **`context-mode` and `squeez`** — In-memory SQLite FTS5 chunk search (`scripts/ts_inspect.py query`) and post-edit dirty-hunk read narrowing (`scripts/read_hook.py`).

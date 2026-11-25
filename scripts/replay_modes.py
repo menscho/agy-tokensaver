@@ -8,7 +8,7 @@ from typing import Any
 
 def run_modes(policy: str = "auto", json_out: str | None = None, report: bool = False,
               weights: tuple[float, float, float] | None = None) -> dict:
-    """Compare measured modes on all local sessions (0 tok/turn passive overhead, no shell rewriting)."""
+    """Compare counterfactual replay estimates across modes on local sessions (0 tok/turn passive overhead)."""
     from transcript_replay import W_CR, W_IN, W_OUT, _percentile, run
     wi, wc, wo = weights if weights else (W_IN, W_CR, W_OUT)
     base = run(quiet=True, policy=policy, extra_env={"AGY_TS_COMPACT_READS": "0"}, weights=(wi, wc, wo))
@@ -27,10 +27,10 @@ def run_modes(policy: str = "auto", json_out: str | None = None, report: bool = 
     b_ub = base["q_both_ub"]["total"]
     c_ub = comp["q_both_ub"]["total"]
 
-    print(f"=== Real-Session Benchmark ({base['n']} sessions, {base['turns']:,} turns, {q_tot/1e6:.1f}M proxy units) ===")
+    print(f"=== Real-Session Replay Estimate ({base['n']} sessions, {base['turns']:,} turns, {q_tot/1e6:.1f}M proxy units) ===")
     print(f"Cost proxy ({wi:g}x in + {wc:g}x cache + {wo:g}x out): Input {tot_in*wi/q_tot*100:.1f}% | Cache {tot_cr*wc/q_tot*100:.1f}% | Output {out_share:.1f}% | Overhead: {base['overhead_tok_per_turn']} tok/turn")
-    print("Positive numbers = cost saved. Guard savings come from read/find/grep hooks; Auto-Handoff savings come from starting new chats.\n")
-    print(f"{'Mode':44s} | {'Tool Tok Cut':>12s} | {'Median':>8s} | {'Avg Cost Saved':>14s}")
+    print("Positive numbers = estimated cost saved. Guard savings replay read/find/grep hooks; Auto-Handoff is a counterfactual new-chat simulation.\n")
+    print(f"{'Mode':44s} | {'Tool Tok Cut':>12s} | {'Median':>8s} | {'Est Cost Saved':>14s}")
     print("-" * 88)
     print(f"{'Auto-Handoff + Read Guards (Default)':44s} | {base['saved_tool_tok']:9,d} tk | {base['q_both']['median']:7.1f}% | {b_r:13.1f}%")
     print(f"{'Auto-Handoff + Compact Reads':44s} | {comp['saved_tool_tok']:9,d} tk | {comp['q_both']['median']:7.1f}% | {c_live:13.1f}%")
@@ -38,12 +38,12 @@ def run_modes(policy: str = "auto", json_out: str | None = None, report: bool = 
     print(f"{'Guards + Compact Reads (Same Chat)':44s} | {comp['saved_tool_tok']:9,d} tk | {comp['q_hooks']['median']:7.1f}% | {c_h:13.1f}%")
     print(f"{'Auto-Handoff Upper Bound (phase resets)':44s} | {base['saved_tool_tok']:9,d} tk | {base['q_both_ub']['median']:7.1f}% | {b_ub:13.1f}% ({c_ub:.1f}% cr)")
     print("-" * 88)
-    print("Note: Every row above is measured from exact local transcript replay (charges retries + prompt overhead).")
-    print("      Concise Output live savings are measured separately in eval/runner.py (--driver antigravity).")
+    print("Note: Replay estimate from historical transcripts (charges retries + +8k/rollover tax; assumes same trajectory post-handoff).")
+    print("      Live end-to-end A/B and multi-module pass/token measurements live in eval/results/ab_long_eval.json and hard_eval.json.")
 
     def _dist_entry(label: str, stats_obj: dict) -> dict:
         return {
-            "mode": label, "type": "measured",
+            "mode": label, "type": "replay",
             "avg": round(stats_obj["total"], 1),
             "median": round(stats_obj["median"], 1),
             "p25": round(stats_obj["p25"], 1),
@@ -120,7 +120,7 @@ def run_modes(policy: str = "auto", json_out: str | None = None, report: bool = 
         for t in by_type:
             print(f"{t['type']:16s} | {t['n']:3d} | {t['g_avg']:9.1f}% | {t['g_p90']:9.1f}% | {t['ho_avg']:10.1f}% | {t['ho_p90']:10.1f}% | {t['hc_avg']:11.1f}%")
 
-        print("\n=== Cost-Weight Sensitivity (Measured Cost Saved %) ===")
+        print("\n=== Cost-Weight Sensitivity (Replay Estimate Saved %) ===")
         print(f"{'Weight Regime (in/cache/out)':32s} | {'Guards':>8s} | {'+Compact':>8s} | {'Handoff':>8s} | {'+Compact':>8s}")
         print("-" * 76)
         for s_row in sensitivity:

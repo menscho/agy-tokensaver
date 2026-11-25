@@ -2,50 +2,48 @@
 
 <p align="left">
   <a href="https://github.com/menscho/agy-tokensaver/actions/workflows/test.yml"><img src="https://github.com/menscho/agy-tokensaver/actions/workflows/test.yml/badge.svg" alt="CI"/></a>
-  <a href="https://github.com/menscho/agy-tokensaver/releases"><img src="https://img.shields.io/badge/release-v1.2.5-4ade80?style=flat-square&labelColor=0d0d11" alt="Release v1.2.5"/></a>
+  <a href="https://github.com/menscho/agy-tokensaver/releases"><img src="https://img.shields.io/badge/release-v1.3.0-4ade80?style=flat-square&labelColor=0d0d11" alt="Release v1.3.0"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-8e8e98?style=flat-square&labelColor=0d0d11" alt="MIT"/></a>
 </p>
 
-Saves ~19% on long Google Antigravity sessions by rolling overgrown or cold-cache chats into fresh sessions with a compact handoff summary; expect ~0% savings on short chats. Also blocks lockfiles, binaries, and duplicate file reads without touching your shell commands.
+Starts fresh continuation chats when a long Google Antigravity session grows overgrown or its prompt cache goes cold, carrying over a compact (~450–535 token) handoff summary so work continues without lost context. Also includes lightweight, fail-open Python read, write, and search guards (`0.4%` replay estimate) with zero prompt overhead and no shell-command rewriting. Single zero-dependency Python 3.9+ runtime (no Perl needed on Windows, macOS, or Linux).
 
 ## How well it works
 
-Every number below comes from runnable commands in this repository (`scripts/benchmark.py --modes --report` and `eval/runner.py`).
+Every number below comes from runnable commands in this repository (`eval/runner.py` and `scripts/benchmark.py`):
 
-- **Real sessions (79 local chats, 4,294 turns):**
-  - **Default (Auto-Handoff + Read Guards):** **19.4% lower cost** overall (`25.3%` at the 90th percentile; `0.0%` median because short chats below threshold are left alone). Prompt overhead is **0 tokens per turn**.
-  - **Guards Only (stay in same chat):** **0.5% lower cost** overall (`177,153` tool tokens blocked or capped, mostly large source/data files and lockfiles).
-  - **By session length:** `<75k` chats save `0.2%`, `200k–400k` chats save `12.1%`, and `>400k` chats save `28.9%`.
-- **Live task completion (90 real runs on `flash` across 10 tasks × 3 runs × 3 modes):**
-  - Baseline (`off`), **Default**, and **Max** all scored **30/30 (100%, 95% CI 88.6–100%)** with 0 retries.
-  - On 4 multi-step continuity tasks where Phase 1 ran in Chat A, `handoff_pack.py` summarized it into ~296 tokens, Chat A's history was dropped, and a new Chat B finished Phase 2 from the packet alone, **12/12 passed in both Default and Max** (vs 12/12 single-chat `off`). Splitting tiny short chats cost `+21.9%` more tokens because of cold start, which is why auto-handoff waits for large or expired-cache chats.
-  - On standard coding tasks in **Max** (Compact Reads + Concise Replies), total tokens dropped **9.8%** (`-16.8%` output tokens) with **18/18 passing**.
+- **6-turn long-session A/B (`eval/results/ab_long_eval.json`, `gemini-4-hydrogen-high`):**
+  Across 18 six-turn sessions (`L01`–`L03`, 108 user turns), handing off to a fresh chat via `handoff_pack.py` after Turn 3 (~533 tokens) passed **9/9 (100%)** vs **9/9 (100%)** for unbroken chats and cut total tokens **31.9%** (18.25M -> 12.43M; peak context 136k -> 75k). On back-to-back hot-cache turns (`92%` cache hits), weighted cost (`1x` in + `0.05x` cache + `6x` out) was `+2.8%` overall (`-9.0%` on `L01`, `+1.0%` `L02`, `+21.8%` `L03`), showing why Auto-Handoff waits for `>150k` or cold-cache chats instead of splitting warm `~110k` caches early.
+- **Hard multi-module tasks (`eval/results/hard_eval.json`, `gemini-4-hydrogen-xhigh`):**
+  Across 54 runs (`X01`–`X06` × 3 runs × 3 modes spanning multiple modules, 85 KB logs, 21 KB JSON, and YAML): `off` scored **18/18 (100.0%)**, Default scored **17/18 (94.4%, -15.7% tokens, -1.6% cost)**, and Max scored **18/18 (100.0%, -24.2% tokens, -9.0% cost)**.
+- **Counterfactual replay estimate (`scripts/benchmark.py --modes --report`, 81 sessions):**
+  Assuming unchanged post-handoff agent trajectories (+8k re-read tax per rollover), Default estimates **20.7% lower cost** (24.5% p90, 0.0% median on short chats; 12.1% on 200k–400k chats; 29.7% above 400k). Guards alone estimate **0.4% lower cost** (182k tool tokens cut).
 
 ## Install and remove
 
-Download `agy-tokensaver-v1.2.5.zip` from [Releases](https://github.com/menscho/agy-tokensaver/releases), extract it, and run:
+Download `agy-tokensaver-v1.3.0.zip` from [Releases](https://github.com/menscho/agy-tokensaver/releases), extract it, and run:
 
 - **Windows:** `Install-TokenSaver.bat`
 - **macOS:** `Install-TokenSaver.command`
 - **Linux or CLI:** `python3 install.py` (or `python3 install.py --remote`)
 
-Restart Antigravity and open **agy-tokensaver** in the sidebar. Run `python3 install.py --doctor` anytime to check your setup, or `python3 install.py --uninstall` to remove the plugin (`--purge-stats` also removes saved telemetry).
+Restart Antigravity and open **agy-tokensaver** in the sidebar. Run `python3 install.py --doctor` anytime to verify your install, or `python3 install.py --uninstall` to remove the plugin (`--purge-stats` also deletes saved telemetry).
 
 ## Safety and privacy
 
-- **No shell command rewriting:** `run_command` calls pass straight through unmodified.
-- **Fail-open hooks:** Every Perl hook parses JSON via `JSON::PP` with a 2 MB limit and returns `allow` on malformed, missing, or oversized input (`bash tests/test_failopen.sh`).
-- **Kill switch:** Switch to **Off** in the sidebar dashboard or set `AGY_TS_HOOKS=off` in your environment.
-- **Network calls:** Hooks and local stats never use the network. Clicking Check/Install Update queries GitHub Releases (plus optional `gh attestation verify`) and posts once to localhost `RefreshMcpServers`. See [SECURITY.md](SECURITY.md).
+- **No shell command rewriting:** shell calls pass through unmodified.
+- **Fail-open Python hooks:** every hook runs on Python 3.9+ stdlib (`python3 -S`) with a 2 MB payload limit and returns `allow` or `{}` on malformed, missing, or oversized inputs (`bash tests/test_failopen.sh`).
+- **Kill switch:** switch to **Off** in the sidebar dashboard or set `AGY_TS_HOOKS=off`.
+- **Network calls:** hooks and local telemetry never use the network; updates run only on demand with `SHA256SUMS.txt` + optional `gh attestation verify` ([SECURITY.md](SECURITY.md)).
 
 ## Optimization modes
 
-| Mode | Avg cost saved (79 chats) | Live task pass rate | What it does |
-| :--- | :--- | :--- | :--- |
-| **Auto-Handoff + Read Guards** *(Default)* | **19.4% lower** (`0.0%` med) | **30/30 (100%)** | Starts a fresh chat when a settled chat grows large or its cache expires; blocks lockfiles, binaries, duplicate reads, and search loops. |
-| **Auto-Handoff + Compact Reads** | **19.3% lower** (`0.0%` med) | **100%** *(subset of Max)* | Also tightens unbounded read caps (120L code / 80L data) and downscales oversized screenshots. |
-| **Max (+ Concise Replies)** | Compact Reads + `-16.8%` output live | **30/30 (100%)** | Adds a short concise-reply rule to `rules/AGENTS.md` once active warm caches cool. |
-| **Guards Only** | **0.5% lower** (`0.0%` med) | Same hooks (`0` prompt tax) | Never starts new chats automatically; saves snapshots locally and keeps read/write/find guards active. |
+| Mode | Best for | What it does |
+| :--- | :--- | :--- |
+| **Auto-Handoff + Read Guards** *(Default)* | Long or cold chats (0 prompt tax) | Starts a fresh continuation chat above adaptive thresholds or after cache expiry; blocks lockfiles, binaries, duplicates, and 3x search loops. |
+| **Auto-Handoff + Compact Reads** | Large files and screenshots | Tightens unbounded read caps (120L code / 80L data) and downscales oversized screenshots. |
+| **Max (+ Concise Replies)** | Lowest live cost (-24.2% tok / -9.0% cost on hard suite) | Pairs Compact Reads with a concise-reply rule in `rules/AGENTS.md` once warm caches cool. |
+| **Guards Only** | Keeping one continuous chat | Saves handoff snapshots locally without auto-switching chats; keeps read, write, and search guards active. |
 
 ## Docs
 

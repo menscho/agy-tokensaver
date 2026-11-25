@@ -1,14 +1,14 @@
 {
   "name": "token-saver",
   "displayName": "agy-tokensaver",
-  "version": "1.2.5",
+  "version": "1.3.0",
   "author": {
     "name": "menscho",
     "url": "https://github.com/menscho"
   },
   "homepage": "https://github.com/menscho/agy-tokensaver",
   "repository": "https://github.com/menscho/agy-tokensaver",
-  "description": "Antigravity plugin for session handoff resets, duplicate/lockfile read guards, and cache telemetry.",
+  "description": "Auto-handoff for long Google Antigravity chats with compact continuation packets, cache telemetry, and lightweight read/write/search guards.",
   "logo": "assets/logo.svg",
   "suggestedPrompts": [
     "Run /token-stats to see real savings, cache-hit rates, and output-per-turn trends",
