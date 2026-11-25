@@ -24,6 +24,7 @@ use TsJson;
 my $raw = TsJson::read_stdin_capped();
 our $doc = TsJson::decode_hook_input($raw);
 if (!defined $doc) { print '{"decision":"allow"}'; exit 0; }
+if (TsJson::hooks_disabled()) { print '{"decision":"allow"}'; exit 0; }
 
 our $ti = TsJson::tool_input($doc);
 sub json_escape { return TsJson::json_escape(@_); }

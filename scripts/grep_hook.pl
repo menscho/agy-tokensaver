@@ -25,6 +25,7 @@ my $ALLOW = '{"decision":"allow"}';
 my $raw = TsJson::read_stdin_capped();
 my $doc = TsJson::decode_hook_input($raw);
 if (!defined $doc) { print $ALLOW; exit 0; }
+if (TsJson::hooks_disabled()) { print $ALLOW; exit 0; }
 
 my $ti  = TsJson::tool_input($doc);
 my $sp0 = TsJson::get_str($ti, 'SearchPath') // '';

@@ -63,12 +63,13 @@ class TestMcpAppModules(unittest.TestCase):
 
     def test_config_profiles_and_state(self) -> None:
         c0 = self.config.load_config()
-        self.assertEqual(c0["profile"], "zero_loss")
-        self.assertEqual(c0["mode"], "prepare_only")
+        self.assertEqual(c0["profile"], "auto_handoff")
+        self.assertEqual(c0["mode"], "smart_auto")
         self.assertFalse(c0["compact_reads"])
         self.assertFalse(c0["concise_output"])
 
         for prof, exp_mode, exp_cr, exp_co in (
+            ("auto_handoff", "smart_auto", False, False),
             ("compact_reads", "prepare_only", True, False),
             ("concise_no_handoff", "prepare_only", True, True),
             ("handoff_only", "smart_auto", True, False),
@@ -81,6 +82,7 @@ class TestMcpAppModules(unittest.TestCase):
 
         self.config.save_config({"threshold_mode": "auto", "mode": "off"})
         self.assertEqual(self.config.load_config()["mode"], "off")
+        self.assertEqual(self.config._infer_profile("smart_auto", False, False), "auto_handoff")
         self.assertEqual(self.config._infer_profile("smart_auto", True, True), "small_loss")
         self.assertEqual(self.config._infer_profile("smart_auto", True, False), "handoff_only")
         self.assertEqual(self.config._infer_profile("prepare_only", True, True), "concise_no_handoff")
@@ -100,14 +102,15 @@ class TestMcpAppModules(unittest.TestCase):
         self.assertFalse(self.rules_sync._should_defer_concise_sync())
         self.assertFalse(self.rules_sync.flush_pending_concise_sync(force=True))
         sb_root = self.tmp / "rs_root"
-        (sb_root / "rules").mkdir(parents=True)
-        (sb_root / "rules" / "AGENTS.md").write_text("# Rules\n1. Test.\n", encoding="utf-8")
+        sb_root.mkdir(parents=True)
         with mock.patch.object(self.rules_sync, "PLUGIN_ROOT", sb_root), \
              mock.patch.dict(os.environ, {"AGY_TS_SYNC_RULES": "1"}):
             self.rules_sync._sync_concise_rule(True)
-            self.assertIn("7. Concise mode", (sb_root / "rules" / "AGENTS.md").read_text(encoding="utf-8"))
+            agents_p = sb_root / "rules" / "AGENTS.md"
+            self.assertTrue(agents_p.is_file())
+            self.assertIn("1. Concise replies", agents_p.read_text(encoding="utf-8"))
             self.rules_sync._sync_concise_rule(False)
-            self.assertNotIn("7. Concise mode", (sb_root / "rules" / "AGENTS.md").read_text(encoding="utf-8"))
+            self.assertFalse(agents_p.exists())
         cfg = self.config.load_config()
         cfg["pending_concise_sync"] = True
         self.config._atomic_write_json(self.config.CFG_FILE, cfg)
@@ -239,7 +242,7 @@ class TestMcpAppModules(unittest.TestCase):
         # Hook events + analytics
         self.config.EVENTS_FILE.parent.mkdir(parents=True, exist_ok=True)
         self.config.EVENTS_FILE.write_text(
-            json.dumps({"ts": int(time.time()), "source": "cmd_wrap", "category": "test", "est_tokens_saved": 1200}) + "\n",
+            json.dumps({"ts": int(time.time()), "source": "read_guard", "category": "lockfile", "est_tokens_saved": 1200}) + "\n",
             encoding="utf-8",
         )
         ev = self.telemetry.load_events_summary()

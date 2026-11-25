@@ -1,3 +1,0 @@
-FAILED tests/test_api.py::test_auth_token - AssertionError: expected 200 got 401
-1 failed, 219 passed in 3.42s
-[221L->2L; full: <SPILL_DIR>/101df1700132.log]

@@ -34,6 +34,7 @@ require TsJson;
 
 my $doc = TsJson::decode_hook_input($raw);
 if (!defined $doc) { print $ALLOW; exit 0; }
+if (TsJson::hooks_disabled()) { print $ALLOW; exit 0; }
 
 my $ti = TsJson::tool_input($doc);
 if (TsJson::get_bool($ti, 'Append')) { print $ALLOW; exit 0; }

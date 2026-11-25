@@ -486,14 +486,15 @@
         <div class="row">
           <div class="row-info">
             <div class="row-title">Optimization Mode</div>
-            <div class="row-desc" id="profile-desc">Mode 1 (Default): lossless hooks, duplicate/loop guards, and archive-only handoffs.</div>
+            <div class="row-desc" id="profile-desc">Auto-Handoff + Read Guards (Default): starts a fresh chat with a handoff packet above cap and blocks lockfile/duplicate reads (0 tok/turn prompt overhead).</div>
           </div>
           <select id="sel-profile" aria-label="Optimization mode">
-            <option value="zero_loss">Mode 1 — Lossless (Default)</option>
-            <option value="compact_reads">Mode 2a — + Compact Reads (No Auto-Handoff)</option>
-            <option value="concise_no_handoff">Mode 2b — + Compact Reads + Concise Output (No Auto-Handoff)</option>
-            <option value="handoff_only">Mode 2c — + Compact Reads + Auto-Handoff</option>
-            <option value="small_loss">Mode 2 (Max) — All Opt-in Optimizations</option>
+            <option value="auto_handoff">Auto-Handoff + Read Guards (Default · Starts new chats)</option>
+            <option value="handoff_only">Auto-Handoff + Compact Reads (Tighter 120L/80L file caps)</option>
+            <option value="small_loss">Max (Auto-Handoff + Compact Reads + Concise Replies)</option>
+            <option value="zero_loss">Guards Only (Same chat · Archive snapshots only)</option>
+            <option value="compact_reads">Guards + Compact Reads (Same chat · 120L/80L caps)</option>
+            <option value="off">Off (Pause hooks and auto-handoff)</option>
           </select>
         </div>
 
@@ -708,7 +709,7 @@
     if (!s || typeof s !== 'object') return;
     lastState = s;
 
-    const cfg = s.config || { mode: 'prepare_only', threshold_mode: 'auto' };
+    const cfg = s.config || { mode: 'smart_auto', threshold_mode: 'auto' };
     const adp = s.adaptive || { cap_k: 125, is_auto: true, reason: '' };
     const cap = (adp.cap_k || 125) * 1000;
     const sav = s.savings || {};
@@ -717,13 +718,20 @@
 
     // Controls
     const PROFILE_DESCS = {
-      zero_loss: 'Mode 1 (Default · Lossless): Lossless output compressors, duplicate-read & loop guards, cache-safe prefixes, Archive-Only handoffs (-0.7% avg / p90 -1.7% measured across 79 sessions).',
-      compact_reads: 'Mode 2a (Opt-in): Mode 1 + tighter unbounded read caps (120L/80L) and oversized screenshot downscaling, no auto-handoff (-0.9% avg / p90 -2.2% measured).',
-      concise_no_handoff: 'Mode 2b (Opt-in): Mode 2a + concise reply rules, no automatic chat resets (-7.0%..-11.5% estimated).',
-      handoff_only: 'Mode 2c (Opt-in): Mode 2a + automatic cold/live chat handoff, normal reply style (-20.1% avg / p90 -25.7% measured).',
-      small_loss: 'Mode 2 (Max · Opt-in): Auto-Handoff + Compact Reads + Concise Output (-20.1% measured, -26.2%..-30.7% estimated with concise replies).'
+      auto_handoff: 'Auto-Handoff + Read Guards (Default): starts a fresh chat with a handoff packet when long or cold, plus duplicate/lockfile/loop guards (0 tok/turn tax).',
+      handoff_only: 'Auto-Handoff + Compact Reads: adds tighter unbounded read caps (120L/80L) and oversized screenshot downscaling.',
+      small_loss: 'Max (Opt-in): Auto-Handoff + Compact Reads + concise reply rule in rules/AGENTS.md.',
+      zero_loss: 'Guards Only (Same Chat): keeps the same chat, saves archive snapshots, and blocks lockfiles/duplicate reads.',
+      compact_reads: 'Guards + Compact Reads (Same Chat): tighter file caps without automatic chat resets.',
+      off: 'Off: hooks pass through untouched and automatic chat resets are paused.'
     };
-    const prof = (cfg.profile && PROFILE_DESCS[cfg.profile]) ? cfg.profile : (cfg.mode === 'smart_auto' ? (cfg.concise_output ? 'small_loss' : 'handoff_only') : (cfg.concise_output ? 'concise_no_handoff' : (cfg.compact_reads ? 'compact_reads' : 'zero_loss')));
+    const prof = (cfg.mode === 'off')
+      ? 'off'
+      : ((cfg.profile && PROFILE_DESCS[cfg.profile])
+          ? cfg.profile
+          : (cfg.mode === 'smart_auto'
+              ? (cfg.concise_output ? 'small_loss' : (cfg.compact_reads ? 'handoff_only' : 'auto_handoff'))
+              : (cfg.compact_reads ? 'compact_reads' : 'zero_loss')));
     document.getElementById('sel-profile').value = prof;
     document.getElementById('profile-desc').textContent = PROFILE_DESCS[prof];
     document.getElementById('sel-thresh').value = cfg.threshold_mode || 'auto';
@@ -758,7 +766,7 @@
     document.getElementById('bd-out-saved').textContent = conciseOn ? '—' : fmtK(outB.saved || 0);
     const outEl = document.getElementById('bd-out-pct');
     if (conciseOn) {
-      outEl.textContent = cfg.pending_concise_sync ? 'Queued (cache-safe)' : 'Concise ON (-20..-35%*)';
+      outEl.textContent = cfg.pending_concise_sync ? 'Queued (cache-safe)' : 'Concise rule ON';
       outEl.className = 'num ok';
     } else {
       outEl.textContent = '0%';
@@ -977,11 +985,12 @@
       render(res.state);
       const pending = !!(res.config && res.config.pending_concise_sync);
       const NAMES = {
-        small_loss: 'Mode 2 (Max)',
-        handoff_only: 'Mode 2c (Auto-Handoff + Compact)',
-        concise_no_handoff: 'Mode 2b (Compact + Concise, No Auto-Handoff)',
-        compact_reads: 'Mode 2a (Compact Reads Only)',
-        zero_loss: 'Mode 1 (Zero Quality Loss)'
+        auto_handoff: 'Auto-Handoff + Read Guards',
+        handoff_only: 'Auto-Handoff + Compact Reads',
+        small_loss: 'Max (+ Concise)',
+        compact_reads: 'Guards + Compact Reads',
+        zero_loss: 'Guards Only',
+        off: 'Off'
       };
       const baseMsg = `${NAMES[profile] || profile} enabled.`;
       setStatus(pending ? `${baseMsg} Concise rule queued until warm cache cools (protects KV cache).` : baseMsg);

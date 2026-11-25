@@ -114,4 +114,20 @@ sub json_escape {
     return $s;
 }
 
+sub hooks_disabled {
+    my ($plugin_root) = @_;
+    return 1 if defined $ENV{AGY_TS_HOOKS} && $ENV{AGY_TS_HOOKS} =~ /^(?:0|off|false|disabled)$/i;
+    my $home = $ENV{HOME} // $ENV{USERPROFILE} // '';
+    my $agy_pd = $home ne '' ? "$home/.gemini/antigravity/plugin_data" : '';
+    my $dd = $ENV{PLUGIN_DATA} || ($agy_pd ne '' && -d $agy_pd ? "$agy_pd/token-saver" : (($plugin_root // '.') . '/.data'));
+    my $cfg = "$dd/hud_config.json";
+    if (-f $cfg && open(my $fh, '<:raw', $cfg)) {
+        my $buf = '';
+        sysread($fh, $buf, 4096);
+        close $fh;
+        return 1 if $buf =~ /"mode"\s*:\s*"off"/i;
+    }
+    return 0;
+}
+
 1;

@@ -10,7 +10,6 @@ command -v "$PY" >/dev/null 2>&1 || PY="python"
 
 SUITES=(
   tests/run_tests.sh
-  tests/test_cmd_windows.sh
   tests/test_read.sh
   tests/test_rollover.sh
   tests/test_rules.sh
@@ -18,10 +17,6 @@ SUITES=(
   tests/test_headroom_plexer.sh
   tests/test_json_parsing.sh
   tests/test_failopen.sh
-  tests/test_cmd_semantics.sh
-  tests/test_spill_safety.sh
-  tests/test_golden.sh
-  tests/test_buried_error_prop.sh
 )
 
 FAILED=0

@@ -1,6 +1,0 @@
-diff --git a/src/app.py b/src/app.py
-@@ -1,3 +1,3 @@
--ERROR: BURIED_MUST_KEEP_GIT_DIFF_OLD
-+ERROR: BURIED_MUST_KEEP_GIT_DIFF
-diff --git a/package-lock.json b/package-lock.json [omitted lockfile/generated diff: +250 -0 lines]
-[255L->5L; full: <SPILL_DIR>/eb961c6f4f68.log]

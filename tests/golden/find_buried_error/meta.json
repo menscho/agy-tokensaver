@@ -1,6 +1,0 @@
-{
-  "cat": "find",
-  "rc": 1,
-  "expect_spill": true,
-  "must_contain": "ERROR: BURIED_MUST_KEEP_FIND"
-}

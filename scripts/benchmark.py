@@ -4,15 +4,18 @@ Reproducible benchmark suite for agy-tokensaver.
 
 Modes:
   python3 scripts/benchmark.py --demo
-      Runs a deterministic 6-step coding task through the actual Perl hooks
-      (read_hook.pl, cmd_hook.pl, cmd_wrap.pl) and prints exact Before vs. After
-      byte/token counts (respecting Antigravity's native truncation caps) plus
-      measured median hook latency in milliseconds.
+      Runs deterministic checks against the active Perl guards (read_hook.pl,
+      find_hook.pl, write_hook.pl) and prints exact Before vs. After byte/token
+      counts plus median PreToolUse hook latency in milliseconds.
 
   python3 scripts/benchmark.py --replay
-      Replays every recorded tool call of ALL local Antigravity sessions (IDE + CLI) through
-      the real hooks with exact per-turn tokens (see scripts/transcript_replay.py) and reports
-      Hooks-only (Auto-Handoff OFF), Handoff-only and Hooks+Handoff quota deltas.
+      Replays every recorded tool call of ALL local Antigravity sessions (IDE + CLI)
+      through the real hooks with exact per-turn tokens (see scripts/transcript_replay.py)
+      and reports Guards-only, Auto-Handoff-only, and Combined quota deltas.
+
+  python3 scripts/benchmark.py --modes --report
+      Prints measured savings across modes, distributions (median/p90/>5% share),
+      session types, and cost-weight sensitivity.
 
   python3 scripts/benchmark.py --transcripts
       Reproduces the counterfactual rollover table from local Antigravity
@@ -25,7 +28,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import statistics
 import subprocess
 import sys
@@ -36,28 +38,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPTS = ROOT / "scripts"
 NATIVE_READ_CAP = 46_080       # read_file per-call byte limit
-NATIVE_CMD_CAP = 9_900         # run_command full-display ceiling
-NATIVE_CMD_PREVIEW = 10_136    # 9,896 preview + ~240B truncation notice
 HOOK_OVERWRITE_NOTICE = 94     # bytes added when PreToolUse overwrites args
-
-
-def _assert(cond: bool, msg: str) -> None:
-    if not cond:
-        raise AssertionError(msg)
-
-
-def _perl_os() -> str:
-    p = subprocess.run(["perl", "-e", "print $^O"], text=True, capture_output=True)
-    return p.stdout.strip() if p.returncode == 0 else ""
-
-
-def _extract_wrap_cat(res: dict) -> str | None:
-    if res.get("decision") != "allow":
-        return None
-    ov = res.get("overwrite") or {}
-    cmd = ov.get("CommandLine") or ov.get("command") or ""
-    m = re.search(r"cmd_wrap\.pl\S*\s+--cat\s+([A-Za-z0-9_]+)", cmd)
-    return m.group(1) if m else None
 
 
 def _run_hook(script: str, payload: dict, env: dict[str, str]) -> tuple[dict, float]:
@@ -71,19 +52,7 @@ def _run_hook(script: str, payload: dict, env: dict[str, str]) -> tuple[dict, fl
     dt_ms = (time.perf_counter() - t0) * 1000.0
     if p.returncode != 0:
         raise RuntimeError(f"{script} failed: {p.stderr.decode('utf-8', errors='replace')}")
-    return json.loads(p.stdout.decode("utf-8", errors="replace")), dt_ms
-
-
-def _run_wrap(cat: str, raw_text: str, rc: int, env: dict[str, str]) -> tuple[str, float]:
-    t0 = time.perf_counter()
-    p = subprocess.run(
-        ["perl", str(SCRIPTS / "cmd_wrap.pl"), "--cat", cat, "--test-stdin", "--test-rc", str(rc)],
-        input=raw_text.encode("utf-8"),
-        capture_output=True,
-        env=env,
-    )
-    dt_ms = (time.perf_counter() - t0) * 1000.0
-    return p.stdout.decode("utf-8", errors="replace"), dt_ms
+    return json.loads(p.stdout.decode("utf-8", errors='replace')), dt_ms
 
 
 def run_demo() -> int:
@@ -91,11 +60,8 @@ def run_demo() -> int:
         tmp = Path(td)
         pdata = tmp / "pdata"
         pdata.mkdir()
-        # The demo fixture is a POSIX task (pytest, git diff, journalctl): force the POSIX classifier even
-        # on Windows hosts, where cmd_hook.pl would otherwise (correctly) take the PowerShell path.
-        env = {**os.environ, "PLUGIN_DATA": str(pdata), "AGY_TS_SHELL": "posix"}
+        env = {**os.environ, "PLUGIN_DATA": str(pdata)}
 
-        # Build realistic deterministic task fixtures
         lock_file = tmp / "package-lock.json"
         lock_file.write_text('{"lockfileVersion": 3, "packages": {"node_modules/pkg": {"version": "1.2.3"}}}\n' * 1200, encoding="utf-8")
 
@@ -103,71 +69,35 @@ def run_demo() -> int:
         py_lines = [f"def handler_{i:03d}(req, ctx): return ctx.dispatch({i}, req.payload)  # route {i}\n" for i in range(1, 901)]
         py_file.write_text("".join(py_lines), encoding="utf-8")
 
-        pytest_out = (
-            "".join(f"tests/test_service.py::test_route_{i:03d} PASSED\n" for i in range(1, 301))
-            + "    def test_auth_refresh():\n"
-            + ">       assert refresh_token('expired') == 401\n"
-            + "E       AssertionError: assert 500 == 401\n"
-            + "tests/test_service.py:142: AssertionError\n"
-            + "FAILED tests/test_service.py::test_auth_refresh - AssertionError: assert 500 == 401\n"
-            + "==== 1 failed, 300 passed in 2.14s ====\n"
-        )
+        json_file = tmp / "events.json"
+        json_lines = [
+            f'{{"id": "evt_{i:04d}", "region": "eu-west-1", "status": {500 if i == 77 else 200}, "msg": "row {i} payload padding"}}\n'
+            for i in range(1, 351)
+        ]
+        json_file.write_text("".join(json_lines), encoding="utf-8")
 
-        git_diff_out = (
-            "diff --git a/service.py b/service.py\n"
-            "index 1111111..2222222 100644\n"
-            "--- a/service.py\n"
-            "+++ b/service.py\n"
-            "@@ -140,3 +140,3 @@ def refresh_token(tok):\n"
-            "     if tok == 'expired':\n"
-            "-        return 500\n"
-            "+        return 401\n"
-            "diff --git a/package-lock.json b/package-lock.json\n"
-            "--- a/package-lock.json\n"
-            "+++ b/package-lock.json\n"
-            + "".join(f'+    "dep-{i}": "1.0.{i}",\n' for i in range(1, 401))
-        )
+        log_file = tmp / "api.log"
+        log_lines = [f"2026-11-23T22:00:{i%60:02d}Z INFO worker id={i} heartbeat ok latency=4ms\n" for i in range(1, 350)]
+        log_lines.append("2026-11-23T22:10:01Z ERROR auth_refresh upstream returned 500 (code=E_TOK_EXP)\n")
+        log_file.write_text("".join(log_lines), encoding="utf-8")
 
-        server_log = (
-            "".join(f"2026-11-23T22:00:{i%60:02d}Z INFO worker id={i} heartbeat ok latency=4ms\n" for i in range(1, 601))
-            + "2026-11-23T22:10:01Z ERROR auth_refresh upstream returned 500 (code=E_TOK_EXP)\n"
-            + "".join(f"2026-11-23T22:10:{i%60:02d}Z DEBUG pool tick={i} active=2 idle=8\n" for i in range(1, 301))
-        )
-
-        json_api_out = json.dumps(
-            {
-                "service": "billing-api",
-                "total": 120,
-                "items": [
-                    {
-                        "id": f"evt_{i:04d}",
-                        "region": "eu-west-1",
-                        "status": 500 if i == 77 else 200,
-                        "latency_ms": 942 if i == 77 else 14 + (i % 9),
-                        "message": "upstream timeout error on stripe_charge" if i == 77 else "ok",
-                    }
-                    for i in range(1, 121)
-                ],
-            },
-            indent=2,
-        ) + "\n"
-
-        ssh_grep_out = "".join(
-            f"/srv/webapps/production/api/routes/auth_handlers.py:{100+i}: def route_v{i}(req): return verify_jwt(req)\n"
-            for i in range(1, 75)
-        )
+        proj = tmp / "proj"
+        (proj / "node_modules" / "pkg").mkdir(parents=True)
+        (proj / "src").mkdir(parents=True)
+        find_raw = "".join(f"node_modules/pkg/file_{i:03d}.js\n" for i in range(1, 181)) + "src/index.js\n"
+        find_kept = "src/index.js\n"
 
         latencies: list[float] = []
         rows: list[tuple[str, int, int, str]] = []
 
-        # Step 1: Unbounded read_file on package-lock.json
+        # Step 1: Unbounded read_file on package-lock.json -> denied
         raw_b = min(lock_file.stat().st_size, NATIVE_READ_CAP)
         res, ms = _run_hook("read_hook.pl", {"toolInput": {"Path": str(lock_file)}, "stepIdx": 1, "conversationId": "bench"}, env)
         latencies.append(ms)
         kept_b = len(res.get("reason", "").encode("utf-8")) if res.get("decision") == "deny" else raw_b
-        rows.append(("1. read_file package-lock.json (unbounded)", raw_b, kept_b, "blocked (hint emitted)"))
+        rows.append(("1. read_file package-lock.json (unbounded)", raw_b, kept_b, "blocked (lockfile guard)"))
 
-        # Step 2: Unbounded read_file on 900-line service.py
+        # Step 2: Unbounded read_file on 900-line service.py -> auto-capped 1..250
         raw_b = min(py_file.stat().st_size, NATIVE_READ_CAP)
         res, ms = _run_hook("read_hook.pl", {"toolInput": {"Path": str(py_file)}, "stepIdx": 2, "conversationId": "bench"}, env)
         latencies.append(ms)
@@ -179,7 +109,7 @@ def run_demo() -> int:
             kept_b, note = raw_b, "allowed"
         rows.append(("2. read_file service.py (900L unbounded)", raw_b, kept_b, note))
 
-        # Step 3: Redundant sub-slice read_file service.py:50-120 four steps later
+        # Step 3: Redundant sub-slice read_file service.py:50-120 four steps later -> denied
         slice_b = sum(len(x.encode("utf-8")) for x in py_lines[49:120])
         res, ms = _run_hook(
             "read_hook.pl",
@@ -188,73 +118,54 @@ def run_demo() -> int:
         )
         latencies.append(ms)
         kept_b = len(res.get("reason", "").encode("utf-8")) if res.get("decision") == "deny" else slice_b
-        rows.append(("3. read_file service.py:50-120 (dup slice)", slice_b, kept_b, "blocked (already in context)"))
+        rows.append(("3. read_file service.py:50-120 (dup slice)", slice_b, kept_b, "blocked (duplicate in context)"))
 
-        perl_os = _perl_os()
+        # Step 4: Unbounded read_file on 350-line events.json -> capped 1..120
+        raw_b = min(json_file.stat().st_size, NATIVE_READ_CAP)
+        res, ms = _run_hook("read_hook.pl", {"toolInput": {"Path": str(json_file)}, "stepIdx": 7, "conversationId": "bench"}, env)
+        latencies.append(ms)
+        ov = res.get("overwrite") or {}
+        if "EndLine" in ov:
+            kept_b = sum(len(x.encode("utf-8")) for x in json_lines[: int(ov["EndLine"])]) + HOOK_OVERWRITE_NOTICE
+            note = f"capped 1..{ov['EndLine']}"
+        else:
+            kept_b, note = raw_b, "allowed"
+        rows.append(("4. read_file events.json (350L unbounded)", raw_b, kept_b, note))
 
-        def _run_cmd_step(label: str, cmd_line: str, fixture_out: str, rc: int, check_fn, ok_note: str) -> None:
-            res, ms = _run_hook("cmd_hook.pl", {"toolInput": {"CommandLine": cmd_line, "Cwd": str(tmp)}}, env)
-            latencies.append(ms)
-            raw_b = NATIVE_CMD_PREVIEW if len(fixture_out.encode("utf-8")) > NATIVE_CMD_CAP else len(fixture_out.encode("utf-8"))
-            cat = _extract_wrap_cat(res)
-            if cat is None:
-                if sys.platform != "win32" and perl_os not in ("MSWin32", "msys", "cygwin"):
-                    raise AssertionError(f"cmd_hook.pl did not wrap {cmd_line!r}: {res}")
-                rows.append((label, raw_b, raw_b, "not wrapped (Windows PowerShell mode)"))
-                return
-            out, _ = _run_wrap(cat, fixture_out, rc, env)
-            check_fn(out)
-            rows.append((label, raw_b, len(out.encode("utf-8")) + HOOK_OVERWRITE_NOTICE, f"--cat {cat}: {ok_note}"))
+        # Step 5: Unbounded read_file on 350-line api.log -> tail-anchored cap
+        raw_b = min(log_file.stat().st_size, NATIVE_READ_CAP)
+        res, ms = _run_hook("read_hook.pl", {"toolInput": {"Path": str(log_file)}, "stepIdx": 8, "conversationId": "bench"}, env)
+        latencies.append(ms)
+        ov = res.get("overwrite") or {}
+        if "StartLine" in ov and "EndLine" in ov:
+            s_i, e_i = int(ov["StartLine"]), int(ov["EndLine"])
+            kept_b = sum(len(x.encode("utf-8")) for x in log_lines[s_i - 1 : e_i]) + HOOK_OVERWRITE_NOTICE
+            note = f"tail cap {s_i}..{e_i} (ERROR kept)"
+        else:
+            kept_b, note = raw_b, "allowed"
+        rows.append(("5. read_file api.log (tail ERROR preserved)", raw_b, kept_b, note))
 
-        # Step 4: pytest 300 passed + 1 failing assertion
-        _run_cmd_step(
-            "4. run_command pytest (300 pass, 1 fail)",
-            "pytest tests/test_service.py",
-            pytest_out,
-            1,
-            lambda out: (_assert("assert 500 == 401" in out and "tests/test_service.py:142" in out, "pytest signal lost")),
-            "assertion + traceback kept",
+        # Step 6: find_by_name on project with node_modules -> injects Excludes
+        raw_find = len(find_raw.encode("utf-8"))
+        res, ms = _run_hook("find_hook.pl", {"toolInput": {"SearchDirectory": str(proj), "Pattern": "*.js"}}, env)
+        latencies.append(ms)
+        ov = res.get("overwrite") or {}
+        if ov.get("Excludes"):
+            kept_b = len(find_kept.encode("utf-8")) + HOOK_OVERWRITE_NOTICE
+            note = f"injected Excludes ({len(ov['Excludes'])} dir)"
+        else:
+            kept_b, note = raw_find, "untouched"
+        rows.append(("6. find_by_name w/ node_modules", raw_find, kept_b, note))
+
+        # Step 7: write_hook blocking lazy placeholder truncation on 900L service.py
+        res, ms = _run_hook(
+            "write_hook.pl",
+            {"toolInput": {"Path": str(py_file), "Overwrite": True, "Content": "def handler_001():\n    # ... existing code ...\n    pass\n"}},
+            env,
         )
-
-        # Step 5: git diff (real Python hunk + 400L lockfile)
-        _run_cmd_step(
-            "5. run_command git diff (code + lockfile)",
-            "git diff",
-            git_diff_out,
-            0,
-            lambda out: (_assert("+        return 401" in out and "omitted lockfile" in out, "git_diff signal lost")),
-            "code hunk verbatim",
-        )
-
-        # Step 6: 900-line server log with buried ERROR
-        _run_cmd_step(
-            "6. run_command server log (900L + 1 ERROR)",
-            "journalctl -u api -n 900",
-            server_log,
-            0,
-            lambda out: (_assert("E_TOK_EXP" in out and "full: " in out, "server log ERROR lost")),
-            "ERROR pinned + raw saved",
-        )
-
-        # Step 7: JSON API response (120 objects + 1 buried 500 error) -> Headroom SmartCrusher CSV+schema
-        _run_cmd_step(
-            "7. run_command curl JSON API (120 rows)",
-            "curl -s https://api.example.com/events",
-            json_api_out,
-            0,
-            lambda out: (_assert("evt_0077" in out and "stripe_charge" in out and "[120]{" in out, "JSON SmartCrusher signal lost")),
-            "CSV+schema & error row kept",
-        )
-
-        # Step 8: SSH remote grep with repeated long file paths -> lossless path hoisting
-        _run_cmd_step(
-            "8. run_command ssh remote grep (74 hits)",
-            "ssh prod 'grep -rn verify_jwt /srv/webapps/production/api/routes'",
-            ssh_grep_out,
-            0,
-            lambda out: (_assert("/srv/webapps/production/api/routes/auth_handlers.py:" in out and "route_v74" in out, "SSH grep signal lost")),
-            "lossless path hoisting",
-        )
+        latencies.append(ms)
+        assert res.get("decision") == "deny", f"write_hook should block lazy truncation: {res}"
+        rows.append(("7. write_file lazy truncation guard", 1000, len(res.get("reason", "").encode("utf-8")), "blocked accidental wipeout"))
 
     tot_before = sum(r[1] for r in rows)
     tot_after = sum(r[2] for r in rows)
@@ -265,9 +176,9 @@ def run_demo() -> int:
 
     med_ms = statistics.median(latencies)
 
-    print("=== Reproducible Before / After Task Benchmark (Measured Through Real Hooks) ===")
-    print(f"Native caps enforced in baseline: read_file <= {NATIVE_READ_CAP:,}B, run_command <= {NATIVE_CMD_PREVIEW:,}B")
-    print(f"Median PreToolUse hook latency  : {med_ms:.1f} ms ({len(latencies)} calls)\n")
+    print("=== Reproducible Guard Benchmark (Measured Through Real Perl Hooks) ===")
+    print(f"Native read ceiling in baseline: read_file <= {NATIVE_READ_CAP:,}B")
+    print(f"Median PreToolUse hook latency : {med_ms:.1f} ms ({len(latencies)} calls)\n")
     print(f"{'Task Step':44s} | {'Without':>9s} | {'With':>9s} | {'Saved':>7s} | Result")
     print("-" * 102)
     for name, b0, b1, note in rows:

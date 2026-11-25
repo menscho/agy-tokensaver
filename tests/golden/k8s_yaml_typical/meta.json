@@ -1,5 +1,0 @@
-{
-  "cat": "k8s_yaml",
-  "rc": 0,
-  "expect_spill": true
-}

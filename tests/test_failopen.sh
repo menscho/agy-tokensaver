@@ -39,7 +39,7 @@ for name, events in hooks_cfg.items():
                     timeout = float(h.get("timeout", 5))
                     hook_specs.append((ev_name, script, timeout))
 
-assert len(hook_specs) >= 8, f"expected >=8 hooks in hooks.json, got {len(hook_specs)}"
+assert len(hook_specs) >= 7, f"expected >=7 hooks in hooks.json, got {len(hook_specs)}"
 
 rng = random.Random(20261124)
 cases: list[tuple[str, bytes]] = [

@@ -6,7 +6,7 @@ import time
 
 from config import CFG_FILE, PLUGIN_ROOT, _atomic_write_json, _cfg_lock, _is_sandbox_data_dir, load_config
 
-_CONCISE_RULE_LINE = "7. Concise mode (SoT/TALE/Caveman-lite): skip pleasantries, preambles, and pre/post-tool chatter; keep code, diffs, paths, errors, and root-cause debugging verbatim."
+_CONCISE_RULE_LINE = "1. Concise replies: skip pleasantries, preambles, and post-tool narration; keep code, diffs, paths, and errors verbatim."
 
 
 def _should_defer_concise_sync() -> bool:
@@ -46,18 +46,19 @@ def flush_pending_concise_sync(force: bool = False) -> bool:
 
 
 def _sync_concise_rule(enabled: bool) -> None:
-    """Opt-in Caveman-lite output rule synced to rules/AGENTS.md only on explicit user toggle."""
+    """Create minimal opt-in rules/AGENTS.md only when concise_output=True; remove when off so default tax is 0 tok/turn."""
     try:
         # Never mutate repo rules/AGENTS.md when running under an isolated test PLUGIN_DATA dir
         if _is_sandbox_data_dir() and os.environ.get("AGY_TS_SYNC_RULES") != "1":
             return
-        agents_md = PLUGIN_ROOT / "rules" / "AGENTS.md"
-        if not agents_md.is_file():
+        rules_dir = PLUGIN_ROOT / "rules"
+        agents_md = rules_dir / "AGENTS.md"
+        if not enabled:
+            if agents_md.is_file():
+                agents_md.unlink()
             return
-        lines = [ln for ln in agents_md.read_text(encoding="utf-8").splitlines() if not ln.startswith("7. Concise mode")]
-        if enabled:
-            lines.append(_CONCISE_RULE_LINE)
-        agents_md.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        rules_dir.mkdir(parents=True, exist_ok=True)
+        agents_md.write_text("# Token Saver\n" + _CONCISE_RULE_LINE + "\n", encoding="utf-8")
     except OSError:
         pass
 

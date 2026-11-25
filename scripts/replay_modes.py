@@ -8,7 +8,7 @@ from typing import Any
 
 def run_modes(policy: str = "auto", json_out: str | None = None, report: bool = False,
               weights: tuple[float, float, float] | None = None) -> dict:
-    """Compare Mode 1 (Lossless) vs Mode 2 (Opt-in) on all local sessions with distributions & sensitivity."""
+    """Compare measured modes on all local sessions (0 tok/turn passive overhead, no shell rewriting)."""
     from transcript_replay import W_CR, W_IN, W_OUT, _percentile, run
     wi, wc, wo = weights if weights else (W_IN, W_CR, W_OUT)
     base = run(quiet=True, policy=policy, extra_env={"AGY_TS_COMPACT_READS": "0"}, weights=(wi, wc, wo))
@@ -20,76 +20,45 @@ def run_modes(policy: str = "auto", json_out: str | None = None, report: bool = 
     q_tot = tot_in * wi + tot_cr * wc + tot_out * wo
     out_share = (tot_out * wo / q_tot * 100.0) if q_tot else 0.0
 
-    c20 = round(out_share * 0.20, 1)
-    c35 = round(out_share * 0.35, 1)
-
-    b_h = -base["q_hooks"]["total"]
-    b_r = -base["q_roll"]["total"]
-    c_h = -comp["q_hooks"]["total"]
-    c_live = -comp["q_both"]["total"]
-    c_ub = -comp["q_both_ub"]["total"]
+    b_h = base["q_hooks"]["total"]
+    b_r = base["q_both"]["total"]
+    c_h = comp["q_hooks"]["total"]
+    c_live = comp["q_both"]["total"]
+    b_ub = base["q_both_ub"]["total"]
+    c_ub = comp["q_both_ub"]["total"]
 
     print(f"=== Real-Session Benchmark ({base['n']} sessions, {base['turns']:,} turns, {q_tot/1e6:.1f}M proxy units) ===")
     print(f"Cost proxy ({wi:g}x in + {wc:g}x cache + {wo:g}x out): Input {tot_in*wi/q_tot*100:.1f}% | Cache {tot_cr*wc/q_tot*100:.1f}% | Output {out_share:.1f}% | Overhead: {base['overhead_tok_per_turn']} tok/turn")
-    print("Compression savings come only from hook trimming/blocks; Auto-Handoff savings come from starting new chats (losing verbatim prior context).\n")
-    print(f"{'Mode / Mechanism':44s} | {'Type':10s} | {'Tool Tok Cut':>12s} | {'Median':>8s} | {'Avg Cost Saved':>18s}")
-    print("-" * 105)
-    print(f"{'Mode 1: Compression Default (Lossless)':44s} | {'measured':10s} | {base['saved_tool_tok']:9,d} tk | {-base['q_hooks']['median']:+7.1f}% | {b_h:+17.1f}%")
-    print(f"{'Mode 2a: Compression + Compact Reads':44s} | {'measured':10s} | {comp['saved_tool_tok']:9,d} tk | {-comp['q_hooks']['median']:+7.1f}% | {c_h:+17.1f}%")
-    print(f"{'Auto-Handoff Only (New Chats, Mode 1 hooks)':44s} | {'measured':10s} | {base['saved_tool_tok']:9,d} tk | {-base['q_roll']['median']:+7.1f}% | {b_r:+17.1f}%")
-    print(f"{'Mode 2c: Compact Reads + Auto-Handoff':44s} | {'measured':10s} | {comp['saved_tool_tok']:9,d} tk | {-comp['q_both']['median']:+7.1f}% | {c_live:+17.1f}%")
-    print(f"{'Mode 2b: + Concise Output (no handoff)':44s} | {'estimated':10s} | {comp['saved_tool_tok']:9,d} tk | {'n/a':>8s} | {c_h - c20:+5.1f}%..{c_h - c35:+.1f}% (est.)")
-    print(f"{'Mode 2 (Max): All opt-in':44s} | {'estimated':10s} | {comp['saved_tool_tok']:9,d} tk | {'n/a':>8s} | {c_live - c20:+5.1f}%..{c_live - c35:+.1f}% (est.)")
-    print(f"{'Mode 2 (Upper Bound, phase resets)':44s} | {'estimated':10s} | {comp['saved_tool_tok']:9,d} tk | {'n/a':>8s} | {c_ub - c20:+5.1f}%..{c_ub - c35:+.1f}% (est.)")
-    print("-" * 105)
-    print("Note: 'measured' = exact transcript replay (charges retries + prompt overhead); 'estimated' adds a modeled -20%..-35% cut on the output bucket.")
-    print("      Auto-Handoff (arXiv:2508.21433, arXiv:2601.07190) achieves its cost cut by resetting chat context.")
+    print("Positive numbers = cost saved. Guard savings come from read/find/grep hooks; Auto-Handoff savings come from starting new chats.\n")
+    print(f"{'Mode':44s} | {'Tool Tok Cut':>12s} | {'Median':>8s} | {'Avg Cost Saved':>14s}")
+    print("-" * 88)
+    print(f"{'Auto-Handoff + Read Guards (Default)':44s} | {base['saved_tool_tok']:9,d} tk | {base['q_both']['median']:7.1f}% | {b_r:13.1f}%")
+    print(f"{'Auto-Handoff + Compact Reads':44s} | {comp['saved_tool_tok']:9,d} tk | {comp['q_both']['median']:7.1f}% | {c_live:13.1f}%")
+    print(f"{'Guards Only (Same Chat)':44s} | {base['saved_tool_tok']:9,d} tk | {base['q_hooks']['median']:7.1f}% | {b_h:13.1f}%")
+    print(f"{'Guards + Compact Reads (Same Chat)':44s} | {comp['saved_tool_tok']:9,d} tk | {comp['q_hooks']['median']:7.1f}% | {c_h:13.1f}%")
+    print(f"{'Auto-Handoff Upper Bound (phase resets)':44s} | {base['saved_tool_tok']:9,d} tk | {base['q_both_ub']['median']:7.1f}% | {b_ub:13.1f}% ({c_ub:.1f}% cr)")
+    print("-" * 88)
+    print("Note: Every row above is measured from exact local transcript replay (charges retries + prompt overhead).")
+    print("      Concise Output live savings are measured separately in eval/runner.py (--driver antigravity).")
 
-    # Distribution stats per mode (positive = saved %)
-    def _dist_entry(label: str, kind: str, stats_obj: dict, add_out_lo: float = 0.0, add_out_hi: float = 0.0,
-                    rows_src: list[dict] | None = None, field: str | None = None) -> dict:
-        if add_out_lo == 0.0:
-            return {
-                "mode": label, "type": kind,
-                "avg": round(stats_obj["total"], 1),
-                "median": round(stats_obj["median"], 1),
-                "p25": round(stats_obj["p25"], 1),
-                "p75": round(stats_obj["p75"], 1),
-                "p90": round(stats_obj["p90"], 1),
-                "max": round(stats_obj["max"], 1),
-                "pct_gt_5": round(stats_obj["pct_gt_5"], 1),
-                "per_session": stats_obj["per_session"],
-            }
-        # Per-session estimated savings when adding -20% (conservative) output cut
-        per_est = []
-        for r in (rows_src or []):
-            q0_r = r["q0"]
-            if not q0_r:
-                continue
-            out_s = (r["tok_0"][2] * wo / q0_r) * 100.0
-            base_s = (1.0 - r[field] / q0_r) * 100.0 if field else 0.0
-            per_est.append(base_s + out_s * 0.20)
-        per_est.sort()
+    def _dist_entry(label: str, stats_obj: dict) -> dict:
         return {
-            "mode": label, "type": kind,
-            "avg": round(stats_obj["total"] + add_out_lo, 1),
-            "avg_hi": round(stats_obj["total"] + add_out_hi, 1),
-            "median": round(statistics.median(per_est), 1) if per_est else 0.0,
-            "p25": round(_percentile(per_est, 0.25), 1),
-            "p75": round(_percentile(per_est, 0.75), 1),
-            "p90": round(_percentile(per_est, 0.90), 1),
-            "max": round(per_est[-1], 1) if per_est else 0.0,
-            "pct_gt_5": round(sum(1 for p in per_est if p > 5.0) / len(per_est) * 100.0, 1) if per_est else 0.0,
-            "per_session": [round(p, 2) for p in per_est],
+            "mode": label, "type": "measured",
+            "avg": round(stats_obj["total"], 1),
+            "median": round(stats_obj["median"], 1),
+            "p25": round(stats_obj["p25"], 1),
+            "p75": round(stats_obj["p75"], 1),
+            "p90": round(stats_obj["p90"], 1),
+            "max": round(stats_obj["max"], 1),
+            "pct_gt_5": round(stats_obj["pct_gt_5"], 1),
+            "per_session": stats_obj["per_session"],
         }
 
     distributions = [
-        _dist_entry("Mode 1: Lossless (Default)", "measured", base["q_hooks"]),
-        _dist_entry("Mode 2a: Compact Reads", "measured", comp["q_hooks"]),
-        _dist_entry("Auto-Handoff Only (New Chats)", "measured", base["q_roll"]),
-        _dist_entry("Mode 2c: Hooks + Auto-Handoff", "measured", comp["q_both"]),
-        _dist_entry("Mode 2b: + Concise Output", "estimated", comp["q_hooks"], c20, c35, comp["rows"], "q_hooks"),
-        _dist_entry("Mode 2 (Max): All opt-in", "estimated", comp["q_both"], c20, c35, comp["rows"], "q_both"),
+        _dist_entry("Guards Only (Same Chat)", base["q_hooks"]),
+        _dist_entry("Guards + Compact Reads", comp["q_hooks"]),
+        _dist_entry("Auto-Handoff + Read Guards (Default)", base["q_both"]),
+        _dist_entry("Auto-Handoff + Compact Reads", comp["q_both"]),
     ]
 
     # Per-session-type breakdown
@@ -105,13 +74,13 @@ def run_modes(policy: str = "auto", json_out: str | None = None, report: bool = 
             avg = (1.0 - q1s / q0s) * 100.0 if q0s else 0.0
             per = sorted((1.0 - r[fld] / r["q0"]) * 100.0 for r in sub if r["q0"])
             return (round(avg, 1), round(statistics.median(per), 1) if per else 0.0, round(_percentile(per, 0.90), 1))
-        m1_avg, m1_med, m1_p90 = _agg(b_sub, "q_hooks")
-        m2a_avg, _, _ = _agg(c_sub, "q_hooks")
-        m2c_avg, m2c_med, m2c_p90 = _agg(c_sub, "q_both")
+        g_avg, g_med, g_p90 = _agg(b_sub, "q_hooks")
+        ho_avg, ho_med, ho_p90 = _agg(b_sub, "q_both")
+        hc_avg, _, _ = _agg(c_sub, "q_both")
         by_type.append({
             "type": stype, "n": len(b_sub),
-            "m1_avg": m1_avg, "m1_median": m1_med, "m1_p90": m1_p90,
-            "m2a_avg": m2a_avg, "m2c_avg": m2c_avg, "m2c_median": m2c_med, "m2c_p90": m2c_p90,
+            "g_avg": g_avg, "g_median": g_med, "g_p90": g_p90,
+            "ho_avg": ho_avg, "ho_median": ho_med, "ho_p90": ho_p90, "hc_avg": hc_avg,
         })
 
     # Cost-weight sensitivity analysis (computed exactly from recorded token sums)
@@ -129,36 +98,33 @@ def run_modes(policy: str = "auto", json_out: str | None = None, report: bool = 
             return sum(r[tok_key][0] * rwi + r[tok_key][1] * rwc + r[tok_key][2] * rwo for r in rows_list)
         q0_b = _qsum(base["rows"], "tok_0")
         q0_c = _qsum(comp["rows"], "tok_0")
-        m1_r = (1.0 - _qsum(base["rows"], "tok_hooks") / q0_b) * 100.0 if q0_b else 0.0
-        ho_r = (1.0 - _qsum(base["rows"], "tok_roll") / q0_b) * 100.0 if q0_b else 0.0
-        m2a_r = (1.0 - _qsum(comp["rows"], "tok_hooks") / q0_c) * 100.0 if q0_c else 0.0
-        m2c_r = (1.0 - _qsum(comp["rows"], "tok_both") / q0_c) * 100.0 if q0_c else 0.0
-        out_r = (sum(r["tok_0"][2] for r in comp["rows"]) * rwo / q0_c * 100.0) if q0_c else 0.0
+        g_r = (1.0 - _qsum(base["rows"], "tok_hooks") / q0_b) * 100.0 if q0_b else 0.0
+        gc_r = (1.0 - _qsum(comp["rows"], "tok_hooks") / q0_c) * 100.0 if q0_c else 0.0
+        ho_r = (1.0 - _qsum(base["rows"], "tok_both") / q0_b) * 100.0 if q0_b else 0.0
+        hc_r = (1.0 - _qsum(comp["rows"], "tok_both") / q0_c) * 100.0 if q0_c else 0.0
         sensitivity.append({
             "regime": rname, "weights": [rwi, rwc, rwo],
-            "m1": round(m1_r, 1), "m2a": round(m2a_r, 1), "ho": round(ho_r, 1), "m2c": round(m2c_r, 1),
-            "m2max_lo": round(m2c_r + out_r * 0.20, 1), "m2max_hi": round(m2c_r + out_r * 0.35, 1),
+            "guards": round(g_r, 1), "compact_guards": round(gc_r, 1), "handoff": round(ho_r, 1), "handoff_compact": round(hc_r, 1),
         })
 
     if report:
-        print("\n=== Per-Session Distribution (Negative = Lower Cost) ===")
-        print(f"{'Mode':34s} | {'Type':9s} | {'Avg':>7s} | {'Median':>7s} | {'p90':>7s} | {'Max':>7s} | {'>5% share':>9s}")
-        print("-" * 96)
+        print("\n=== Per-Session Distribution (Positive = Cost Saved) ===")
+        print(f"{'Mode':38s} | {'Avg':>7s} | {'Median':>7s} | {'p90':>7s} | {'Max':>7s} | {'>5% share':>9s}")
+        print("-" * 88)
         for d in distributions:
-            sfx = " (est.)" if d["type"] == "estimated" else ""
-            print(f"{d['mode']:34s} | {d['type']:9s} | {-d['avg']:+6.1f}% | {-d['median']:+6.1f}% | {-d['p90']:+6.1f}% | {-d['max']:+6.1f}% | {d['pct_gt_5']:8.1f}%{sfx}")
+            print(f"{d['mode']:38s} | {d['avg']:6.1f}% | {d['median']:6.1f}% | {d['p90']:6.1f}% | {d['max']:6.1f}% | {d['pct_gt_5']:8.1f}%")
 
-        print("\n=== Breakdown by Session Type ===")
-        print(f"{'Session Type':16s} | {'n':>3s} | {'Mode 1 Avg':>10s} | {'Mode 1 Med':>10s} | {'Mode 1 p90':>10s} | {'Mode 2a Avg':>11s} | {'Mode 2c Avg':>11s} | {'Mode 2c p90':>11s}")
-        print("-" * 102)
+        print("\n=== Breakdown by Session Type (Cost Saved %) ===")
+        print(f"{'Session Type':16s} | {'n':>3s} | {'Guards Avg':>10s} | {'Guards p90':>10s} | {'Handoff Avg':>11s} | {'Handoff p90':>11s} | {'+Compact Avg':>12s}")
+        print("-" * 92)
         for t in by_type:
-            print(f"{t['type']:16s} | {t['n']:3d} | {-t['m1_avg']:+9.1f}% | {-t['m1_median']:+9.1f}% | {-t['m1_p90']:+9.1f}% | {-t['m2a_avg']:+10.1f}% | {-t['m2c_avg']:+10.1f}% | {-t['m2c_p90']:+10.1f}%")
+            print(f"{t['type']:16s} | {t['n']:3d} | {t['g_avg']:9.1f}% | {t['g_p90']:9.1f}% | {t['ho_avg']:10.1f}% | {t['ho_p90']:10.1f}% | {t['hc_avg']:11.1f}%")
 
-        print("\n=== Cost-Weight Sensitivity (Measured Compression vs Auto-Handoff) ===")
-        print(f"{'Weight Regime (in/cache/out)':32s} | {'Mode 1':>8s} | {'Mode 2a':>8s} | {'HO Only':>8s} | {'Mode 2c':>8s}")
+        print("\n=== Cost-Weight Sensitivity (Measured Cost Saved %) ===")
+        print(f"{'Weight Regime (in/cache/out)':32s} | {'Guards':>8s} | {'+Compact':>8s} | {'Handoff':>8s} | {'+Compact':>8s}")
         print("-" * 76)
         for s_row in sensitivity:
-            print(f"{s_row['regime']:32s} | {-s_row['m1']:+7.1f}% | {-s_row['m2a']:+7.1f}% | {-s_row['ho']:+7.1f}% | {-s_row['m2c']:+7.1f}%")
+            print(f"{s_row['regime']:32s} | {s_row['guards']:7.1f}% | {s_row['compact_guards']:7.1f}% | {s_row['handoff']:7.1f}% | {s_row['handoff_compact']:7.1f}%")
 
     res = {
         "n": base["n"],
@@ -171,8 +137,6 @@ def run_modes(policy: str = "auto", json_out: str | None = None, report: bool = 
             "cache_pct": round(tot_cr * wc / q_tot * 100.0, 1),
             "output_pct": round(out_share, 1),
         },
-        "concise_20_pct": c20,
-        "concise_35_pct": c35,
         "base": base,
         "compact_reads": comp,
         "distributions": distributions,

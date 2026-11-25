@@ -83,7 +83,7 @@ def compute_savings_analytics(
     concise_on = bool((cfg or {}).get("concise_output", False))
     out_saved_tok = 0
     out_saved_pct = 0.0
-    out_note = "Concise ON (est. -20%..-35% on new chats)" if concise_on else "Unchanged in Zero Quality Loss mode"
+    out_note = "Concise reply rule ON (output delta not tracked)" if concise_on else "Unchanged (prompt overhead: 0 tok/turn)"
 
     # Prompt-cache drop forensics across all sessions (arXiv:2601.06007)
     rebuild_tok_total = sum(int(s.get("drop_rebuild_tok") or 0) for s in all_sessions)

@@ -1,1 +1,0 @@
-fatal: repository 'https://example.test/missing.git' not found

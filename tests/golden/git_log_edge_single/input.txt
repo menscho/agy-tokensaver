@@ -1,4 +1,0 @@
-commit a1b2c3d
-Author: Dev
-
-    init

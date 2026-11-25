@@ -89,8 +89,7 @@ if ($check_path =~ /\.(?:png|jpe?g|gif|webp|ico|bmp|tiff?|pdf|mp4|mov|webm|avi|m
             if (-f $ifile && open(my $ifh, '<', $ifile)) { $cnt = int(<$ifh> // 0); close $ifh; }
             $cnt++;
             if ($cnt > 3) {
-                my $cs_py = "$pr/scripts/contact_sheet.py";
-                my $msg = "[token-saver] Image #${cnt} in a long session (>150KB transcript; each image replays ~1.5K tok/turn). Delegate multi-image inspection to `vision-scout` (Flash) or pack frames with: python3 $cs_py <dir_or_files>";
+                my $msg = "[token-saver] Image #${cnt} in a long session (>150KB transcript; each image replays ~1.5K tok/turn). Inspect only necessary frames or delegate multi-image work to a separate subagent.";
                 print '{"decision":"deny","reason":"' . json_escape($msg) . '"}';
                 exit 0;
             }

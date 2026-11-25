@@ -1,18 +1,4 @@
 {
-  "token-saver-cmd": {
-    "PreToolUse": [
-      {
-        "matcher": "run_command|shell_exec",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "perl ./scripts/cmd_hook.pl",
-            "timeout": 5
-          }
-        ]
-      }
-    ]
-  },
   "token-saver-read": {
     "PreToolUse": [
       {

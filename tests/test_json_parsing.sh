@@ -36,24 +36,14 @@ mkdir -p "$T/café_dir/node_modules"
 # 1. Key appearing inside a string value must NOT spoof JSON keys
 check read_hook.pl "$(printf '{"toolInput":{"Path":"%s","Note":"\\"Path\\":\\"%s\\""}}' "$T/safe.py" "$T/package-lock.json")" "$ALLOW" \
   "read_hook: key inside string value ignored"
-check cmd_hook.pl '{"toolInput":{"CommandLine":"pytest -k \"\\\"IsDaemon\\\":true\""}}' "--cat test" \
-  "cmd_hook: IsDaemon inside CommandLine string does not skip wrap"
 
 # 2. Key nested inside another object must NOT leak into toolInput
 check read_hook.pl "$(printf '{"meta":{"Path":"%s"},"toolInput":{"Path":"%s"}}' "$T/package-lock.json" "$T/safe.py")" "$ALLOW" \
   "read_hook: sibling meta.Path ignored"
 check read_hook.pl "$(printf '{"toolInput":{"nested":{"Path":"%s"}}}' "$T/package-lock.json")" "$ALLOW" \
   "read_hook: deeply nested Path ignored"
-check cmd_hook.pl '{"meta":{"IsDaemon":true},"toolInput":{"CommandLine":"pytest -x"}}' "--cat test" \
-  "cmd_hook: sibling meta.IsDaemon ignored"
 
-# 3. Escaped quotes and backslashes
-check cmd_hook.pl '{"toolInput":{"CommandLine":"pytest -k \"foo \\\"bar\\\"\""}}' "--cat test" \
-  "cmd_hook: escaped quotes in CommandLine"
-
-# 4. \uXXXX escapes and UTF-16 surrogate pairs
-check cmd_hook.pl '{"toolInput":{"CommandLine":"\u0070\u0079\u0074\u0065\u0073\u0074 -x"}}' "--cat test" \
-  "cmd_hook: \\uXXXX escaped pytest bypasses fast-path and wraps"
+# 3. \uXXXX escapes and UTF-16 surrogate pairs
 check read_hook.pl "$(printf '{"toolInput":{"Path":"%s/caf\\u00e9.py"}}' "$T")" "$ALLOW" \
   "read_hook: \\u00e9 decoded to UTF-8 path"
 check find_hook.pl "$(printf '{"toolInput":{"SearchDirectory":"%s/caf\\u00e9_dir"}}' "$T")" '"Excludes":\["node_modules"\]' \
@@ -61,39 +51,32 @@ check find_hook.pl "$(printf '{"toolInput":{"SearchDirectory":"%s/caf\\u00e9_dir
 check read_hook.pl "$(printf '{"toolInput":{"Path":"%s/\\uD83D\\uDE00-package-lock.json"}}' "$T")" '"EndLine":100' \
   "read_hook: UTF-16 surrogate pair decoded to valid UTF-8 emoji"
 
-# 5. Duplicate keys (last-key-wins, matching JS JSON.parse / Python json.loads)
+# 4. Duplicate keys (last-key-wins, matching JS JSON.parse / Python json.loads)
 check read_hook.pl "$(printf '{"toolInput":{"Path":"%s","Path":"%s"}}' "$T/safe.py" "$T/package-lock.json")" "$DENY" \
   "read_hook: duplicate key last-wins denies lockfile"
 check read_hook.pl "$(printf '{"toolInput":{"Path":"%s","Path":"%s"}}' "$T/package-lock.json" "$T/safe.py")" "$ALLOW" \
   "read_hook: duplicate key last-wins allows safe file"
-check cmd_hook.pl '{"toolInput":{"CommandLine":"echo ok","CommandLine":"pytest -x"}}' "--cat test" \
-  "cmd_hook: duplicate key last-wins wraps pytest"
 
-# 6. Wrong types (numbers/bools/arrays/objects instead of expected types)
+# 5. Wrong types (numbers/bools/arrays/objects instead of expected types)
 check read_hook.pl '{"toolInput":{"Path":123,"StartLine":"bad","EndLine":[]}}' "$ALLOW" \
   "read_hook: wrong types fail open"
-check cmd_hook.pl '{"toolInput":{"CommandLine":12345,"IsDaemon":"true"}}' "$ALLOW" \
-  "cmd_hook: non-string CommandLine fails open"
-check cmd_hook.pl '{"toolInput":{"CommandLine":"pytest -x","IsDaemon":"true"}}' "--cat test" \
-  "cmd_hook: string \"true\" IsDaemon is not boolean true"
 check find_hook.pl "$(printf '{"toolInput":{"SearchDirectory":"%s/café_dir","Excludes":"not-array"}}' "$T")" '"Excludes":' \
   "find_hook: non-array Excludes ignored cleanly"
 
-# 7. Invalid JSON and non-object JSON -> fail open
+# 6. Invalid JSON and non-object JSON -> fail open
 for bad_in in '{not json' '[]' '"just a string"' '42' 'null' '{"toolInput":['; do
   check read_hook.pl "$bad_in" "$ALLOW" "read_hook: invalid/non-object JSON ($bad_in)"
-  check cmd_hook.pl  "$bad_in" "$ALLOW" "cmd_hook: invalid/non-object JSON ($bad_in)"
 done
 
-# 8. Empty stdin -> fail open
-for h in read_hook.pl cmd_hook.pl write_hook.pl find_hook.pl grep_hook.pl; do
+# 7. Empty stdin -> fail open
+for h in read_hook.pl write_hook.pl find_hook.pl grep_hook.pl; do
   check "$h" "" "$ALLOW" "$h: empty stdin allows"
 done
 for h in post_edit_hook.pl post_invocation_alerts.pl stop_telemetry.pl; do
   check "$h" "" '^\{\}$' "$h: empty stdin returns {}"
 done
 
-# 9. 10 MB payload -> fail open well within timeout (<2000ms)
+# 8. 10 MB payload -> fail open well within timeout (<2000ms)
 python3 - "$T/big10m.json" <<'PYEOF'
 import sys
 with open(sys.argv[1], "wb") as f:
@@ -102,7 +85,7 @@ with open(sys.argv[1], "wb") as f:
     f.write(b'"}}')
 PYEOF
 
-for h in read_hook.pl cmd_hook.pl write_hook.pl find_hook.pl grep_hook.pl; do
+for h in read_hook.pl write_hook.pl find_hook.pl grep_hook.pl; do
   t0=$(python3 -c 'import time; print(int(time.time()*1000))')
   out=$(perl "$S/$h" < "$T/big10m.json" 2>"$T/err.txt"); rc=$?
   t1=$(python3 -c 'import time; print(int(time.time()*1000))')

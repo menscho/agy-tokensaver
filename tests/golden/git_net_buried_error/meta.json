@@ -1,6 +1,0 @@
-{
-  "cat": "git_net",
-  "rc": 1,
-  "expect_spill": false,
-  "must_contain": "ERROR: BURIED_MUST_KEEP_GIT_NET"
-}

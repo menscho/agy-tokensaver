@@ -30,10 +30,10 @@ jobs:
           mypy mcp_app scripts/*.py eval/*.py install.py tests/test_python_unit.py
       - name: Perl lint (perl -c + perlcritic severity 4)
         run: |
-          for f in scripts/*.pl scripts/lib/*.pm scripts/lib/*.pl scripts/compressors/*.pl; do
+          for f in scripts/*.pl scripts/lib/*.pm scripts/lib/*.pl; do
             perl -Iscripts/lib -c "$f"
           done
-          perlcritic --profile .perlcriticrc --severity 4 scripts/*.pl scripts/lib/*.pm scripts/lib/*.pl scripts/compressors/*.pl
+          perlcritic --profile .perlcriticrc --severity 4 scripts/*.pl scripts/lib/*.pm scripts/lib/*.pl
       - name: Shell lint (shellcheck)
         run: |
           shellcheck -S error tests/*.sh install.sh Install-TokenSaver.command
@@ -68,8 +68,8 @@ jobs:
               srv.stdin.write(json.dumps({"jsonrpc": "2.0", "id": 2, "method": "tools/call", "params": {"name": "open_token_saver", "arguments": {}}}) + "\n")
               srv.stdin.flush()
               r2 = json.loads(srv.stdout.readline())
-              assert r2["result"]["structuredContent"]["config"]["mode"] == "prepare_only"
-              assert r2["result"]["structuredContent"]["config"]["profile"] == "zero_loss"
+              assert r2["result"]["structuredContent"]["config"]["mode"] == "smart_auto"
+              assert r2["result"]["structuredContent"]["config"]["profile"] == "auto_handoff"
           finally:
               srv.terminate(); srv.wait(timeout=5)
           with tempfile.TemporaryDirectory() as td:
@@ -134,24 +134,14 @@ jobs:
           $esc = $lock.Replace('\', '\\')
           $out = ('{"toolInput":{"Path":"' + $esc + '"},"cwd":"C:\\"}') | & perl scripts/read_hook.pl
           if ($out -notmatch '"decision":"deny"') { throw "read_hook failed on Windows path: $out" }
-          $cout = '{"toolInput":{"CommandLine":"pytest $env:X","Cwd":"C:\\work"}}' | & perl scripts/cmd_hook.pl
-          if ($cout -notmatch '--cat test --pwsh-stdin') { throw "cmd_hook should wrap PowerShell pytest: $cout" }
-          $gci = '{"toolInput":{"CommandLine":"Get-ChildItem -Recurse","Cwd":"C:\\work"}}' | & perl scripts/cmd_hook.pl
-          if ($gci -notmatch '--cat pwsh --pwsh-stdin') { throw "cmd_hook should wrap PowerShell Get-ChildItem: $gci" }
-          $os = & perl -e 'print $^O'
-          if ($os -eq 'MSWin32') {
-            $env:AGY_TS_SHELL = 'posix'
-            $px = '{"toolInput":{"CommandLine":"pytest","Cwd":"/tmp"}}' | & perl scripts/cmd_hook.pl
-            Remove-Item Env:AGY_TS_SHELL -ErrorAction SilentlyContinue
-            if ($px -ne '{"decision":"allow"}') { throw "MSWin32 with AGY_TS_SHELL=posix must pass through allow: $px" }
-          }
+          $target = Join-Path $tmp "sample.txt"
+          "line1`nneedle_win" | Set-Content -Path $target -NoNewline
+          $tesc = $target.Replace('\', '\\')
+          $gout = ('{"toolInput":{"Query":"needle_win","SearchPath":"' + $tesc + '"}}') | & perl scripts/grep_hook.pl
+          if ($gout -notmatch '"Includes":\["sample.txt"\]') { throw "grep_hook failed on Windows path: $gout" }
           $sbPerl = 'C:\Strawberry\perl\bin\perl.exe'
           if (Test-Path $sbPerl) {
-            $sbOut = '{"toolInput":{"CommandLine":"Get-ChildItem -Recurse","Cwd":"C:\\work"}}' | & $sbPerl scripts/cmd_hook.pl
-            if ($sbOut -notmatch '--cat pwsh --pwsh-stdin') { throw "Strawberry Perl should wrap PowerShell commands: $sbOut" }
-            $env:AGY_TS_SHELL = 'posix'
-            $sbPx = '{"toolInput":{"CommandLine":"pytest","Cwd":"/tmp"}}' | & $sbPerl scripts/cmd_hook.pl
-            Remove-Item Env:AGY_TS_SHELL -ErrorAction SilentlyContinue
-            if ($sbPx -ne '{"decision":"allow"}') { throw "Strawberry Perl AGY_TS_SHELL=posix must allow early: $sbPx" }
+            $sbOut = ('{"toolInput":{"Path":"' + $esc + '"},"cwd":"C:\\"}') | & $sbPerl scripts/read_hook.pl
+            if ($sbOut -notmatch '"decision":"deny"') { throw "Strawberry Perl read_hook failed on Windows path: $sbOut" }
           }
           Write-Host "Native Windows PowerShell checks OK"

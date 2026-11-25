@@ -8,11 +8,11 @@
   },
   "homepage": "https://github.com/menscho/agy-tokensaver",
   "repository": "https://github.com/menscho/agy-tokensaver",
-  "description": "Local token, cache & quota optimizer for Antigravity: fail-open Perl hooks, duplicate-read guard, compact handoff archive, and MCP App dashboard.",
+  "description": "Antigravity plugin for session handoff resets, duplicate/lockfile read guards, and cache telemetry.",
   "logo": "assets/logo.svg",
   "suggestedPrompts": [
     "Run /token-stats to see real savings, cache-hit rates, and output-per-turn trends",
-    "Run /lean-workflow to audit, refactor, or fix tests without polluting the main context",
-    "Run /handoff to pack this session into a compact fresh-chat continuation prompt"
+    "Run /handoff to pack this session into a compact fresh-chat continuation prompt",
+    "Run /context-audit to check for always-on rule bloat and large workspace files"
   ]
 }

@@ -1,3 +1,0 @@
-From https://example.test/repo
- * branch main -> FETCH_HEAD
-[302L->2L; full: <SPILL_DIR>/812edbaf8e8c.log]

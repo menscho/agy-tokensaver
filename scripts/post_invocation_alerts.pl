@@ -15,6 +15,7 @@ use TsJson;
 my $raw = TsJson::read_stdin_capped();
 my $doc = TsJson::decode_hook_input($raw);
 if (!defined $doc) { print '{}'; exit 0; }
+if (TsJson::hooks_disabled()) { print '{}'; exit 0; }
 
 # Fast-path: skip early turns (<4) where context is small and cache is warming up
 my $inv_num = TsJson::get_int($doc, 'invocationNum') // 0;

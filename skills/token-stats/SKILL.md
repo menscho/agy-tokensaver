@@ -19,6 +19,6 @@ If the user passes a specific timeframe (e.g. "today", "7d", "all") or asks for 
 Present the key metrics clearly:
 1. Total tokens saved (direct + estimated replay savings) and compression ratio.
 2. Prompt cache-hit rate (`cache_read_tokens / (input_tokens + cache_read_tokens)`) and any detected cache-drop events.
-3. Savings breakdown by layer (`cmd_wrap` CLI categories vs. `read_guard` blocks/caps).
+3. Savings breakdown by layer (`read_guard` blocks/caps, `write_guard`, and Auto-Handoff rollovers).
 4. Measured hook overhead (ms) to verify speed stays within budget.
-5. Concrete recommendations if any cache drops or high-volume unfiltered patterns were detected.
+5. Concrete recommendations if any cache drops or large repeated file reads were detected.

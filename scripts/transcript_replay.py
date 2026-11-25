@@ -1,27 +1,22 @@
 #!/usr/bin/env python3
 """
-Hooks-only (Auto-Handoff OFF) replay of REAL local Antigravity sessions.
+Hooks & Auto-Handoff replay of REAL local Antigravity sessions.
 
 For every local session (IDE `~/.gemini/antigravity` and CLI `~/.gemini/antigravity-cli`):
   * Exact per-turn token usage (input / cache_read / output) is taken from the transcript
     PLANNER_RESPONSE records when present, otherwise decoded from the session's
     `conversations/<id>.db` `gen_metadata` protobuf (field 1.4: 2=input, 5=cache_read, 3=output).
-  * Every recorded tool call + its recorded tool result (transcript_full.jsonl) is replayed
-    through the ACTUAL PreToolUse hooks of this checkout:
-      - read_file / view_file -> read_hook.pl against a reconstructed virtual file
-        (same basename/extension, same line count & byte size, rewritten only when the real
-        file changed between reads, so mtime-based dedupe behaves like the live session)
-      - run_command          -> cmd_hook.pl, and if it wraps, cmd_wrap.pl --test-stdin on the
-        recorded output with the recorded exit code
-      - find_by_name         -> find_hook.pl
+  * Every recorded read_file/view_file, find_by_name, and grep_search call is replayed
+    through the ACTUAL PreToolUse hooks of this checkout (`read_hook.pl`, `find_hook.pl`,
+    `grep_hook.pl`). Shell commands are left untouched.
   * Saved tool-result bytes are converted to tokens (4 B/token) and removed from the context of
     every later turn (first as uncached input, afterwards as cache read) until the next
     context compaction (CHECKPOINT / >40% context drop). Denials that force a retry are charged
     an extra small turn (0.05x context + 150 output tokens).
-  * Quota weights are identical to core.py: 1x uncached input, 0.05x cache read, 6x output.
+  * Cost proxy weights match core.py: 1x uncached input, 0.05x cache read, 6x output.
 
 The same adjusted turn tuples are then fed to core._simulate_rollover_session to report the
-combined "hooks + Auto-Handoff" figure.
+combined "Guards + Auto-Handoff" figure.
 
 Usage:
   python3 scripts/transcript_replay.py              # table
@@ -144,30 +139,7 @@ def replay_session(sess: dict, tmp: Path, perl_env: dict) -> dict:
                 cat_n[tag] += 1
             continue
         if name in ("run_command", "shell_exec"):
-            cmd = str(args.get("CommandLine") or args.get("command") or "")
-            if not cmd or "background task" in content[:300]:
-                continue
-            payload = {"toolInput": {"CommandLine": cmd, "Cwd": str(args.get("Cwd") or "")}}
-            _rc, out = _run_perl("cmd_hook.pl", payload, env)
-            try:
-                res = json.loads(out)
-            except Exception:
-                continue
-            ov = (res.get("overwrite") or {})
-            new_cmd = ov.get("CommandLine") or ov.get("command") or ""
-            m = re.search(r"cmd_wrap\.pl\S*\s+--cat\s+([A-Za-z0-9_]+)", new_cmd)
-            if not m:
-                continue
-            cat = m.group(1)
-            rcode, body = _cmd_output(content)
-            _r, wrapped = _run_perl("cmd_wrap.pl", {}, env, stdin_text=body,
-                                    args=["--cat", cat, "--test-stdin", "--test-rc", str(rcode)])
-            before = _b(body)
-            after = _b(wrapped) + NOTICE_BYTES
-            d = before - after
-            saved_by_turn[k] += d
-            cats[f"cmd:{cat}"] += d
-            cat_n[f"cmd:{cat}"] += 1
+            # Shell commands are not modified or wrapped by token-saver.
             continue
         if replay_ext is not None and hasattr(replay_ext, "handle"):
             try:
@@ -267,12 +239,12 @@ def _percentile(sorted_vals: list[float], p: float) -> float:
 
 def _classify_session_type(sess: dict, cat_n: collections.Counter, tool_bytes: int) -> str:
     """Classify a session as test-heavy, log-heavy, or plain-editing."""
-    n_test = sum(cat_n.get(k, 0) for k in ("test", "build", "lint", "pkg", "chain"))
-    n_log = sum(cat_n.get(k, 0) for k in ("logs", "ssh", "http", "cloud", "k8s_yaml", "search", "cat_large", "table", "ps", "spillback_log"))
-    n_cmd = sum(1 for e in sess["events"] if e["name"] in ("run_command", "shell_exec"))
-    if n_test >= 3 or (n_cmd >= 4 and n_test / max(1, n_cmd) >= 0.35):
+    cmds = [str(e["args"].get("CommandLine") or e["args"].get("command") or "") for e in sess["events"] if e["name"] in ("run_command", "shell_exec")]
+    n_test = sum(1 for c in cmds if re.search(r"\b(?:pytest|unittest|vitest|jest|cargo\s+test|go\s+test|npm\s+test|pnpm\s+test)\b", c))
+    n_log = sum(1 for c in cmds if re.search(r"\b(?:journalctl|kubectl\s+logs|docker\s+logs|tail|ssh|curl)\b", c)) + cat_n.get("read:cap", 0)
+    if n_test >= 3 or (len(cmds) >= 4 and n_test / max(1, len(cmds)) >= 0.35):
         return "test-heavy"
-    if n_log >= 3 or (n_cmd >= 4 and n_log / max(1, n_cmd) >= 0.35) or tool_bytes >= 120_000:
+    if n_log >= 3 or (len(cmds) >= 4 and n_log / max(1, len(cmds)) >= 0.35) or tool_bytes >= 120_000:
         return "log-heavy"
     return "plain-editing"
 

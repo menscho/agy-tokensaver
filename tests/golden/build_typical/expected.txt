@@ -1,8 +1,0 @@
-src/app.ts:1:12 - error TS2322: Type 'string' is not assignable to type 'number'.
-src/app.ts:2:12 - error TS2322: Type 'string' is not assignable to type 'number'.
-src/app.ts:3:12 - error TS2322: Type 'string' is not assignable to type 'number'.
-src/app.ts:4:12 - error TS2322: Type 'string' is not assignable to type 'number'.
-Found 89 errors in 1 file.
---- Repeated compiler errors collapsed ---
-  (+85 more) src/app.ts:L - error TS2322: Type 'string' is not assignable to type 'number'.
-[90L->7L; full: <SPILL_DIR>/4d83c684d72b.log]

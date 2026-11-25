@@ -1,6 +1,0 @@
-{
-  "cat": "git_diff",
-  "rc": 0,
-  "expect_spill": true,
-  "must_contain": "ERROR: BURIED_MUST_KEEP_GIT_DIFF"
-}

@@ -45,17 +45,20 @@ def _atomic_write_json(path: Path, obj: Any) -> None:
 
 
 _PROFILE_PRESETS: dict[str, dict[str, Any]] = {
-    "small_loss":         {"mode": "smart_auto",   "auto_rollover": True, "compact_reads": True,  "concise_output": True},
+    "auto_handoff":       {"mode": "smart_auto",   "auto_rollover": True, "compact_reads": False, "concise_output": False},
     "handoff_only":       {"mode": "smart_auto",   "auto_rollover": True, "compact_reads": True,  "concise_output": False},
-    "concise_no_handoff": {"mode": "prepare_only", "auto_rollover": True, "compact_reads": True,  "concise_output": True},
-    "compact_reads":      {"mode": "prepare_only", "auto_rollover": True, "compact_reads": True,  "concise_output": False},
+    "small_loss":         {"mode": "smart_auto",   "auto_rollover": True, "compact_reads": True,  "concise_output": True},
     "zero_loss":          {"mode": "prepare_only", "auto_rollover": True, "compact_reads": False, "concise_output": False},
+    "compact_reads":      {"mode": "prepare_only", "auto_rollover": True, "compact_reads": True,  "concise_output": False},
+    "concise_no_handoff": {"mode": "prepare_only", "auto_rollover": True, "compact_reads": True,  "concise_output": True},
 }
 
 
 def _infer_profile(mode: str, compact_reads: bool, concise_output: bool) -> str:
     if mode == "smart_auto":
-        return "small_loss" if concise_output else "handoff_only"
+        if concise_output:
+            return "small_loss"
+        return "handoff_only" if compact_reads else "auto_handoff"
     if concise_output:
         return "concise_no_handoff"
     if compact_reads:
@@ -65,9 +68,9 @@ def _infer_profile(mode: str, compact_reads: bool, concise_output: bool) -> str:
 
 def load_config() -> dict[str, Any]:
     default = {
-        "profile": "zero_loss",        # "zero_loss" (Mode 1, 0% loss default) | "compact_reads" (2a) | "concise_no_handoff" (2b) | "handoff_only" (2c) | "small_loss" (Mode 2 Max)
+        "profile": "auto_handoff",     # "auto_handoff" (Default: Auto-Handoff + Read/Write/Loop Guards, 0 passive prompt tax)
         "auto_rollover": True,
-        "mode": "prepare_only",        # "prepare_only" (safe default) | "smart_auto" | "off"
+        "mode": "smart_auto",          # "smart_auto" (Default) | "prepare_only" | "off"
         "threshold_mode": "auto",      # "auto" | "75" | "90" | "110" | "140" | "180"
         "threshold_k": 110,
         "model": "inherit",
@@ -83,9 +86,9 @@ def load_config() -> dict[str, Any]:
         d = json.loads(CFG_FILE.read_text(encoding="utf-8"))
         if isinstance(d, dict):
             auto_on = bool(d.get("auto_rollover", True))
-            mode = str(d.get("mode") or ("prepare_only" if auto_on else "off"))
+            mode = str(d.get("mode") or ("smart_auto" if auto_on else "off"))
             if mode not in ("smart_auto", "prepare_only", "off"):
-                mode = "prepare_only" if auto_on else "off"
+                mode = "smart_auto" if auto_on else "off"
             compact_reads = bool(d.get("compact_reads", False))
             concise_output = bool(d.get("concise_output", False))
             profile = str(d.get("profile") or _infer_profile(mode, compact_reads, concise_output))
@@ -119,17 +122,24 @@ def save_config(patch: dict[str, Any]) -> dict[str, Any]:
         merged = {**cur, **patch}
         if "profile" in patch:
             prof = str(patch["profile"])
-            if prof not in _PROFILE_PRESETS:
-                prof = "small_loss"
-            merged["profile"] = prof
-            merged.update(_PROFILE_PRESETS[prof])
+            if prof == "off":
+                merged["mode"] = "off"
+                merged["auto_rollover"] = False
+                merged["compact_reads"] = False
+                merged["concise_output"] = False
+                merged["profile"] = "zero_loss"
+            else:
+                if prof not in _PROFILE_PRESETS:
+                    prof = "auto_handoff"
+                merged["profile"] = prof
+                merged.update(_PROFILE_PRESETS[prof])
         elif "mode" in patch:
             mode = str(patch["mode"])
             if mode not in ("smart_auto", "prepare_only", "off"):
                 mode = "smart_auto"
             merged["mode"] = mode
             merged["auto_rollover"] = mode != "off"
-            merged["profile"] = _infer_profile(mode, bool(merged.get("compact_reads", True)), bool(merged.get("concise_output", True)))
+            merged["profile"] = _infer_profile(mode, bool(merged.get("compact_reads", False)), bool(merged.get("concise_output", False)))
         elif "auto_rollover" in patch:
             on = bool(patch["auto_rollover"])
             merged["auto_rollover"] = on
@@ -154,7 +164,7 @@ def save_config(patch: dict[str, Any]) -> dict[str, Any]:
             defer_sync = True
 
         clean = {
-            "profile": merged.get("profile", "zero_loss"),
+            "profile": merged.get("profile", "auto_handoff"),
             "auto_rollover": bool(merged["auto_rollover"]),
             "mode": merged["mode"],
             "threshold_mode": merged["threshold_mode"],
