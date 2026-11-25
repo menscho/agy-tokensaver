@@ -2,6 +2,11 @@
 
 All notable changes to **agy-tokensaver** (`menscho/agy-tokensaver`) are documented here.
 
+## [1.3.1] — 2026-11-25
+
+### Fixed
+- **Windows Git Bash CI test suites:** Converted `mktemp -d` temporary directories via `cygpath -m` in `tests/run_tests.sh`, `tests/test_read.sh`, `tests/test_headroom_plexer.sh`, and `tests/test_json_parsing.sh` when running under native Windows Python (`os.name == "nt"`), so hook JSON inputs receive Windows-readable paths instead of MSYS `/tmp/...` paths.
+
 ## [1.3.0] — 2026-11-25
 
 ### Changed

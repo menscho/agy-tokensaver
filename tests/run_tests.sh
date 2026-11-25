@@ -5,7 +5,9 @@ set -u
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 S="$ROOT/scripts"
 PY="$(command -v python3 || command -v python)"
-T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
+T="$(mktemp -d)"
+if command -v cygpath >/dev/null 2>&1 && "$PY" -c 'import os,sys; sys.exit(0 if os.name=="nt" else 1)'; then T="$(cygpath -m "$T")"; fi
+trap 'rm -rf "$T"' EXIT
 export PLUGIN_DATA="$T/pdata"; mkdir -p "$PLUGIN_DATA"   # never pollute real telemetry
 PASS=0; FAIL=0
 
