@@ -2,6 +2,17 @@
 
 All notable changes to **agy-tokensaver** (`menscho/agy-tokensaver`) are documented here.
 
+## [1.2.4] — 2026-11-25
+
+### Changed
+- **Focused around Auto-Handoff and Read Guards (`mcp_app/config.py`, `hooks.json`):** set **Auto-Handoff + Read Guards** (`smart_auto`) as the default mode (`19.4% lower cost` average across `79` replayed sessions, `25.3%` at p90), removed the `run_command` shell wrapper layer (`cmd_hook.pl`, `cmd_wrap.pl`, `scripts/compressors/*`, `tests/golden/*`), and left shell commands untouched.
+- **Zero default prompt overhead (`0 tokens/turn`):** removed always-loaded default `rules/AGENTS.md`, bundled plugin subagents (`agents/*.md`), and auto-invoked workflow skills (`skills/lean-workflow`, `skills/swarm-prep`), eliminating short-session overhead regressions (`1/79` regressed vs `43/79` before). Opt-in concise reply rules (`rules_sync.py`) are created only when enabled in **Max** mode.
+- **Documentation & README clarity (`README.md`, `docs/*.md`, `SECURITY.md`):** removed unused community templates (`CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `.github/ISSUE_TEMPLATE/`), updated install/docs to plain English with clear cost savings framing, and kept `eval/results/live_eval.json` as primary evidence.
+
+### Added & Fixed
+- **Live Antigravity & Handoff Continuity Evaluation (`eval/runner.py`, `eval/tasks.json`, `eval/results/live_eval.json`):** added `--driver antigravity` (`ConversationService`) and 4 multi-step continuity tasks (`H01`–`H04`) testing Phase 1 -> `handoff_pack.py` -> fresh Phase 2 chat resumption. Across **90 live runs** (`10 tasks × 3 runs × 3 modes` on `flash`), `off`, `default`, and `max` all passed **30/30 (`100%`, 95% CI `88.6–100.0%`)** with `0` retries; `max` cut standard-task tokens by **`9.8%`** (`-16.8%` output tokens).
+- **Safer `.log` reads & hook kill switch (`scripts/read_hook.pl`, `scripts/lib/TsJson.pm`):** kept `.log`/`.out`/`.err` files `<= 46 KB` uncapped so mid-file errors are never hidden by blind tail-cropping (`100.0%` signal retention across all 34 tasks in `hook-replay`), and wired `"mode": "off"` / `AGY_TS_HOOKS=off` kill-switch checks across all remaining Perl hooks.
+
 ## [1.2.3] — 2026-11-24
 
 ### Fixed
