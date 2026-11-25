@@ -419,6 +419,32 @@ class TestMcpAppModules(unittest.TestCase):
         assert rec_ok is not None
         self.assertTrue(rec_ok["passed"])
 
+        # Mocked antigravity ConversationService 2-phase handoff continuity task
+        ho_task = next(t for t in eval_runner.load_tasks() if t["id"] == "H01-handoff-partial-py")
+
+        def _fake_conv(title: str, prompt: str, model: str = "flash", poll_timeout: int = 150) -> tuple[str, dict[str, Any]]:
+            # Phase 2 prompt embeds packet; parse workspace path and apply reference fix cleanly
+            import re as _re
+            m = _re.search(r"directory `([^`]+)`", prompt)
+            assert m, prompt
+            if "Step 2" in prompt:
+                eval_runner.apply_reference(ho_task, Path(m.group(1)))
+            return "cid-mock-" + ("1" if "Step 1" in prompt else "2"), {
+                "cid": "cid-mock", "input_tokens": 500, "cache_read_tokens": 1000, "output_tokens": 120,
+                "turns": 3, "total_tokens": 1620, "cost_proxy": 1270.0, "retries": 0,
+            }
+
+        with mock.patch.object(eval_runner, "SCRATCH_EVAL_BASE", self.tmp / "scratch"), \
+             mock.patch.object(eval_runner, "_run_antigravity_conversation", side_effect=_fake_conv), \
+             mock.patch.object(eval_runner, "_build_handoff_packet", return_value="# Session Continuation Handoff\nLast state: fix clamp"), \
+             mock.patch.object(eval_runner, "_delete_conversation_quiet"):
+            rec_ho = eval_runner.run_live_task(ho_task, "default", 1, "antigravity", model="flash")
+        self.assertIsNotNone(rec_ho)
+        assert rec_ho is not None
+        self.assertTrue(rec_ho["passed"])
+        self.assertTrue(rec_ho["handoff_reset"])
+        self.assertEqual(rec_ho["total_tokens"], 3240)
+
         # Summarize flags >2pp drop cleanly with Wilson CI
         out_buf = io.StringIO()
         sample = {

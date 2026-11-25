@@ -2,25 +2,22 @@
 """
 Signal-retention & live task evaluation harness for agy-tokensaver.
 
-Supports three drivers (zero third-party dependencies):
-  1. --verify-fixtures : proves all 30 tasks fail on clean fixtures and pass after reference solutions.
-  2. --driver hook-replay : replays each task's tool calls through the real Perl hooks under each
-     mode (off, mode1, mode2a, mode2b, mode2c, max) N times. In `off`, tools receive the FULL
-     unmodified raw output (no truncation). Records `signal_retention` (whether required error
-     strings/symbols survive) plus tool tokens, cost proxy, retries, and wall time.
-     NOTE: hook-replay does NOT run an LLM or verify whether an agent solves the task.
-  3. --driver agy | manual : stages fresh temp repos and runs `verify_cmd` WITHOUT applying the
-     reference patch to measure real live agent pass rates (`eval/results/live_eval.json`).
-
-Usage:
-  python3 eval/runner.py --verify-fixtures
-  python3 eval/runner.py --driver hook-replay --runs 3 --out eval/results/hook_eval.json
-  python3 eval/runner.py --summarize eval/results/hook_eval.json
+Supports four drivers (zero third-party dependencies):
+  1. --verify-fixtures : proves every task fails cleanly on unpatched fixtures and passes after reference edits.
+  2. --driver hook-replay : deterministic replay of read_file calls through `read_hook.pl` across modes
+     (in `off`, unmodified full file content is delivered with zero truncation).
+  3. --driver antigravity : live end-to-end execution via Antigravity's local `ConversationService` HTTP+JSON
+     API (requires `ANTIGRAVITY_LS_ADDRESS` and `ANTIGRAVITY_CSRF_TOKEN`), testing BOTH:
+       - standard tasks (`T*`) under `off`, `default` (Auto-Handoff + Read Guards), `compact`, `max`
+       - multi-step handoff continuity tasks (`H*`) comparing single-session `off` vs Phase 1 -> `handoff_pack.py`
+         -> fresh Phase 2 conversation with zero Phase 1 history.
+  4. --driver agy | manual : CLI or interactive IDE walkthrough recording `eval/results/live_eval.json`.
 """
 
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import json
 import math
 import os
@@ -29,7 +26,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
+import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -38,33 +37,36 @@ ROOT = EVAL_DIR.parent
 SCRIPTS = ROOT / "scripts"
 FIXTURES = EVAL_DIR / "fixtures"
 TASKS_PATH = EVAL_DIR / "tasks.json"
+SCRATCH_EVAL_BASE = Path.home() / ".gemini" / "antigravity" / "scratch"
 
-MODES = ("off", "mode1", "mode2a", "mode2b", "mode2c", "max")
+MODES = ("off", "guards", "default", "compact", "max")
 MODE_ENV = {
-    "off": {"AGY_TS_SHELL": "off", "AGY_TS_COMPACT_READS": "0"},
-    "mode1": {"AGY_TS_SHELL": "posix", "AGY_TS_COMPACT_READS": "0"},
-    "mode2a": {"AGY_TS_SHELL": "posix", "AGY_TS_COMPACT_READS": "1"},
-    "mode2b": {"AGY_TS_SHELL": "posix", "AGY_TS_COMPACT_READS": "1"},
-    "mode2c": {"AGY_TS_SHELL": "posix", "AGY_TS_COMPACT_READS": "1"},
-    "max": {"AGY_TS_SHELL": "posix", "AGY_TS_COMPACT_READS": "1"},
+    "off": {"AGY_TS_HOOKS": "off", "AGY_TS_COMPACT_READS": "0"},
+    "guards": {"AGY_TS_HOOKS": "on", "AGY_TS_COMPACT_READS": "0"},
+    "default": {"AGY_TS_HOOKS": "on", "AGY_TS_COMPACT_READS": "0"},
+    "compact": {"AGY_TS_HOOKS": "on", "AGY_TS_COMPACT_READS": "1"},
+    "max": {"AGY_TS_HOOKS": "on", "AGY_TS_COMPACT_READS": "1"},
+    # Legacy aliases kept for CLI compatibility
+    "mode1": {"AGY_TS_HOOKS": "on", "AGY_TS_COMPACT_READS": "0"},
+    "mode2c": {"AGY_TS_HOOKS": "on", "AGY_TS_COMPACT_READS": "1"},
 }
-MODE_PROFILE = {
-    "off": {"mode": "off"},
-    "mode1": {"profile": "zero_loss"},
-    "mode2a": {"profile": "compact_reads"},
-    "mode2b": {"profile": "concise_no_handoff"},
-    "mode2c": {"profile": "handoff_only"},
+MODE_PROFILE: dict[str, dict[str, Any]] = {
+    "off": {"mode": "off", "auto_rollover": False, "compact_reads": False, "concise_output": False},
+    "guards": {"profile": "zero_loss"},
+    "default": {"profile": "auto_handoff"},
+    "compact": {"profile": "handoff_only"},
     "max": {"profile": "small_loss"},
+    "mode1": {"profile": "zero_loss"},
+    "mode2c": {"profile": "handoff_only"},
 }
 
 
-def load_tasks() -> list[dict]:
+def load_tasks() -> list[dict[str, Any]]:
     return json.loads(TASKS_PATH.read_text(encoding="utf-8"))
 
 
-def stage_fixture(task: dict, dst: Path) -> None:
+def stage_fixture(task: dict[str, Any], dst: Path, init_git: bool = False) -> None:
     shutil.copytree(FIXTURES / task["fixture"], dst)
-    # Materialize realistic noisy lockfile/log artifacts so tasks exercise hooks honestly
     if task["fixture"] == "node_api":
         entries = [f'    "node_modules/pkg-{i}": {{"version": "1.0.{i}", "integrity": "sha512-{"a"*64}"}}' for i in range(400)]
         (dst / "package-lock.json").write_text('{"lockfileVersion": 3, "packages": {\n' + ",\n".join(entries) + "\n}}\n", encoding="utf-8")
@@ -76,17 +78,23 @@ def stage_fixture(task: dict, dst: Path) -> None:
         logs_mod = importlib.import_module("logs")
         (dst / f"{task['service']}.log").write_text(logs_mod.generate_noisy_log(task["service"], 450), encoding="utf-8")
         sys.path.pop(0)
+    if init_git:
+        subprocess.run(["git", "init", "-q"], cwd=str(dst), check=False)
+        subprocess.run(["git", "config", "user.email", "eval@local"], cwd=str(dst), check=False)
+        subprocess.run(["git", "config", "user.name", "Eval"], cwd=str(dst), check=False)
+        subprocess.run(["git", "add", "-A"], cwd=str(dst), check=False)
+        subprocess.run(["git", "commit", "-q", "-m", "initial fixture"], cwd=str(dst), check=False)
 
 
-def run_verify(task: dict, workdir: Path) -> bool:
-    cmd = task["verify_cmd"]
+def run_verify(task: dict[str, Any], workdir: Path) -> bool:
+    cmd = str(task["verify_cmd"])
     if cmd.startswith("python3 "):
         cmd = f'"{sys.executable}" ' + cmd[len("python3 "):]
-    p = subprocess.run(cmd, shell=True, cwd=str(workdir), capture_output=True, text=True, timeout=15)
+    p = subprocess.run(cmd, shell=True, cwd=str(workdir), capture_output=True, text=True, timeout=20)
     return p.returncode == 0
 
 
-def apply_reference(task: dict, workdir: Path) -> None:
+def apply_reference(task: dict[str, Any], workdir: Path) -> None:
     if "reference_edit" in task:
         ed = task["reference_edit"]
         fp = workdir / ed["file"]
@@ -100,6 +108,9 @@ def apply_reference(task: dict, workdir: Path) -> None:
     elif "reference_write" in task:
         wr = task["reference_write"]
         (workdir / wr["file"]).write_text(wr["content"], encoding="utf-8")
+    if "extra_reference_write" in task:
+        ewr = task["extra_reference_write"]
+        (workdir / ewr["file"]).write_text(ewr["content"], encoding="utf-8")
 
 
 def verify_fixtures() -> int:
@@ -109,13 +120,11 @@ def verify_fixtures() -> int:
         with tempfile.TemporaryDirectory(prefix="agy-eval-vf-") as td:
             wd = Path(td) / "repo"
             stage_fixture(t, wd)
-            before = run_verify(t, wd)
-            if before:
+            if run_verify(t, wd):
                 print(f"FAIL: {t['id']} passed BEFORE applying fix!")
                 return 1
             apply_reference(t, wd)
-            after = run_verify(t, wd)
-            if not after:
+            if not run_verify(t, wd):
                 print(f"FAIL: {t['id']} failed AFTER applying reference fix!")
                 return 1
             ok += 1
@@ -123,14 +132,13 @@ def verify_fixtures() -> int:
     return 0
 
 
-def _call_read_hook(path: Path, cid: str, step: int, env: dict, start: int | None = None, end: int | None = None) -> tuple[str, int, int, bool]:
+def _call_read_hook(path: Path, cid: str, step: int, env: dict[str, str], start: int | None = None, end: int | None = None) -> tuple[str, int, int, bool]:
     """Run read_hook.pl (unless mode=='off') and return (delivered_text, tokens, retries, was_reread)."""
     raw_text = path.read_text(encoding="utf-8", errors="replace")
     lines = raw_text.splitlines()
-    if env.get("AGY_TS_SHELL") == "off":
-        # Full unmodified raw file content (no baseline truncation)
+    if env.get("AGY_TS_HOOKS") == "off":
         return raw_text, len(raw_text.encode("utf-8")) // 4, 0, False
-    ti: dict = {"Path": str(path)}
+    ti: dict[str, Any] = {"Path": str(path)}
     if start is not None:
         ti["StartLine"] = start
     if end is not None:
@@ -148,22 +156,7 @@ def _call_read_hook(path: Path, cid: str, step: int, env: dict, start: int | Non
     return sliced, len(sliced.encode("utf-8")) // 4, 0, False
 
 
-def _call_cmd_wrap(cat: str, raw_out: str, rc: int, env: dict) -> tuple[str, int]:
-    if env.get("AGY_TS_SHELL") == "off":
-        # Full unmodified command output (no baseline truncation)
-        return raw_out, len(raw_out.encode("utf-8")) // 4
-    p = subprocess.run(
-        ["perl", str(SCRIPTS / "cmd_wrap.pl"), "--cat", cat, "--test-stdin", "--test-rc", str(rc)],
-        input=raw_out.encode("utf-8"),
-        capture_output=True,
-        env=env,
-        timeout=10,
-    )
-    out = p.stdout.decode("utf-8", errors="replace")
-    return out, len(out.encode("utf-8")) // 4
-
-
-def run_hook_replay_task(task: dict, mode: str, run_idx: int) -> dict:
+def run_hook_replay_task(task: dict[str, Any], mode: str, run_idx: int) -> dict[str, Any]:
     """Deterministic tool-signal retention & token replay for one task in one mode (no LLM calls)."""
     t0 = time.perf_counter()
     with tempfile.TemporaryDirectory(prefix=f"agy-eval-{mode}-") as td:
@@ -175,36 +168,35 @@ def run_hook_replay_task(task: dict, mode: str, run_idx: int) -> dict:
             **MODE_ENV[mode],
             "PLUGIN_DATA": str(tmp / "data"),
             "PLUGIN_ROOT": str(ROOT),
-            "AGY_TS_SPILL_DIR": str(tmp / "spills"),
         }
         cid = f"eval-{mode}-{task['id']}-{run_idx}"
         visible_chunks: list[str] = []
-        tot_tok = 0
-        retries = 0
-        rereads = 0
+        tot_tok = retries = rereads = 0
 
         cat = task["category"]
-        if cat == "fix-failing-test":
-            # Real unmodified unittest output (no fake leading ok lines) + read calc.py
+        if cat in ("fix-failing-test", "handoff-continuity") and task["fixture"] == "py_calc":
             p = subprocess.run([sys.executable, "-m", "unittest", "-v", "test_calc.py"], cwd=str(wd), capture_output=True, text=True)
-            out, tk = _call_cmd_wrap("test", p.stdout + p.stderr, p.returncode or 1, env)
-            visible_chunks.append(out); tot_tok += tk
+            cmd_out = p.stdout + p.stderr
+            visible_chunks.append(cmd_out); tot_tok += len(cmd_out.encode("utf-8")) // 4
             txt, tk, ret, rr = _call_read_hook(wd / "calc.py", cid, 2, env)
             visible_chunks.append(txt); tot_tok += tk; retries += ret; rereads += int(rr)
-        elif cat in ("add-feature-and-test", "refactor"):
+        elif cat in ("add-feature-and-test", "refactor", "handoff-continuity"):
+            if task["fixture"] == "log_ops" and task.get("service"):
+                txt, tk, ret, rr = _call_read_hook(wd / f"{task['service']}.log", cid, 1, env)
+                visible_chunks.append(txt); tot_tok += tk; retries += ret; rereads += int(rr)
+            elif task["fixture"] == "node_api" and "package.json" in task.get("prompt", ""):
+                txt, tk, ret, rr = _call_read_hook(wd / "package.json", cid, 1, env)
+                visible_chunks.append(txt); tot_tok += tk; retries += ret; rereads += int(rr)
             target = "utils.js" if task["fixture"] == "node_api" else ("logs.py" if task["fixture"] == "log_ops" else "calc.py")
-            txt, tk, ret, rr = _call_read_hook(wd / target, cid, 1, env)
+            txt, tk, ret, rr = _call_read_hook(wd / target, cid, 2, env)
             visible_chunks.append(txt); tot_tok += tk; retries += ret; rereads += int(rr)
-            # Simulate duplicate re-read of the same file
-            txt2, tk2, ret2, rr2 = _call_read_hook(wd / target, cid, 3, env)
+            txt2, tk2, ret2, rr2 = _call_read_hook(wd / target, cid, 4, env)
             visible_chunks.append(txt2); tot_tok += tk2; retries += ret2; rereads += int(rr2)
         elif cat == "debug-from-log":
             log_file = wd / f"{task['service']}.log"
-            raw_log = log_file.read_text(encoding="utf-8")
-            out, tk = _call_cmd_wrap("logs", raw_log, 1, env)
-            visible_chunks.append(out); tot_tok += tk
+            txt, tk, ret, rr = _call_read_hook(log_file, cid, 1, env)
+            visible_chunks.append(txt); tot_tok += tk; retries += ret; rereads += int(rr)
         elif cat == "lockfile-dependency":
-            # Agent attempts unbounded read of package-lock.json first, then reads package.json
             txt_l, tk_l, ret_l, rr_l = _call_read_hook(wd / "package-lock.json", cid, 1, env)
             visible_chunks.append(txt_l); tot_tok += tk_l; retries += ret_l; rereads += int(rr_l)
             txt_p, tk_p, ret_p, rr_p = _call_read_hook(wd / "package.json", cid, 2, env)
@@ -213,7 +205,6 @@ def run_hook_replay_task(task: dict, mode: str, run_idx: int) -> dict:
         combined = "\n".join(visible_chunks)
         signal_retention = all(sig in combined for sig in task["required_signals"])
         wall_ms = round((time.perf_counter() - t0) * 1000.0, 2)
-        # Cost proxy: 1x uncached input + 5 warm cache turns (0.05x) + retry cost
         cost_proxy = round(tot_tok * (1.0 + 5 * 0.05) + retries * (150 * 6.0), 1)
         return {
             "task_id": task["id"],
@@ -239,15 +230,35 @@ def wilson_ci(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
     return (round(max(0.0, center - half) * 100.0, 1), round(min(1.0, center + half) * 100.0, 1))
 
 
-def _collect_live_session_metrics(t_start: float, t_end: float) -> tuple[int, float, int, str]:
-    """Find the Antigravity session updated during [t_start, t_end] and extract tokens/cost/retries."""
+def _session_metrics_by_id(cid: str) -> tuple[int, int, int, int, float, int]:
+    """Read (input_tokens, cache_read_tokens, output_tokens, turns, cost_proxy, retries) for exact conversation ID."""
+    if not cid:
+        return 0, 0, 0, 0, 0.0, 0
     sys.path.insert(0, str(SCRIPTS))
     sys.path.insert(0, str(ROOT / "mcp_app"))
     import replay_io
 
-    best_path: Path | None = None
+    for app in replay_io.APP_DIRS:
+        sess = replay_io.load_session(app, cid)
+        if not sess:
+            continue
+        turns = sess.get("turns") or []
+        inp = sum(a for a, _, _ in turns)
+        cr = sum(b for _, b, _ in turns)
+        out = sum(c for _, _, c in turns)
+        cproxy = round(sum(a * 1.0 + b * 0.05 + c * 6.0 for a, b, c in turns), 1)
+        retries = sum(1 for ev in (sess.get("events") or []) if "token-saver" in ev.get("content", "").lower() and ("blocked" in ev.get("content", "").lower() or "unchanged" in ev.get("content", "").lower()))
+        return inp, cr, out, len(turns), cproxy, retries
+    return 0, 0, 0, 0, 0.0, 0
+
+
+def _collect_live_session_metrics(t_start: float, t_end: float) -> tuple[int, float, int, str]:
+    """Find the Antigravity session updated during [t_start, t_end] and extract total tokens/cost/retries."""
+    sys.path.insert(0, str(SCRIPTS))
+    sys.path.insert(0, str(ROOT / "mcp_app"))
+    import replay_io
+
     best_mtime = 0.0
-    best_app: Path | None = None
     best_sid = ""
     for app in replay_io.APP_DIRS:
         brain = app / "brain"
@@ -260,88 +271,255 @@ def _collect_live_session_metrics(t_start: float, t_end: float) -> tuple[int, fl
                 continue
             if (t_start - 2.0) <= mt <= (t_end + 5.0) and mt >= best_mtime:
                 best_mtime = mt
-                best_path = p
-                best_app = app
                 best_sid = p.parent.parent.parent.name
-    if best_app is None or best_path is None:
+    if not best_sid:
         return 0, 0.0, 0, ""
-    sess = replay_io.load_session(best_app, best_sid)
-    if not sess:
-        return 0, 0.0, 0, best_sid
-    turns = sess.get("turns") or []
-    tot_tok = sum(a + b + c for a, b, c in turns)
-    cost_proxy = round(sum(a * 1.0 + b * 0.05 + c * 6.0 for a, b, c in turns), 1)
-    retries = sum(1 for ev in (sess.get("events") or []) if "already" in ev.get("content", "").lower() or "denied" in ev.get("content", "").lower())
-    return tot_tok, cost_proxy, retries, best_sid
+    inp, cr, out, _n, cproxy, retries = _session_metrics_by_id(best_sid)
+    return inp + cr + out, cproxy, retries, best_sid
 
 
-def _set_hud_mode(mode: str) -> dict[str, Any] | None:
-    """Switch active plugin HUD config to `mode`, returning prior config for restoration."""
+def _snapshot_hud_state() -> dict[str, Any]:
+    """Capture existing plugin HUD config, rules/AGENTS.md, and telemetry files once before live eval."""
     sys.path.insert(0, str(ROOT / "mcp_app"))
     import config
 
     prior = config.CFG_FILE.read_text(encoding="utf-8") if config.CFG_FILE.is_file() else None
+    agents_md = ROOT / "rules" / "AGENTS.md"
+    prior_rules = agents_md.read_text(encoding="utf-8") if agents_md.is_file() else None
+    micro_f = config.DATA_DIR / "microskills.json"
+    prior_micro = micro_f.read_bytes() if micro_f.is_file() else None
+    events_f = config.EVENTS_FILE
+    prior_events = events_f.read_bytes() if events_f.is_file() else None
+    return {
+        "prior_raw": prior, "cfg_file": config.CFG_FILE,
+        "prior_rules": prior_rules, "agents_md": agents_md,
+        "micro_f": micro_f, "prior_micro": prior_micro,
+        "events_f": events_f, "prior_events": prior_events,
+    }
+
+
+def _set_hud_mode(mode: str) -> dict[str, Any]:
+    """Switch active plugin HUD config + concise rule to `mode`, returning prior state."""
+    saved = _snapshot_hud_state()
+    import config
+
+    os.environ["AGY_TS_SYNC_RULES"] = "1"
     config.save_config(MODE_PROFILE[mode])
-    return {"prior_raw": prior, "cfg_file": config.CFG_FILE}
+    return saved
 
 
 def _restore_hud_mode(saved: dict[str, Any] | None) -> None:
     if not saved:
         return
-    cfg_file: Path = saved["cfg_file"]
-    prior_raw: str | None = saved["prior_raw"]
-    if prior_raw is None:
-        if cfg_file.is_file():
-            cfg_file.unlink()
-    else:
-        cfg_file.write_text(prior_raw, encoding="utf-8")
-
-
-def run_live_task(task: dict, mode: str, run_idx: int, driver: str, agy_cmd: str = "") -> dict | None:
-    """Stage a fresh temp repo, invoke live agent (`agy` or `manual`), and run `verify_cmd` WITHOUT applying reference_edit."""
-    with tempfile.TemporaryDirectory(prefix=f"agy-live-{mode}-") as td:
-        wd = Path(td) / "repo"
-        stage_fixture(task, wd)
-        env = {**os.environ, **MODE_ENV[mode], "PLUGIN_ROOT": str(ROOT)}
-        t_start_wall = time.time()
-        t0 = time.perf_counter()
-
-        if driver == "agy":
-            tmpl = agy_cmd or 'agy --cwd {workspace} {prompt}'
-            cmd_parts = [part.format(workspace=str(wd), prompt=task["prompt"]) for part in shlex.split(tmpl)]
-            subprocess.run(cmd_parts, cwd=str(wd), env=env, check=False, timeout=300)
+    os.environ.pop("AGY_TS_SYNC_RULES", None)
+    for key, fkey, is_bytes in (
+        ("prior_raw", "cfg_file", False),
+        ("prior_rules", "agents_md", False),
+        ("prior_micro", "micro_f", True),
+        ("prior_events", "events_f", True),
+    ):
+        fp: Path | None = saved.get(fkey)
+        if fp is None:
+            continue
+        prev = saved.get(key)
+        if prev is None:
+            if fp.is_file():
+                fp.unlink()
         else:
-            print(f"\n--- Live IDE Task [{mode} | run {run_idx}/{task['id']}] ---")
-            print(f"Workspace : {wd}")
-            print(f"Prompt    : {task['prompt']}")
-            ans = input("Press ENTER when Antigravity finishes ('s' to skip task, 'q' to abort): ").strip().lower()
-            if ans == "q":
-                raise KeyboardInterrupt("Aborted by user")
-            if ans == "s":
-                return None
-
-        wall_ms = round((time.perf_counter() - t0) * 1000.0, 2)
-        t_end_wall = time.time()
-        # Crucial: evaluate clean agent output WITHOUT applying reference patch
-        passed = run_verify(task, wd)
-        tot_tok, cost_proxy, retries, sid = _collect_live_session_metrics(t_start_wall, t_end_wall)
-        return {
-            "task_id": task["id"],
-            "category": task["category"],
-            "mode": mode,
-            "run": run_idx,
-            "passed": bool(passed),
-            "total_tokens": tot_tok,
-            "cost_proxy": cost_proxy,
-            "retries": retries,
-            "wall_ms": wall_ms,
-            "session_id": sid,
-        }
+            fp.parent.mkdir(parents=True, exist_ok=True)
+            if is_bytes:
+                fp.write_bytes(prev)
+            else:
+                fp.write_text(prev, encoding="utf-8")
 
 
-def summarize(data: dict) -> int:
+def _conv_rpc(method: str, body: dict[str, Any], timeout: int = 30) -> dict[str, Any]:
+    ls = os.environ.get("ANTIGRAVITY_LS_ADDRESS", "")
+    csrf = os.environ.get("ANTIGRAVITY_CSRF_TOKEN", "")
+    if not ls or not csrf:
+        raise RuntimeError("ANTIGRAVITY_LS_ADDRESS and ANTIGRAVITY_CSRF_TOKEN must be set for --driver antigravity")
+    req = urllib.request.Request(
+        f"http://{ls}/product.v1.ConversationService/{method}",
+        data=json.dumps(body).encode("utf-8"),
+        headers={"Content-Type": "application/json", "Connect-Protocol-Version": "1", "x-antigravity-csrf-token": csrf},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
+def _run_antigravity_conversation(title: str, prompt: str, model: str = "flash", poll_timeout: int = 150) -> tuple[str, dict[str, Any]]:
+    """Create a child Antigravity conversation, wait until RUN_STATE_IDLE, return (cid, metrics)."""
+    resp = _conv_rpc("CreateConversation", {"title": title, "model": model, "tags": ["ts-eval"], "prompt": [{"text": prompt}]})
+    cid = str((resp.get("conversation") or {}).get("id") or "")
+    if not cid:
+        raise RuntimeError(f"CreateConversation did not return id: {resp}")
+    t0 = time.monotonic()
+    saw_running = False
+    while (time.monotonic() - t0) < poll_timeout:
+        st = _conv_rpc("GetConversation", {"conversationId": cid})
+        run_state = str((st.get("state") or {}).get("runState") or "")
+        if run_state == "RUN_STATE_RUNNING":
+            saw_running = True
+        elif run_state == "RUN_STATE_IDLE" and (saw_running or (time.monotonic() - t0) >= 2.0):
+            break
+        elif run_state == "RUN_STATE_CANCELLING":
+            break
+        time.sleep(1.0)
+    # Wait briefly for transcript / DB token usage flush
+    inp = cr = out = turns = retries = 0
+    cproxy = 0.0
+    for _ in range(6):
+        inp, cr, out, turns, cproxy, retries = _session_metrics_by_id(cid)
+        if inp + cr + out > 0:
+            break
+        time.sleep(0.5)
+    return cid, {
+        "cid": cid, "input_tokens": inp, "cache_read_tokens": cr, "output_tokens": out,
+        "turns": turns, "total_tokens": inp + cr + out, "cost_proxy": cproxy, "retries": retries,
+    }
+
+
+def _delete_conversation_quiet(cid: str) -> None:
+    if not cid:
+        return
+    try:
+        _conv_rpc("DeleteConversation", {"conversationId": cid}, timeout=10)
+    except Exception:
+        pass
+    data_dir = Path.home() / ".gemini" / "antigravity" / "plugin_data" / "token-saver"
+    for sub in ("reads", "alerts"):
+        d = data_dir / sub
+        if d.is_dir():
+            for fp in d.glob(f"{cid}*"):
+                try:
+                    fp.unlink()
+                except OSError:
+                    pass
+
+
+def _build_handoff_packet(wd: Path, cid: str) -> str:
+    env = {**os.environ, "PLUGIN_DATA": str(wd.parent / "_ho_data")}
+    p = subprocess.run(
+        [sys.executable, str(SCRIPTS / "handoff_pack.py"), str(wd), "--conversation-id", cid, "--no-save"],
+        capture_output=True, text=True, timeout=15, env=env,
+    )
+    return p.stdout.strip()
+
+
+def run_live_task(task: dict[str, Any], mode: str, run_idx: int, driver: str, agy_cmd: str = "", model: str = "flash") -> dict[str, Any] | None:
+    """Stage a fresh temp repo, invoke live agent, and run `verify_cmd` WITHOUT applying reference_edit."""
+    is_handoff = bool(task.get("handoff_phase1_prompt") and task.get("handoff_phase2_prompt"))
+    use_scratch = driver == "antigravity"
+    if use_scratch:
+        SCRATCH_EVAL_BASE.mkdir(parents=True, exist_ok=True)
+        td_ctx: Any = tempfile.TemporaryDirectory(prefix=f"agy-eval-{mode}-{task['id'][:8]}-", dir=str(SCRATCH_EVAL_BASE))
+    else:
+        td_ctx = tempfile.TemporaryDirectory(prefix=f"agy-live-{mode}-")
+
+    created_cids: list[str] = []
+    try:
+        with td_ctx as td:
+            wd = Path(td) / "repo"
+            stage_fixture(task, wd, init_git=is_handoff)
+            env = {**os.environ, **MODE_ENV.get(mode, {}), "PLUGIN_ROOT": str(ROOT)}
+            t_start_wall = time.time()
+            t0 = time.perf_counter()
+            ws_scope = (
+                f"Work ONLY inside the workspace directory `{wd}` using absolute paths under `{wd}` "
+                f"(and Cwd `{wd}` for any commands). Stay strictly inside `{wd}`.\n\n"
+            )
+
+            extra: dict[str, Any] = {}
+            if driver == "antigravity":
+                if is_handoff and mode != "off":
+                    cid_a, m_a = _run_antigravity_conversation(
+                        f"eval-{mode}-{task['id']}-p1",
+                        ws_scope + str(task["handoff_phase1_prompt"]),
+                        model=model,
+                    )
+                    created_cids.append(cid_a)
+                    packet = _build_handoff_packet(wd, cid_a)
+                    cid_b, m_b = _run_antigravity_conversation(
+                        f"eval-{mode}-{task['id']}-p2",
+                        f"{packet}\n\n---\n{ws_scope}{task['handoff_phase2_prompt']}",
+                        model=model,
+                    )
+                    created_cids.append(cid_b)
+                    inp = m_a["input_tokens"] + m_b["input_tokens"]
+                    cr = m_a["cache_read_tokens"] + m_b["cache_read_tokens"]
+                    out = m_a["output_tokens"] + m_b["output_tokens"]
+                    tot_tok = inp + cr + out
+                    cost_proxy = round(m_a["cost_proxy"] + m_b["cost_proxy"], 1)
+                    retries = m_a["retries"] + m_b["retries"]
+                    sid = f"{cid_a[:8]}->{cid_b[:8]}"
+                    extra = {
+                        "handoff_reset": True,
+                        "handoff_packet_tokens": len(packet.encode("utf-8")) // 4,
+                        "phase1_tokens": m_a["total_tokens"],
+                        "phase2_tokens": m_b["total_tokens"],
+                        "input_tokens": inp, "cache_read_tokens": cr, "output_tokens": out,
+                        "turns": m_a["turns"] + m_b["turns"],
+                    }
+                else:
+                    cid, m = _run_antigravity_conversation(
+                        f"eval-{mode}-{task['id']}",
+                        ws_scope + str(task["prompt"]),
+                        model=model,
+                    )
+                    created_cids.append(cid)
+                    tot_tok = m["total_tokens"]
+                    cost_proxy = m["cost_proxy"]
+                    retries = m["retries"]
+                    sid = cid[:8]
+                    extra = {
+                        "handoff_reset": False,
+                        "input_tokens": m["input_tokens"],
+                        "cache_read_tokens": m["cache_read_tokens"],
+                        "output_tokens": m["output_tokens"],
+                        "turns": m["turns"],
+                    }
+            elif driver == "agy":
+                tmpl = agy_cmd or 'agy --cwd {workspace} {prompt}'
+                cmd_parts = [part.format(workspace=str(wd), prompt=task["prompt"]) for part in shlex.split(tmpl)]
+                subprocess.run(cmd_parts, cwd=str(wd), env=env, check=False, timeout=300)
+                t_end_wall = time.time()
+                tot_tok, cost_proxy, retries, sid = _collect_live_session_metrics(t_start_wall, t_end_wall)
+            else:
+                print(f"\n--- Live IDE Task [{mode} | run {run_idx}/{task['id']}] ---")
+                print(f"Workspace : {wd}")
+                print(f"Prompt    : {task['prompt']}")
+                ans = input("Press ENTER when Antigravity finishes ('s' to skip task, 'q' to abort): ").strip().lower()
+                if ans == "q":
+                    raise KeyboardInterrupt("Aborted by user")
+                if ans == "s":
+                    return None
+                t_end_wall = time.time()
+                tot_tok, cost_proxy, retries, sid = _collect_live_session_metrics(t_start_wall, t_end_wall)
+
+            wall_ms = round((time.perf_counter() - t0) * 1000.0, 2)
+            passed = run_verify(task, wd)
+            return {
+                "task_id": task["id"],
+                "category": task["category"],
+                "mode": mode,
+                "run": run_idx,
+                "passed": bool(passed),
+                "total_tokens": tot_tok,
+                "cost_proxy": cost_proxy,
+                "retries": retries,
+                "wall_ms": wall_ms,
+                "session_id": sid,
+                **extra,
+            }
+    finally:
+        for cid in created_cids:
+            _delete_conversation_quiet(cid)
+
+
+def summarize(data: dict[str, Any]) -> int:
     records = data.get("records", [])
-    by_mode: dict[str, list[dict]] = {}
+    by_mode: dict[str, list[dict[str, Any]]] = {}
     for r in records:
         by_mode.setdefault(r["mode"], []).append(r)
 
@@ -349,7 +527,7 @@ def summarize(data: dict) -> int:
     metric_key = "signal_retention" if is_signal else "passed"
     metric_hdr = "Signal Ret" if is_signal else "Pass Rate"
 
-    def _hit(rec: dict) -> bool:
+    def _hit(rec: dict[str, Any]) -> bool:
         if metric_key in rec:
             return bool(rec[metric_key])
         return bool(rec.get("passed", rec.get("signal_retention", False)))
@@ -357,11 +535,13 @@ def summarize(data: dict) -> int:
     off_recs = by_mode.get("off", [])
     off_rate = (sum(1 for r in off_recs if _hit(r)) / len(off_recs) * 100.0) if off_recs else 100.0
     off_tok = sum(r.get("total_tokens", 0) for r in off_recs)
+    off_cproxy = sum(float(r.get("cost_proxy", 0.0)) for r in off_recs)
 
-    print(f"=== Eval Summary (driver={data.get('driver')}, tasks={data.get('n_tasks')}, runs={data.get('runs')}) ===\n")
-    print(f"| {'Mode':8s} | {metric_hdr:10s} | {'95% CI':13s} | {'Min..Max':11s} | {'Tokens':>9s} | {'Tok Delta':>9s} | {'CostProxy':>9s} | {'Retries':>7s} | {'Flag':12s} |")
-    print(f"| {'-'*8} | {'-'*10} | {'-'*13} | {'-'*11} | {'-'*9} | {'-'*9} | {'-'*9} | {'-'*7} | {'-'*12} |")
-    for m in MODES:
+    ordered_modes = list(MODES) + [m for m in by_mode if m not in MODES]
+    print(f"=== Eval Summary (driver={data.get('driver')}, model={data.get('model', 'n/a')}, tasks={data.get('n_tasks')}, runs={data.get('runs')}) ===\n")
+    print(f"| {'Mode':8s} | {metric_hdr:10s} | {'95% CI':13s} | {'Min..Max':11s} | {'Tokens':>9s} | {'Tok Delta':>9s} | {'CostProxy':>9s} | {'CostDelta':>9s} | {'Retries':>7s} | {'Flag':12s} |")
+    print(f"| {'-'*8} | {'-'*10} | {'-'*13} | {'-'*11} | {'-'*9} | {'-'*9} | {'-'*9} | {'-'*9} | {'-'*7} | {'-'*12} |")
+    for m in ordered_modes:
         recs = by_mode.get(m, [])
         if not recs:
             continue
@@ -377,19 +557,44 @@ def summarize(data: dict) -> int:
         toks = sum(r.get("total_tokens", 0) for r in recs)
         tdelta = ((toks / off_tok) - 1.0) * 100.0 if off_tok else 0.0
         cproxy = sum(float(r.get("cost_proxy", 0.0)) for r in recs)
+        cdelta = ((cproxy / off_cproxy) - 1.0) * 100.0 if off_cproxy else 0.0
         rets = sum(r.get("retries", 0) for r in recs)
         flag = "LOSS >2pp" if (m != "off" and (off_rate - pr) > 2.0) else "OK"
-        print(f"| {m:8s} | {pr:8.1f}%  | {lo:5.1f}..{hi:5.1f}% | {rmin:4.0f}..{rmax:4.0f}%  | {toks:9,d} | {tdelta:+8.1f}% | {cproxy:9,.0f} | {rets:7d} | {flag:12s} |")
+        print(f"| {m:8s} | {pr:8.1f}%  | {lo:5.1f}..{hi:5.1f}% | {rmin:4.0f}..{rmax:4.0f}%  | {toks:9,d} | {tdelta:+8.1f}% | {cproxy:9,.0f} | {cdelta:+8.1f}% | {rets:7d} | {flag:12s} |")
+
+    ho_recs = [r for r in records if r.get("category") == "handoff-continuity"]
+    std_recs = [r for r in records if r.get("category") != "handoff-continuity"]
+    if ho_recs and std_recs and not is_signal:
+        for sub_name, sub_list in (("Standard Tasks (T*)", std_recs), ("Auto-Handoff Continuity (H*)", ho_recs)):
+            print(f"\n--- {sub_name} ---")
+            sub_by: dict[str, list[dict[str, Any]]] = {}
+            for r in sub_list:
+                sub_by.setdefault(r["mode"], []).append(r)
+            for m in ordered_modes:
+                sr = sub_by.get(m, [])
+                if not sr:
+                    continue
+                k = sum(1 for r in sr if _hit(r))
+                n = len(sr)
+                lo, hi = wilson_ci(k, n)
+                tk = sum(r.get("total_tokens", 0) for r in sr)
+                cp = sum(float(r.get("cost_proxy", 0.0)) for r in sr)
+                out_tk = sum(r.get("output_tokens", 0) for r in sr)
+                pkt = [int(r["handoff_packet_tokens"]) for r in sr if r.get("handoff_packet_tokens")]
+                pkt_note = f" | pkt={sum(pkt)//len(pkt)} tok" if pkt else ""
+                print(f"  {m:8s}: {k}/{n} ({k/n*100:.1f}%, CI {lo}..{hi}%) | tok={tk:,} | out={out_tk:,} | cost={cp:,.0f}{pkt_note}")
     return 0
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--verify-fixtures", action="store_true", help="Verify all 30 tasks fail before fix and pass after reference fix")
-    ap.add_argument("--driver", choices=("hook-replay", "agy", "manual"), default="hook-replay")
-    ap.add_argument("--modes", default=",".join(MODES), help="Comma-separated modes to run")
-    ap.add_argument("--tasks", default=None, help="Optional comma-separated task ID prefixes, e.g. T01,T02")
+    ap.add_argument("--verify-fixtures", action="store_true", help="Verify all tasks fail before fix and pass after reference fix")
+    ap.add_argument("--driver", choices=("hook-replay", "antigravity", "agy", "manual"), default="hook-replay")
+    ap.add_argument("--modes", default="off,default,compact,max", help="Comma-separated modes to run")
+    ap.add_argument("--tasks", default=None, help="Optional comma-separated task ID prefixes, e.g. T01,H01")
     ap.add_argument("--runs", type=int, default=3, help="Repetitions per (task, mode), default 3")
+    ap.add_argument("--workers", type=int, default=1, help="Parallel worker threads per mode for --driver antigravity")
+    ap.add_argument("--model", default="flash", help="Model for --driver antigravity (default: flash)")
     ap.add_argument("--agy-cmd", default="", help="Override headless agy command template with {workspace} and {prompt}")
     ap.add_argument("--out", default=None, help="Output JSON path (defaults to eval/results/hook_eval.json or live_eval.json)")
     ap.add_argument("--summarize", default=None, help="Summarize an existing results JSON file")
@@ -404,27 +609,59 @@ def main() -> int:
     if a.tasks:
         prefixes = [p.strip() for p in a.tasks.split(",") if p.strip()]
         tasks = [t for t in tasks if any(t["id"].startswith(p) for p in prefixes)]
-    sel_modes = [m.strip() for m in a.modes.split(",") if m.strip() in MODES]
+    sel_modes = [m.strip() for m in a.modes.split(",") if m.strip() in MODE_PROFILE]
     out_path = Path(a.out) if a.out else (EVAL_DIR / "results" / ("hook_eval.json" if a.driver == "hook-replay" else "live_eval.json"))
 
     if a.driver == "agy" and not a.agy_cmd and not shutil.which("agy"):
-        print("ERROR: `agy` CLI not found on PATH. Use `--driver manual` for IDE evaluation or `--driver hook-replay` for signal-retention checks.", file=sys.stderr)
+        print("ERROR: `agy` CLI not found on PATH. Use `--driver antigravity`, `--driver manual`, or `--driver hook-replay`.", file=sys.stderr)
+        return 2
+    if a.driver == "antigravity" and (not os.environ.get("ANTIGRAVITY_LS_ADDRESS") or not os.environ.get("ANTIGRAVITY_CSRF_TOKEN")):
+        print("ERROR: ANTIGRAVITY_LS_ADDRESS and ANTIGRAVITY_CSRF_TOKEN must be set for `--driver antigravity`.", file=sys.stderr)
         return 2
 
-    records: list[dict] = []
-    if a.driver in ("agy", "manual"):
-        saved_cfg = None
+    records: list[dict[str, Any]] = []
+    rec_lock = threading.Lock()
+    if a.driver in ("antigravity", "agy", "manual"):
+        saved_cfg = _snapshot_hud_state() if a.driver in ("antigravity", "agy") else None
         try:
             for mode in sel_modes:
-                if a.driver == "agy":
-                    saved_cfg = _set_hud_mode(mode)
+                if a.driver in ("antigravity", "agy"):
+                    _set_hud_mode(mode)
                 else:
-                    input(f"\nSwitch Token Saver HUD to '{mode}' (or disable plugin for 'off'), then press ENTER to begin {mode}...")
-                for run_idx in range(1, a.runs + 1):
-                    for task in tasks:
-                        rec = run_live_task(task, mode, run_idx, a.driver, agy_cmd=a.agy_cmd)
+                    input(f"\nSwitch Token Saver HUD to '{mode}', then press ENTER to begin {mode}...")
+                if a.driver == "antigravity" and a.workers > 1:
+                    jobs = [(run_idx, task) for run_idx in range(1, a.runs + 1) for task in tasks]
+
+                    def _exec_job(job: tuple[int, dict[str, Any]]) -> dict[str, Any] | None:
+                        r_idx, t_obj = job
+                        try:
+                            rec = run_live_task(t_obj, mode, r_idx, a.driver, agy_cmd=a.agy_cmd, model=a.model)
+                        except Exception as exc:
+                            with rec_lock:
+                                print(f"[{a.driver}] mode={mode} run={r_idx} task={t_obj['id']} ERROR: {exc}", flush=True)
+                            return None
                         if rec is not None:
-                            records.append(rec)
+                            with rec_lock:
+                                print(f"[{a.driver}] mode={mode} run={r_idx} task={t_obj['id']} -> passed={rec['passed']} tok={rec['total_tokens']} cost={rec['cost_proxy']} wall={rec['wall_ms']}ms", flush=True)
+                        return rec
+
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=a.workers) as pool:
+                        futs = []
+                        for j in jobs:
+                            futs.append(pool.submit(_exec_job, j))
+                            time.sleep(0.15)
+                        for fut in concurrent.futures.as_completed(futs):
+                            rec = fut.result()
+                            if rec is not None:
+                                records.append(rec)
+                else:
+                    for run_idx in range(1, a.runs + 1):
+                        for task in tasks:
+                            print(f"[{a.driver}] mode={mode} run={run_idx}/{a.runs} task={task['id']} ...", flush=True)
+                            rec = run_live_task(task, mode, run_idx, a.driver, agy_cmd=a.agy_cmd, model=a.model)
+                            if rec is not None:
+                                print(f"  -> passed={rec['passed']} tok={rec['total_tokens']} cost={rec['cost_proxy']} wall={rec['wall_ms']}ms", flush=True)
+                                records.append(rec)
         except KeyboardInterrupt:
             print("\nStopped early; saving completed records.")
         finally:
@@ -439,6 +676,7 @@ def main() -> int:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "driver": a.driver,
+        "model": a.model if a.driver == "antigravity" else ("hooks" if a.driver == "hook-replay" else "manual"),
         "n_tasks": len(tasks),
         "runs": a.runs,
         "modes": sel_modes,

@@ -460,5 +460,84 @@
       "zod",
       "pino"
     ]
+  },
+  {
+    "id": "H01-handoff-partial-py",
+    "category": "handoff-continuity",
+    "fixture": "py_calc",
+    "prompt": "Fix two bugs in calc.py: (1) make divide(a, b) raise ValueError on b == 0, and (2) fix the inverted bounds check in clamp(val, lo, hi). Confirm test_divide_zero and test_clamp both pass.",
+    "handoff_phase1_prompt": "Step 1 of 2: In calc.py, fix ONLY divide(a, b) so b == 0 raises ValueError and confirm test_divide_zero passes. Also inspect clamp(val, lo, hi) to see what is wrong with it, WITHOUT editing clamp yet. In your final response, state the exact remaining fix needed for clamp.",
+    "handoff_phase2_prompt": "Step 2 of 2: Continue from the handoff packet above. Do not redo already-completed divide work unless needed; apply the remaining fix to clamp in calc.py and verify both test_divide_zero and test_clamp pass.",
+    "verify_cmd": "python3 -m unittest test_calc.TestCalc.test_divide_zero test_calc.TestCalc.test_clamp",
+    "reference_edit": {
+      "file": "calc.py",
+      "old": "def divide(a: float, b: float) -> float:\n    # BUG (task-01): does not raise ValueError on b == 0 (raises ZeroDivisionError)\n    return a / b\n\n\ndef clamp(val: float, lo: float, hi: float) -> float:\n    # BUG (task-02): inverted bounds check\n    if val < lo:\n        return hi\n    if val > hi:\n        return lo\n    return val",
+      "new": "def divide(a: float, b: float) -> float:\n    if b == 0:\n        raise ValueError('division by zero')\n    return a / b\n\n\ndef clamp(val: float, lo: float, hi: float) -> float:\n    if val < lo:\n        return lo\n    if val > hi:\n        return hi\n    return val"
+    },
+    "required_signals": [
+      "def divide",
+      "def clamp"
+    ]
+  },
+  {
+    "id": "H02-handoff-node-chain",
+    "category": "handoff-continuity",
+    "fixture": "node_api",
+    "prompt": "Update utils.js in two ways: (1) refactor formatPrice(cents, symbol = '$') to accept an optional currency symbol defaulting to '$', and (2) add unique(arr) returning deduplicated elements in order and export it in module.exports.",
+    "handoff_phase1_prompt": "Step 1 of 2: Inspect utils.js and implement ONLY the formatPrice(cents, symbol = '$') currency symbol refactor. Do NOT add unique(arr) yet. In your final response, summarize the current module.exports line and note that unique(arr) still needs to be implemented and exported.",
+    "handoff_phase2_prompt": "Step 2 of 2: Continue from the handoff packet above. Keep the completed formatPrice refactor intact, add unique(arr) to utils.js, export it in module.exports, and verify both formatPrice and unique behave properly.",
+    "verify_cmd": "python3 -c 'import pathlib; s=pathlib.Path(\"utils.js\").read_text(); assert \"symbol\" in s and \"formatPrice(cents\" in s and \"function unique\" in s and \"unique\" in s.split(\"module.exports\")[1]'",
+    "reference_edit": {
+      "file": "utils.js",
+      "old": "function formatPrice(cents) {\n  return '$' + (cents / 100).toFixed(2);\n}\n\nfunction chunk(arr, size) {\n  const out = [];\n  for (let i = 0; i < arr.length; i += size) {\n    out.push(arr.slice(i, i + size));\n  }\n  return out;\n}\n\nmodule.exports = { slugify, formatPrice, chunk };",
+      "new": "function formatPrice(cents, symbol = '$') {\n  return symbol + (cents / 100).toFixed(2);\n}\n\nfunction chunk(arr, size) {\n  const out = [];\n  for (let i = 0; i < arr.length; i += size) {\n    out.push(arr.slice(i, i + size));\n  }\n  return out;\n}\n\nfunction unique(arr) {\n  return Array.from(new Set(arr));\n}\n\nmodule.exports = { slugify, formatPrice, chunk, unique };"
+    },
+    "required_signals": [
+      "function formatPrice",
+      "module.exports"
+    ]
+  },
+  {
+    "id": "H03-handoff-log-to-code",
+    "category": "handoff-continuity",
+    "fixture": "log_ops",
+    "service": "billing",
+    "prompt": "Inspect billing.log to find the failing error code, add ERROR_CODE = \"<code_here>\" at the bottom of logs.py, and write the error code alone to answer.txt.",
+    "handoff_phase1_prompt": "Step 1 of 2: Inspect billing.log to identify the failing ERROR code and charge ID. Do NOT edit logs.py and do NOT create answer.txt yet. Output only a concise summary naming the exact failing ERROR code (e.g. ERR_...) so the next session can record it.",
+    "handoff_phase2_prompt": "Step 2 of 2: Using the exact failing ERROR code recorded in Last state in the handoff packet above (avoid re-reading billing.log if the code is already clearly stated), append ERROR_CODE = \"<that code>\" to logs.py and write the code alone to answer.txt.",
+    "verify_cmd": "python3 -c 'import logs, pathlib; code = pathlib.Path(\"answer.txt\").read_text().strip(); assert code == \"ERR_STRIPE_429\" and logs.ERROR_CODE == \"ERR_STRIPE_429\"'",
+    "reference_append": {
+      "file": "logs.py",
+      "content": "\nERROR_CODE = \"ERR_STRIPE_429\"\n"
+    },
+    "required_signals": [
+      "ERR_STRIPE_429"
+    ],
+    "extra_reference_write": {
+      "file": "answer.txt",
+      "content": "ERR_STRIPE_429\n"
+    }
+  },
+  {
+    "id": "H04-handoff-dep-count",
+    "category": "handoff-continuity",
+    "fixture": "node_api",
+    "prompt": "Check package.json (without dumping package-lock.json) to find the exact number of dependencies in `dependencies` and the declared `express` version range, export `depsSummary()` in utils.js returning `<count>:<express>` (with no spaces), and write `<count>:<express>` to answer.txt.",
+    "handoff_phase1_prompt": "Step 1 of 2: Inspect package.json (avoid dumping package-lock.json) to find the exact integer count of runtime dependencies in `dependencies` and the exact declared `express` version string. Do NOT create answer.txt or edit utils.js yet. State `<count>:<express>` clearly in your final response.",
+    "handoff_phase2_prompt": "Step 2 of 2: Using the `<count>:<express>` value recorded in Last state in the handoff packet above (avoid re-reading package.json if clearly stated), export `depsSummary()` returning that exact string from utils.js AND write it to answer.txt.",
+    "verify_cmd": "python3 -c 'import pathlib; u = pathlib.Path(\"utils.js\").read_text(); a = pathlib.Path(\"answer.txt\").read_text().strip(); assert a == \"3:^4.19.2\" and \"depsSummary\" in u and \"3:^4.19.2\" in u'",
+    "reference_edit": {
+      "file": "utils.js",
+      "old": "module.exports = { slugify, formatPrice, chunk };",
+      "new": "function depsSummary() {\n  return '3:^4.19.2';\n}\n\nmodule.exports = { slugify, formatPrice, chunk, depsSummary };"
+    },
+    "extra_reference_write": {
+      "file": "answer.txt",
+      "content": "3:^4.19.2\n"
+    },
+    "required_signals": [
+      "^4.19.2",
+      "express"
+    ]
   }
 ]

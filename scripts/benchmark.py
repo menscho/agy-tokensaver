@@ -77,7 +77,7 @@ def run_demo() -> int:
         json_file.write_text("".join(json_lines), encoding="utf-8")
 
         log_file = tmp / "api.log"
-        log_lines = [f"2026-11-23T22:00:{i%60:02d}Z INFO worker id={i} heartbeat ok latency=4ms\n" for i in range(1, 350)]
+        log_lines = [f"2026-11-23T22:00:{i%60:02d}Z INFO worker id={i} heartbeat ok latency=4ms\n" for i in range(1, 900)]
         log_lines.append("2026-11-23T22:10:01Z ERROR auth_refresh upstream returned 500 (code=E_TOK_EXP)\n")
         log_file.write_text("".join(log_lines), encoding="utf-8")
 
@@ -132,7 +132,7 @@ def run_demo() -> int:
             kept_b, note = raw_b, "allowed"
         rows.append(("4. read_file events.json (350L unbounded)", raw_b, kept_b, note))
 
-        # Step 5: Unbounded read_file on 350-line api.log -> tail-anchored cap
+        # Step 5: Unbounded read_file on 900-line (>46KB) api.log -> tail-anchored cap
         raw_b = min(log_file.stat().st_size, NATIVE_READ_CAP)
         res, ms = _run_hook("read_hook.pl", {"toolInput": {"Path": str(log_file)}, "stepIdx": 8, "conversationId": "bench"}, env)
         latencies.append(ms)
@@ -143,7 +143,7 @@ def run_demo() -> int:
             note = f"tail cap {s_i}..{e_i} (ERROR kept)"
         else:
             kept_b, note = raw_b, "allowed"
-        rows.append(("5. read_file api.log (tail ERROR preserved)", raw_b, kept_b, note))
+        rows.append(("5. read_file >46KB api.log (tail ERROR)", raw_b, kept_b, note))
 
         # Step 6: find_by_name on project with node_modules -> injects Excludes
         raw_find = len(find_raw.encode("utf-8"))

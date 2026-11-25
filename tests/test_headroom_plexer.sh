@@ -140,10 +140,13 @@ for prof, exp in [
     assert (r["mode"], r["compact_reads"], r["concise_output"]) == exp, (prof, r)
 PYEOF
 
-# 8. Tail-anchored unbounded .log read
-"$PY" -c 'for i in range(1, 401): print(f"2026-11-24 INFO line {i} payload_event_0123456789abcdef")' > "$T/app.log"
+# 8. Tail-anchored unbounded >46KB .log read (small <46KB logs stay whole)
+"$PY" -c 'for i in range(1, 861): print(f"2026-11-24 INFO line {i:03d} payload_event_0123456789abcde")' > "$T/app.log"
 o=$(perl "$S/read_hook.pl" <<< "$(printf '{"toolInput":{"Path":"%s"}}' "$T/app.log")")
-[[ "$o" == *'"StartLine":28'* && "$o" == *'"EndLine":40'* ]] && ok || bad "tail-anchored unbounded .log cap" "$o"
+[[ "$o" == *'"StartLine":712'* && "$o" == *'"EndLine":861'* ]] && ok || bad "tail-anchored unbounded >46KB .log cap" "$o"
+"$PY" -c 'for i in range(1, 201): print(f"2026-11-24 INFO line {i:03d} small_log_payload_0123456789abcdef")' > "$T/small.log"
+o=$(perl "$S/read_hook.pl" <<< "$(printf '{"toolInput":{"Path":"%s"}}' "$T/small.log")")
+[[ "$o" == '{"decision":"allow"}' ]] && ok || bad "small <46KB .log stays uncapped" "$o"
 
 # 9. Post-edit dirty-hunk auto-narrowing
 "$PY" -c 'for i in range(1, 321): print(f"def fn_{i}(x): return x + {i}  # padding comment line")' > "$T/dirty.py"

@@ -380,10 +380,11 @@ $est_lines = defined $exact_lines
 # Handles: (a) unbounded, (b) StartLine without EndLine, (c) EndLine without StartLine,
 # (d) explicit huge span > 400 on large files, (e) Antigravity spillback output.txt logs.
 
-my $is_data      = ($base =~ /\.(?:json|jsonl|ndjson|ya?ml|csv|tsv|sql|xml|log|html|htm|lcov|diff|patch|out|err)$/i);
+my $is_data = ($base =~ /\.(?:json|jsonl|ndjson|ya?ml|csv|tsv|sql|xml|html|htm|lcov|diff|patch)$/i);
+my $is_log  = ($base =~ /\.(?:log|out|err)$/i);
 
-# Opt-in Compact Reads mode (default OFF in Mode 1 Zero Quality Loss).
-# Enabled by AGY_TS_COMPACT_READS=1 or Modes 2a/2b/2c/Max in the HUD.
+# Opt-in Compact Reads mode (default OFF).
+# Enabled by AGY_TS_COMPACT_READS=1 or Modes handoff_only / small_loss in the HUD.
 my $COMPACT_READS = 0;
 if (defined $ENV{AGY_TS_COMPACT_READS}) {
     $COMPACT_READS = ($ENV{AGY_TS_COMPACT_READS} =~ /^(?:1|true|on|yes)$/i) ? 1 : 0;
@@ -397,15 +398,18 @@ if (defined $ENV{AGY_TS_COMPACT_READS}) {
     }
 }
 
-# Determine cap target
+# Determine cap target. Native read_file already fits <=46,080B / <=800L in one turn;
+# logs under 46KB are left whole so mid-file errors aren't hidden by blind tail-cropping.
 my ($cap, $cat_label);
 if ($is_spillback && $size > 12288) {
     my $avg = ($peek_nl > 0) ? $peek_n / $peek_nl : 80;
     my $c = int(12288 / ($avg || 80));
     ($cap, $cat_label) = ($c > 120 ? 120 : ($c < 40 ? 40 : $c), 'spillback_log');
+} elsif ($is_log && $size > 46080) {
+    ($cap, $cat_label) = ($COMPACT_READS ? 100 : 150, 'large_log');
 } elsif ($is_data && $size > ($COMPACT_READS ? 6144 : 8192)) {
     ($cap, $cat_label) = ($COMPACT_READS ? 80 : ($size > 65536 ? 100 : 120), 'large_data');
-} elsif ($size > ($COMPACT_READS ? 8192 : 16384)) {
+} elsif (!$is_log && $size > ($COMPACT_READS ? 8192 : 16384)) {
     my $is_doc = ($base =~ /\.(?:md|mdx|markdown|txt|rst|adoc)$/i);
     if ($is_doc) {
         if ($COMPACT_READS && $base =~ /^(?:CHANGELOG|HISTORY|RELEASES|CHANGES)\./i) {

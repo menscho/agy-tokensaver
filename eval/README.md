@@ -1,52 +1,31 @@
-# Signal Retention & Task Evaluation (`eval/`)
+# Evaluation Harness (`eval/`)
 
-This directory contains **30 coding tasks** across 3 miniature fixture repositories (`py_calc`, `node_api`, `log_ops`) covering 5 task families:
+This directory holds **34 coding tasks** across 3 small repositories (`py_calc`, `node_api`, `log_ops`), covering:
 
-- `fix-failing-test` (6 tasks: `T01`–`T06`)
-- `add-feature-and-test` (6 tasks: `T07`–`T12`)
-- `refactor` (6 tasks: `T13`–`T18`)
-- `debug-from-log` (6 tasks: `T19`–`T24`)
-- `lockfile-dependency` (6 tasks: `T25`–`T30`)
+- 30 standard tasks (`T01`–`T30`) across 5 categories: `fix-failing-test`, `add-feature-and-test`, `refactor`, `debug-from-log`, and `lockfile-dependency`.
+- 4 multi-step **Auto-Handoff continuity tasks** (`H01`–`H04`): in `off` a single conversation runs both steps; in active modes (`default`, `max`), Phase 1 runs in Conversation A, `scripts/handoff_pack.py` extracts a compact handoff packet, all Conversation A history is discarded, and a fresh Conversation B finishes Phase 2 from that packet alone.
 
-Every task in [tasks.json](tasks.json) has an automatic `verify_cmd` exit-0 check and a reference patch proving the check fails before the fix and passes after.
+Every task in [tasks.json](tasks.json) has an automated `verify_cmd` check and a reference patch proving the test fails on unpatched fixtures and passes after the reference edit.
 
-## What this eval measures vs. what it does not measure
-
-- **What this eval measures (`--driver hook-replay`):** whether required error strings, tracebacks, and source symbols survive hook compression (`signal_retention`), plus direct tool-token differences compared against the **unmodified full raw output** in `off` mode (no baseline truncation and no artificial leading passing lines).
-- **What it does NOT measure (`--driver hook-replay`):** whether an LLM agent actually solves tasks. `--driver hook-replay` never invokes a language model, never evaluates `Concise Output` instruction following or `Auto-Handoff` chat resets, and does not run `verify_cmd` to score hook outputs. Task solve rates require `--driver agy` or `--driver manual` (`live_eval.json`).
-
-## 1. Verify fixture & task integrity
+## Reproducible commands
 
 ```bash
+# 1. Verify all 34 tasks fail before fix and pass after reference edit
 python3 eval/runner.py --verify-fixtures
-```
 
-## 2. Deterministic hook signal-retention eval (`--driver hook-replay`)
-
-Replays each task's tool calls (`read_file`, unmodified `unittest` output, 450-line service logs, 400-package `package-lock.json` reads, and duplicate re-reads) through the real Perl hooks for all 6 modes (`off`, `mode1`, `mode2a`, `mode2b`, `mode2c`, `max`) across `N=3` runs:
-
-```bash
+# 2. Deterministic hook signal-retention replay (34 tasks x 3 runs, 0 LLM calls)
 python3 eval/runner.py --driver hook-replay --runs 3 --out eval/results/hook_eval.json
-python3 eval/runner.py --summarize eval/results/hook_eval.json
-```
 
-In `off`, every tool delivers the full raw output unmodified. Any mode whose signal retention drops by more than **2.0 percentage points** vs `off` is flagged `LOSS >2pp`.
+# 3. Live Antigravity ConversationService evaluation (requires ANTIGRAVITY_LS_ADDRESS + CSRF token)
+python3 eval/runner.py --driver antigravity \
+  --tasks T01,T07,T14,T19,T25,T30,H01,H02,H03,H04 \
+  --modes off,default,max --runs 3 --workers 4 --model flash \
+  --out eval/results/live_eval.json
 
-## 3. End-to-end live agent eval (`--driver agy` or `--driver manual`)
-
-Live agent evaluation stages a fresh temporary copy of the task fixture **without** applying the reference patch, runs the mode, executes `verify_cmd` after the agent finishes, and records `passed`, `total_tokens`, `cost_proxy`, `retries`, and `wall_ms` into `eval/results/live_eval.json`.
-
-- **Headless CLI (when `agy` is installed on `PATH`):**
-
-```bash
-python3 eval/runner.py --driver agy --runs 3 --out eval/results/live_eval.json
-```
-
-- **Interactive IDE walkthrough (`--driver manual`):** stages a fresh temp workspace per task and mode, prompts you to run the task in Antigravity IDE, executes `verify_cmd` automatically **without** applying any reference patch, and records verified JSON into `eval/results/live_eval.json`.
-
-```bash
-python3 eval/runner.py --driver manual --modes off,mode1,max --runs 3 --out eval/results/live_eval.json
+# Summarize any saved results file with Wilson 95% CIs
 python3 eval/runner.py --summarize eval/results/live_eval.json
 ```
 
-Any mode whose live pass rate drops by more than **2.0 percentage points** vs `off` is automatically flagged `LOSS >2pp`.
+In `--driver hook-replay`, `off` delivers unmodified full raw files (zero baseline truncation), and any mode whose signal retention drops by more than `2.0` percentage points vs `off` is flagged `LOSS >2pp`.
+
+In `--driver antigravity`, `--driver agy`, and `--driver manual`, each trial runs in an isolated temporary copy **without** applying the reference patch before running `verify_cmd`. Results from the 90-run live evaluation (`10 tasks × 3 runs × 3 modes` on `flash`) are committed in [live_eval.json](results/live_eval.json).
