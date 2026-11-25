@@ -1,0 +1,804 @@
+2026-11-25T00:00:01Z INFO [prod.search.query] Query batch processed docs=142 elapsed_ms=12.4
+2026-11-25T00:00:05Z INFO [prod.auth.sso] Session token verified issuer=idp-eu-1 latency_ms=4.1
+2026-11-25T00:00:09Z INFO [staging.checkout.cart] Cart snapshot saved items=3 ttl_s=1800
+2026-11-25T00:00:12Z INFO [prod.search.indexer] Segment merge finished shard=04 docs=8200
+2026-11-25T00:00:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:00:18Z INFO [prod.notifications.email] Dispatched order receipt template=v4 latency_ms=18.2
+2026-11-25T00:00:21Z INFO [prod.analytics.clickstream] Flushed 256 events partition=2026-11-25
+2026-11-25T00:00:24Z INFO [dev.local.worker] Sandbox job idle heartbeat ok
+2026-11-25T00:00:27Z INFO [prod.inventory.eu] Stock sync completed warehouse=eu-central skus=120
+2026-11-25T00:00:30Z INFO [prod.search.query] Query batch processed docs=118 elapsed_ms=9.8
+2026-11-25T00:00:33Z INFO [prod.auth.oauth] Refresh exchange ok client=web-storefront
+2026-11-25T00:00:36Z INFO [staging.inventory.us] Cache warmed warehouse=us-east keys=240
+2026-11-25T00:00:39Z INFO [prod.checkout.shipping] Rate quote cached zone=EU-1 rate=8.00
+2026-11-25T00:00:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:00:45Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.042
+2026-11-25T00:00:48Z INFO [qa.search.query] Synthetic smoke query passed status=200
+2026-11-25T00:00:51Z INFO [prod.search.query] Query batch processed docs=164 elapsed_ms=11.1
+2026-11-25T00:00:54Z INFO [prod.auth.mfa] Challenge verified method=webauthn latency_ms=6.3
+2026-11-25T00:00:57Z INFO [staging.search.query] Index refresh completed latency_ms=21.0
+2026-11-25T00:01:00Z INFO [prod.inventory.us] Stock sync completed warehouse=us-east skus=120
+2026-11-25T00:01:03Z INFO [prod.search.query] Query batch processed docs=131 elapsed_ms=10.5
+2026-11-24T23:55:00-00:00 INFO [ops.heartbeat] Tick node=router-01 rss_mb=98
+2026-11-25T00:01:06Z INFO [prod.notifications.webhook] Delivered event=order.created status=202
+2026-11-25T00:01:09Z INFO [prod.analytics.clickstream] Flushed 312 events partition=2026-11-25
+2026-11-25T00:01:12Z INFO [prod.checkout.cart] Cart snapshot saved items=1 ttl_s=1800
+2026-11-25T00:01:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:01:18Z INFO [prod.auth.sso] Session token verified issuer=idp-us-1 latency_ms=5.0
+2026-11-25T00:01:21Z INFO [staging.auth.sso] Test session ok issuer=idp-stage
+2026-11-25T00:01:24Z INFO [prod.search.indexer] Segment merge finished shard=05 docs=7910
+2026-11-25T00:01:27Z INFO [prod.search.query] Query batch processed docs=150 elapsed_ms=13.2
+2026-11-25T00:01:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=101
+2026-11-25T00:01:33Z INFO [prod.checkout.tax] Tax table checksum verified version=2026.11
+2026-11-25T00:01:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.044
+2026-11-25T00:01:39Z INFO [dev.payments.sandbox] Mock charge approved amount=1900
+2026-11-25T00:01:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:01:45Z INFO [prod.search.query] Query batch processed docs=129 elapsed_ms=10.1
+2026-11-25T00:01:48Z INFO [prod.auth.tokens] Key rotation check valid=true next_in_h=18
+2026-11-25T00:01:51Z INFO [staging.ledger.settlement] Batch dry-run balanced debits=91000 credits=91000
+2026-11-25T00:01:54Z INFO [prod.notifications.email] Dispatched shipment alert template=v2 latency_ms=15.8
+2026-11-25T00:01:57Z INFO [prod.inventory.backorder] Queue depth nominal depth=4
+2026-11-25T00:02:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=99
+2026-11-25T00:02:03Z INFO [prod.search.query] Query batch processed docs=177 elapsed_ms=14.0
+2026-11-25T00:02:06Z INFO [prod.auth.oauth] Refresh exchange ok client=mobile-ios
+2026-11-25T00:02:09Z INFO [prod.analytics.clickstream] Flushed 290 events partition=2026-11-25
+2026-11-25T00:02:12Z INFO [qa.auth.sso] Integration suite tick status=pass
+2026-11-25T00:02:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:02:18Z INFO [prod.checkout.shipping] Rate quote cached zone=US-EAST rate=6.50
+2026-11-25T00:02:21Z INFO [prod.search.indexer] Segment merge finished shard=06 docs=8450
+2026-11-25T00:02:24Z INFO [staging.payments.us] Sandbox webhook ack status=200
+2026-11-25T00:02:27Z INFO [prod.search.query] Query batch processed docs=141 elapsed_ms=11.7
+2026-11-25T00:02:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=101
+2026-11-25T00:02:33Z INFO [prod.auth.sso] Session token verified issuer=idp-eu-2 latency_ms=3.9
+2026-11-25T00:02:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.043
+2026-11-25T00:02:39Z INFO [prod.notifications.webhook] Delivered event=payment.settled status=200
+2026-11-25T00:02:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:02:45Z INFO [prod.search.query] Query batch processed docs=136 elapsed_ms=10.3
+2026-11-25T00:02:48Z INFO [prod.inventory.eu] Stock sync completed warehouse=eu-central skus=120
+2026-11-25T00:02:51Z INFO [dev.auth.local] Token test pass
+2026-11-25T00:02:54Z INFO [prod.checkout.cart] Cart snapshot saved items=4 ttl_s=1800
+2026-11-25T00:02:57Z INFO [staging.checkout.promo] Promo catalog reload rules=5
+2026-11-25T00:03:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=99
+2026-11-25T00:03:03Z INFO [prod.search.query] Query batch processed docs=158 elapsed_ms=12.1
+2026-11-25T00:03:06Z INFO [prod.auth.mfa] Challenge verified method=totp latency_ms=2.8
+2026-11-25T00:03:09Z INFO [prod.analytics.clickstream] Flushed 274 events partition=2026-11-25
+2026-11-25T00:03:12Z INFO [prod.search.indexer] Segment merge finished shard=01 docs=8030
+2026-11-25T00:03:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:03:18Z INFO [prod.notifications.email] Dispatched refund notice template=v3 latency_ms=17.4
+2026-11-25T00:03:21Z INFO [prod.inventory.us] Stock sync completed warehouse=us-east skus=120
+2026-11-25T00:03:24Z INFO [qa.inventory.eu] Stock smoke check ok
+2026-11-25T00:03:27Z INFO [prod.search.query] Query batch processed docs=122 elapsed_ms=9.4
+2026-11-25T00:03:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=102
+2026-11-25T00:03:33Z INFO [prod.auth.tokens] Key rotation check valid=true next_in_h=17
+2026-11-25T00:03:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.045
+2026-11-25T00:03:39Z INFO [prod.checkout.shipping] Rate quote cached zone=EU-2 rate=9.50
+2026-11-25T00:03:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:03:45Z INFO [prod.search.query] Query batch processed docs=149 elapsed_ms=11.9
+2026-11-25T00:03:48Z INFO [staging.inventory.eu] Cache warmed warehouse=eu-central keys=240
+2026-11-25T00:03:51Z INFO [prod.auth.sso] Session token verified issuer=idp-eu-1 latency_ms=4.3
+2026-11-25T00:03:54Z INFO [prod.notifications.webhook] Delivered event=inventory.reserved status=200
+2026-11-25T00:03:57Z INFO [prod.checkout.tax] Tax table checksum verified version=2026.11
+2026-11-25T00:04:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=99
+2026-11-25T00:04:03Z INFO [prod.search.query] Query batch processed docs=133 elapsed_ms=10.0
+2026-11-25T00:04:06Z INFO [prod.auth.oauth] Refresh exchange ok client=android-app
+2026-11-25T00:04:09Z INFO [prod.analytics.clickstream] Flushed 301 events partition=2026-11-25
+2026-11-25T00:04:12Z INFO  [prod.search.indexer] Segment merge finished shard=02 docs=8120
+2026-11-25T00:04:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:04:18Z INFO [prod.inventory.backorder] Queue depth nominal depth=3
+2026-11-25T00:04:21Z INFO [staging.auth.oauth] Mock token refreshed
+2026-11-25T00:04:24Z INFO [prod.checkout.cart] Cart snapshot saved items=2 ttl_s=1800
+2026-11-25T00:04:27Z INFO [prod.search.query] Query batch processed docs=161 elapsed_ms=13.0
+2026-11-25T00:04:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=101
+2026-11-24T23:59:33-00:00 INFO [prod.notifications.email] Dispatched order receipt template=v4 latency_ms=16.5
+2026-11-25T00:04:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.041
+2026-11-25T00:04:39Z INFO [qa.checkout.cart] Synthetic cart check passed
+2026-11-25T00:04:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:04:45Z INFO [prod.search.query] Query batch processed docs=144 elapsed_ms=11.4
+2026-11-25T00:04:48Z INFO [prod.auth.sso] Session token verified issuer=idp-us-2 latency_ms=4.7
+2026-11-25T00:04:51Z INFO [prod.inventory.eu] Stock sync completed warehouse=eu-central skus=120
+2026-11-25T00:04:54Z INFO [dev.local.worker] Sandbox job idle heartbeat ok
+2026-11-25T00:04:57Z INFO [prod.checkout.shipping] Rate quote cached zone=APAC-1 rate=12.50
+2026-11-25T00:05:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=99
+2026-11-25T00:05:03Z INFO [prod.search.query] Query batch processed docs=139 elapsed_ms=10.8
+2026-11-25T00:05:06Z INFO [prod.auth.mfa] Challenge verified method=webauthn latency_ms=5.9
+2026-11-25T00:05:09Z INFO [prod.analytics.clickstream] Flushed 268 events partition=2026-11-25
+2026-11-25T00:05:12Z INFO [prod.search.indexer] Segment merge finished shard=03 docs=8340
+2026-11-25T00:05:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:05:18Z INFO [prod.notifications.webhook] Delivered event=order.shipped status=200
+2026-11-25T00:05:21Z INFO [staging.search.indexer] Staging shard compact completed
+2026-11-25T00:05:24Z INFO [prod.inventory.us] Stock sync completed warehouse=us-east skus=120
+2026-11-25T00:05:27Z INFO [prod.search.query] Query batch processed docs=152 elapsed_ms=12.6
+2026-11-25T00:05:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=102
+2026-11-25T00:05:33Z INFO [prod.auth.tokens] Key rotation check valid=true next_in_h=17
+2026-11-25T00:05:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.044
+2026-11-25T00:05:39Z INFO [prod.checkout.cart] Cart snapshot saved items=5 ttl_s=1800
+2026-11-25T00:05:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:05:45Z INFO [prod.search.query] Query batch processed docs=128 elapsed_ms=9.9
+2026-11-25T00:05:48Z INFO [prod.auth.sso] Session token verified issuer=idp-eu-1 latency_ms=4.0
+2026-11-25T00:05:51Z INFO [qa.payments.us] Synthetic charge test passed
+2026-11-25T00:05:54Z INFO [prod.notifications.email] Dispatched order receipt template=v4 latency_ms=16.0
+2026-11-25T00:05:57Z INFO [prod.checkout.tax] Tax table checksum verified version=2026.11
+2026-11-25T00:06:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=100
+2026-11-25T00:06:03Z INFO [prod.search.query] Query batch processed docs=145 elapsed_ms=11.2
+2026-11-25T00:06:06Z INFO [prod.auth.oauth] Refresh exchange ok client=web-storefront
+2026-11-25T00:06:09Z INFO [prod.analytics.clickstream] Flushed 285 events partition=2026-11-25
+2026-11-25T00:06:12Z INFO [prod.search.indexer] Segment merge finished shard=04 docs=8220
+2026-11-25T00:06:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:06:18Z INFO [prod.inventory.backorder] Queue depth nominal depth=4
+2026-11-25T00:06:21Z INFO [staging.payments.eu] Sandbox sepa ping status=200
+2026-11-25T00:06:24Z INFO [prod.checkout.shipping] Rate quote cached zone=EU-1 rate=8.00
+2026-11-25T00:06:27Z INFO [prod.search.query] Query batch processed docs=156 elapsed_ms=12.8
+2026-11-25T00:06:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=101
+2026-11-25T00:06:33Z INFO [prod.auth.sso] Session token verified issuer=idp-us-1 latency_ms=4.5
+2026-11-25T00:06:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.043
+2026-11-25T00:06:39Z INFO [prod.notifications.webhook] Delivered event=order.created status=202
+2026-11-25T00:06:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:06:45Z INFO [prod.search.query] Query batch processed docs=132 elapsed_ms=10.2
+2026-11-25T00:06:48Z INFO [prod.inventory.eu] Stock sync completed warehouse=eu-central skus=120
+2026-11-25T00:06:51Z INFO [dev.local.worker] Sandbox job idle heartbeat ok
+2026-11-25T00:06:54Z INFO [prod.checkout.cart] Cart snapshot saved items=2 ttl_s=1800
+2026-11-25T00:06:57Z INFO [staging.inventory.us] Cache warmed warehouse=us-east keys=240
+2026-11-25T00:07:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=99
+2026-11-25T00:07:03Z INFO [prod.search.query] Query batch processed docs=168 elapsed_ms=13.5
+2026-11-25T00:07:06Z INFO [prod.auth.mfa] Challenge verified method=webauthn latency_ms=6.1
+2026-11-25T00:07:09Z INFO [prod.analytics.clickstream] Flushed 295 events partition=2026-11-25
+2026-11-25T00:07:12Z INFO [prod.search.indexer] Segment merge finished shard=05 docs=7980
+2026-11-25T00:07:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:07:18Z INFO [prod.notifications.email] Dispatched order receipt template=v4 latency_ms=16.2
+2026-11-25T00:07:21Z INFO [prod.inventory.us] Stock sync completed warehouse=us-east skus=120
+2026-11-25T00:07:24Z INFO [qa.search.query] Synthetic smoke query passed status=200
+2026-11-25T00:07:27Z INFO [prod.search.query] Query batch processed docs=140 elapsed_ms=11.0
+2026-11-25T00:07:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=101
+2026-11-25T00:07:33Z INFO [prod.auth.tokens] Key rotation check valid=true next_in_h=17
+2026-11-25T00:07:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.042
+2026-11-25T00:07:39Z INFO [prod.checkout.shipping] Rate quote cached zone=US-WEST rate=7.25
+2026-11-25T00:07:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:07:45Z INFO [prod.search.query] Query batch processed docs=127 elapsed_ms=9.7
+2026-11-25T00:07:48Z INFO [prod.auth.sso] Session token verified issuer=idp-eu-2 latency_ms=4.1
+2026-11-25T00:07:51Z INFO [staging.auth.sso] Test session ok issuer=idp-stage
+2026-11-25T00:07:54Z INFO [prod.notifications.webhook] Delivered event=payment.settled status=200
+2026-11-25T00:07:57Z INFO [prod.checkout.tax] Tax table checksum verified version=2026.11
+2026-11-25T00:08:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=100
+2026-11-25T00:08:03Z INFO [prod.search.query] Query batch processed docs=147 elapsed_ms=11.8
+2026-11-25T00:08:06Z INFO [prod.auth.oauth] Refresh exchange ok client=mobile-ios
+2026-11-25T00:08:09Z INFO [prod.analytics.clickstream] Flushed 279 events partition=2026-11-25
+2026-11-25T00:08:12Z INFO [prod.search.indexer] Segment merge finished shard=06 docs=8410
+2026-11-25T00:08:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:08:18Z INFO [prod.inventory.backorder] Queue depth nominal depth=2
+2026-11-25T00:08:21Z INFO [dev.payments.sandbox] Mock charge approved amount=4200
+2026-11-25T00:08:24Z INFO [prod.checkout.cart] Cart snapshot saved items=3 ttl_s=1800
+2026-11-25T00:08:27Z INFO [prod.search.query] Query batch processed docs=135 elapsed_ms=10.6
+2026-11-25T00:08:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=102
+2026-11-25T00:08:33Z INFO [prod.notifications.email] Dispatched shipment alert template=v2 latency_ms=15.4
+2026-11-25T00:08:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.045
+2026-11-25T00:08:39Z INFO [qa.auth.sso] Integration suite tick status=pass
+2026-11-25T00:08:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:08:45Z INFO [prod.search.query] Query batch processed docs=159 elapsed_ms=12.5
+2026-11-25T00:08:48Z INFO [prod.auth.sso] Session token verified issuer=idp-eu-1 latency_ms=4.2
+2026-11-25T00:08:51Z INFO [prod.inventory.eu] Stock sync completed warehouse=eu-central skus=120
+2026-11-25T00:08:54Z INFO [staging.checkout.promo] Promo catalog reload rules=5
+2026-11-25T00:08:57Z INFO [prod.checkout.shipping] Rate quote cached zone=EU-1 rate=8.00
+2026-11-25T00:09:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=99
+2026-11-25T00:09:03Z INFO [prod.search.query] Query batch processed docs=143 elapsed_ms=11.1
+2026-11-25T00:09:06Z INFO [prod.auth.mfa] Challenge verified method=totp latency_ms=2.9
+2026-11-25T00:09:09Z INFO [prod.analytics.clickstream] Flushed 308 events partition=2026-11-25
+2026-11-25T00:09:12Z INFO [prod.search.indexer] Segment merge finished shard=01 docs=8060
+2026-11-25T00:09:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:09:18Z INFO [prod.notifications.webhook] Delivered event=order.created status=202
+2026-11-25T00:09:21Z INFO [prod.inventory.us] Stock sync completed warehouse=us-east skus=120
+2026-11-25T00:09:24Z INFO [qa.inventory.eu] Stock smoke check ok
+2026-11-25T00:09:27Z INFO [prod.search.query] Query batch processed docs=126 elapsed_ms=9.5
+2026-11-25T00:09:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=101
+2026-11-25T00:09:33Z INFO [prod.auth.tokens] Key rotation check valid=true next_in_h=17
+2026-11-25T00:09:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.044
+2026-11-25T00:09:39Z INFO [prod.checkout.cart] Cart snapshot saved items=1 ttl_s=1800
+2026-11-25T00:09:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:09:45Z INFO [prod.search.query] Query batch processed docs=151 elapsed_ms=12.0
+2026-11-25T00:09:48Z INFO [prod.auth.sso] Session token verified issuer=idp-us-1 latency_ms=4.6
+2026-11-25T00:09:51Z INFO [staging.inventory.eu] Cache warmed warehouse=eu-central keys=240
+2026-11-25T00:09:54Z INFO [prod.notifications.email] Dispatched refund notice template=v3 latency_ms=17.1
+2026-11-25T00:09:57Z INFO [prod.checkout.tax] Tax table checksum verified version=2026.11
+2026-11-25T00:10:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=99
+2026-11-25T00:10:03Z INFO [prod.search.query] Query batch processed docs=138 elapsed_ms=10.7
+2026-11-25T00:10:06Z INFO [prod.auth.oauth] Refresh exchange ok client=android-app
+2026-11-25T00:10:09Z INFO [prod.analytics.clickstream] Flushed 288 events partition=2026-11-25
+2026-11-25T00:10:12Z INFO [prod.search.indexer] Segment merge finished shard=02 docs=8150
+2026-11-25T00:10:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:10:18Z INFO [prod.inventory.backorder] Queue depth nominal depth=3
+2026-11-25T00:10:21Z INFO [dev.local.worker] Sandbox job idle heartbeat ok
+2026-11-25T00:10:24Z INFO [prod.checkout.shipping] Rate quote cached zone=US-EAST rate=6.50
+2026-11-25T00:10:27Z INFO [prod.search.query] Query batch processed docs=162 elapsed_ms=13.1
+2026-11-25T00:10:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=102
+2026-11-25T00:10:33Z INFO [prod.auth.sso] Session token verified issuer=idp-eu-2 latency_ms=3.8
+2026-11-25T00:10:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.043
+2026-11-25T00:10:39Z INFO [prod.notifications.webhook] Delivered event=inventory.reserved status=200
+2026-11-25T00:10:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:10:45Z INFO [prod.search.query] Query batch processed docs=142 elapsed_ms=11.3
+2026-11-25T00:10:48Z INFO [prod.inventory.eu] Stock sync completed warehouse=eu-central skus=120
+2026-11-25T00:10:51Z INFO [qa.checkout.cart] Synthetic cart check passed
+2026-11-25T00:10:54Z INFO [prod.checkout.cart] Cart snapshot saved items=4 ttl_s=1800
+2026-11-25T00:10:57Z INFO [staging.auth.oauth] Mock token refreshed
+2026-11-25T00:11:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=100
+2026-11-25T00:11:03Z INFO [prod.search.query] Query batch processed docs=130 elapsed_ms=9.9
+2026-11-25T00:11:06Z INFO [prod.auth.mfa] Challenge verified method=webauthn latency_ms=5.8
+2026-11-25T00:11:09Z INFO [prod.analytics.clickstream] Flushed 271 events partition=2026-11-25
+2026-11-25T00:11:12Z INFO [prod.search.indexer] Segment merge finished shard=03 docs=8370
+2026-11-25T00:11:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:11:18Z INFO [prod.notifications.email] Dispatched order receipt template=v4 latency_ms=16.8
+2026-11-25T00:11:21Z INFO [prod.inventory.us] Stock sync completed warehouse=us-east skus=120
+2026-11-25T00:11:24Z INFO [staging.search.indexer] Staging shard compact completed
+2026-11-25T00:11:27Z INFO [prod.search.query] Query batch processed docs=155 elapsed_ms=12.4
+2026-11-25T00:11:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=101
+2026-11-25T00:11:33Z INFO [prod.auth.tokens] Key rotation check valid=true next_in_h=17
+2026-11-25T00:11:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.046
+2026-11-25T00:11:39Z INFO [prod.checkout.shipping] Rate quote cached zone=APAC-1 rate=12.50
+2026-11-25T00:11:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:11:45Z INFO [prod.search.query] Query batch processed docs=146 elapsed_ms=11.5
+2026-11-25T00:11:48Z INFO [prod.auth.sso] Session token verified issuer=idp-eu-1 latency_ms=4.1
+2026-11-25T00:11:51Z INFO [qa.payments.us] Synthetic charge test passed
+2026-11-25T00:11:54Z INFO [prod.notifications.webhook] Delivered event=order.shipped status=200
+2026-11-25T00:11:57Z INFO [prod.checkout.tax] Tax table checksum verified version=2026.11
+2026-11-25T00:12:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=99
+2026-11-25T00:12:03Z INFO [prod.search.query] Query batch processed docs=137 elapsed_ms=10.4
+2026-11-25T00:12:06Z INFO [prod.auth.oauth] Refresh exchange ok client=web-storefront
+2026-11-25T00:12:09Z INFO [prod.analytics.clickstream] Flushed 298 events partition=2026-11-25
+2026-11-25T00:12:12Z INFO [prod.search.indexer] Segment merge finished shard=04 docs=8260
+2026-11-25T00:12:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:12:18Z INFO [prod.inventory.backorder] Queue depth nominal depth=4
+2026-11-25T00:12:21Z INFO [staging.payments.eu] Sandbox sepa ping status=200
+2026-11-25T00:12:24Z INFO [prod.checkout.cart] Cart snapshot saved items=2 ttl_s=1800
+2026-11-25T00:12:27Z INFO [prod.search.query] Query batch processed docs=154 elapsed_ms=12.2
+2026-11-25T00:12:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=102
+2026-11-25T00:12:33Z INFO [prod.notifications.email] Dispatched order receipt template=v4 latency_ms=16.1
+2026-11-25T00:12:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.044
+2026-11-25T00:12:39Z INFO [dev.local.worker] Sandbox job idle heartbeat ok
+2026-11-25T00:12:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:12:45Z INFO [prod.search.query] Query batch processed docs=141 elapsed_ms=11.1
+2026-11-25T00:12:48Z INFO [prod.auth.sso] Session token verified issuer=idp-us-2 latency_ms=4.4
+2026-11-25T00:12:51Z INFO [prod.inventory.eu] Stock sync completed warehouse=eu-central skus=120
+2026-11-25T00:12:54Z INFO [staging.inventory.us] Cache warmed warehouse=us-east keys=240
+2026-11-25T00:12:57Z INFO [prod.checkout.shipping] Rate quote cached zone=EU-1 rate=8.00
+2026-11-25T00:13:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=100
+2026-11-25T00:13:03Z INFO [prod.search.query] Query batch processed docs=129 elapsed_ms=9.8
+2026-11-25T00:13:06Z INFO [prod.auth.mfa] Challenge verified method=webauthn latency_ms=6.0
+2026-11-25T00:13:09Z INFO [prod.analytics.clickstream] Flushed 282 events partition=2026-11-25
+2026-11-25T00:13:12Z INFO [prod.search.indexer] Segment merge finished shard=05 docs=8010
+2026-11-25T00:13:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:13:18Z INFO [prod.notifications.webhook] Delivered event=payment.settled status=200
+2026-11-25T00:13:21Z INFO [prod.inventory.us] Stock sync completed warehouse=us-east skus=120
+2026-11-25T00:13:24Z INFO [qa.search.query] Synthetic smoke query passed status=200
+2026-11-25T00:13:27Z INFO [prod.search.query] Query batch processed docs=148 elapsed_ms=11.7
+2026-11-25T00:13:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=101
+2026-11-25T00:13:33Z INFO [prod.auth.tokens] Key rotation check valid=true next_in_h=17
+2026-11-25T00:13:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.043
+2026-11-25T00:13:39Z INFO [prod.checkout.cart] Cart snapshot saved items=5 ttl_s=1800
+2026-11-25T00:13:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:13:45Z INFO [prod.search.query] Query batch processed docs=134 elapsed_ms=10.5
+2026-11-25T00:13:48Z INFO [prod.auth.sso] Session token verified issuer=idp-eu-1 latency_ms=4.0
+2026-11-25T00:13:51Z INFO [staging.auth.sso] Test session ok issuer=idp-stage
+2026-11-25T00:13:54Z INFO [prod.notifications.email] Dispatched shipment alert template=v2 latency_ms=15.7
+2026-11-25T00:13:57Z INFO [prod.checkout.tax] Tax table checksum verified version=2026.11
+2026-11-25T00:14:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=99
+2026-11-25T00:14:03Z INFO [prod.search.query] Query batch processed docs=160 elapsed_ms=12.9
+2026-11-25T00:14:06Z INFO [prod.auth.oauth] Refresh exchange ok client=mobile-ios
+2026-11-25T00:14:09Z INFO [prod.analytics.clickstream] Flushed 293 events partition=2026-11-25
+2026-11-25T00:14:12Z INFO [prod.search.indexer] Segment merge finished shard=06 docs=8490
+2026-11-25T00:14:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:14:18Z INFO [prod.inventory.backorder] Queue depth nominal depth=3
+2026-11-25T00:14:21Z INFO [dev.payments.sandbox] Mock charge approved amount=2500
+2026-11-25T00:14:24Z INFO [prod.checkout.shipping] Rate quote cached zone=US-WEST rate=7.25
+2026-11-25T00:14:27Z INFO [prod.search.query] Query batch processed docs=144 elapsed_ms=11.4
+2026-11-25T00:14:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=102
+2026-11-25T00:14:33Z INFO [prod.auth.sso] Session token verified issuer=idp-us-1 latency_ms=4.5
+2026-11-25T00:14:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.045
+2026-11-25T00:14:39Z INFO [qa.auth.sso] Integration suite tick status=pass
+2026-11-25T00:14:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:14:45Z INFO [prod.search.query] Query batch processed docs=131 elapsed_ms=10.1
+2026-11-25T00:14:48Z INFO [prod.inventory.eu] Stock sync completed warehouse=eu-central skus=120
+2026-11-25T00:14:51Z INFO [staging.checkout.promo] Promo catalog reload rules=5
+2026-11-25T00:14:54Z INFO [prod.notifications.webhook] Delivered event=order.created status=202
+2026-11-25T00:14:57Z INFO [prod.checkout.cart] Cart snapshot saved items=3 ttl_s=1800
+2026-11-25T00:15:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=99
+2026-11-25T00:15:03Z INFO [prod.search.query] Query batch processed docs=153 elapsed_ms=12.3
+2026-11-25T00:15:06Z INFO [prod.auth.mfa] Challenge verified method=totp latency_ms=2.7
+2026-11-25T00:15:09Z INFO [prod.analytics.clickstream] Flushed 276 events partition=2026-11-25
+2026-11-25T00:15:12Z INFO [prod.search.indexer] Segment merge finished shard=01 docs=8090
+2026-11-25T00:15:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:15:18Z INFO [prod.notifications.email] Dispatched refund notice template=v3 latency_ms=16.9
+2026-11-25T00:15:21Z INFO [prod.inventory.us] Stock sync completed warehouse=us-east skus=120
+2026-11-25T00:15:24Z INFO [qa.inventory.eu] Stock smoke check ok
+2026-11-25T00:15:27Z INFO [prod.search.query] Query batch processed docs=139 elapsed_ms=10.9
+2026-11-25T00:15:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=101
+2026-11-25T00:15:33Z INFO [prod.auth.tokens] Key rotation check valid=true next_in_h=17
+2026-11-25T00:15:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.044
+2026-11-25T00:15:39Z INFO [prod.checkout.shipping] Rate quote cached zone=EU-2 rate=9.50
+2026-11-25T00:15:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:15:45Z INFO [prod.search.query] Query batch processed docs=149 elapsed_ms=11.8
+2026-11-25T00:15:48Z INFO [prod.auth.sso] Session token verified issuer=idp-eu-2 latency_ms=4.0
+2026-11-25T00:15:51Z INFO [staging.inventory.eu] Cache warmed warehouse=eu-central keys=240
+2026-11-25T00:15:54Z INFO [prod.notifications.webhook] Delivered event=inventory.reserved status=200
+2026-11-25T00:15:57Z INFO [prod.checkout.tax] Tax table checksum verified version=2026.11
+2026-11-25T00:16:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=100
+2026-11-25T00:16:03Z INFO [prod.search.query] Query batch processed docs=133 elapsed_ms=10.3
+2026-11-25T00:16:06Z INFO [prod.auth.oauth] Refresh exchange ok client=android-app
+2026-11-25T00:16:09Z INFO [prod.analytics.clickstream] Flushed 289 events partition=2026-11-25
+2026-11-25T00:16:12Z INFO [prod.search.indexer] Segment merge finished shard=02 docs=8190
+2026-11-25T00:16:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:16:18Z INFO [prod.inventory.backorder] Queue depth nominal depth=3
+2026-11-25T00:16:21Z INFO [dev.local.worker] Sandbox job idle heartbeat ok
+2026-11-25T00:16:24Z INFO [prod.checkout.cart] Cart snapshot saved items=2 ttl_s=1800
+2026-11-25T00:16:27Z INFO [prod.search.query] Query batch processed docs=157 elapsed_ms=12.7
+2026-11-25T00:16:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=102
+2026-11-25T00:16:33Z INFO [prod.notifications.email] Dispatched order receipt template=v4 latency_ms=16.3
+2026-11-25T00:16:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.043
+2026-11-25T00:16:39Z INFO [qa.checkout.cart] Synthetic cart check passed
+2026-11-25T00:16:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:16:45Z INFO [prod.search.query] Query batch processed docs=142 elapsed_ms=11.2
+2026-11-25T00:16:48Z INFO [prod.auth.sso] Session token verified issuer=idp-eu-1 latency_ms=4.1
+2026-11-25T00:16:51Z INFO [prod.inventory.eu] Stock sync completed warehouse=eu-central skus=120
+2026-11-25T00:16:54Z INFO [staging.auth.oauth] Mock token refreshed
+2026-11-25T00:16:57Z INFO [prod.checkout.shipping] Rate quote cached zone=US-EAST rate=6.50
+2026-11-25T00:17:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=99
+2026-11-25T00:17:03Z INFO [prod.search.query] Query batch processed docs=128 elapsed_ms=9.6
+2026-11-25T00:17:06Z INFO [prod.auth.mfa] Challenge verified method=webauthn latency_ms=6.2
+2026-11-25T00:17:09Z INFO [prod.analytics.clickstream] Flushed 281 events partition=2026-11-25
+2026-11-25T00:17:12Z INFO [prod.search.indexer] Segment merge finished shard=03 docs=8390
+2026-11-25T00:17:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:17:18Z INFO [prod.notifications.webhook] Delivered event=order.shipped status=200
+2026-11-25T00:17:21Z INFO [prod.inventory.us] Stock sync completed warehouse=us-east skus=120
+2026-11-25T00:17:24Z INFO [staging.search.indexer] Staging shard compact completed
+2026-11-25T00:17:27Z INFO [prod.search.query] Query batch processed docs=150 elapsed_ms=12.1
+2026-11-25T00:17:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=101
+2026-11-25T00:17:33Z INFO [prod.auth.tokens] Key rotation check valid=true next_in_h=17
+2026-11-25T00:17:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.045
+2026-11-25T00:17:39Z INFO [prod.checkout.cart] Cart snapshot saved items=4 ttl_s=1800
+2026-11-25T00:17:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:17:45Z INFO [prod.search.query] Query batch processed docs=145 elapsed_ms=11.6
+2026-11-25T00:17:48Z INFO [prod.auth.sso] Session token verified issuer=idp-us-1 latency_ms=4.5
+2026-11-25T00:17:51Z INFO [qa.payments.us] Synthetic charge test passed
+2026-11-25T00:17:54Z INFO [prod.notifications.email] Dispatched order receipt template=v4 latency_ms=16.0
+2026-11-25T00:17:57Z INFO [prod.checkout.tax] Tax table checksum verified version=2026.11
+2026-11-25T00:18:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=100
+2026-11-25T00:18:03Z INFO [prod.search.query] Query batch processed docs=136 elapsed_ms=10.4
+2026-11-25T00:18:06Z INFO [prod.auth.oauth] Refresh exchange ok client=web-storefront
+2026-11-25T00:18:09Z INFO [prod.analytics.clickstream] Flushed 292 events partition=2026-11-25
+2026-11-25T00:18:12Z INFO [prod.search.indexer] Segment merge finished shard=04 docs=8280
+2026-11-25T00:18:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:18:18Z INFO [prod.inventory.backorder] Queue depth nominal depth=4
+2026-11-25T00:18:21Z INFO [staging.payments.eu] Sandbox sepa ping status=200
+2026-11-25T00:18:24Z INFO [prod.checkout.shipping] Rate quote cached zone=APAC-1 rate=12.50
+2026-11-25T00:18:27Z INFO [prod.search.query] Query batch processed docs=164 elapsed_ms=13.2
+2026-11-25T00:18:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=102
+2026-11-25T00:18:33Z INFO [prod.auth.sso] Session token verified issuer=idp-eu-2 latency_ms=3.9
+2026-11-25T00:18:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.044
+2026-11-25T00:18:39Z INFO [dev.local.worker] Sandbox job idle heartbeat ok
+2026-11-25T00:18:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:18:45Z INFO [prod.search.query] Query batch processed docs=140 elapsed_ms=11.0
+2026-11-25T00:18:48Z INFO [prod.inventory.eu] Stock sync completed warehouse=eu-central skus=120
+2026-11-25T00:18:51Z INFO [staging.inventory.us] Cache warmed warehouse=us-east keys=240
+2026-11-25T00:18:54Z INFO [prod.notifications.webhook] Delivered event=payment.settled status=200
+2026-11-25T00:18:57Z INFO [prod.checkout.cart] Cart snapshot saved items=1 ttl_s=1800
+2026-11-25T00:19:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=99
+2026-11-25T00:19:03Z INFO [prod.search.query] Query batch processed docs=132 elapsed_ms=10.0
+2026-11-25T00:19:06Z INFO [prod.auth.mfa] Challenge verified method=totp latency_ms=2.8
+2026-11-25T00:19:09Z INFO [prod.analytics.clickstream] Flushed 277 events partition=2026-11-25
+2026-11-25T00:19:12Z INFO [prod.search.indexer] Segment merge finished shard=05 docs=8040
+2026-11-25T00:19:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:19:18Z INFO [prod.notifications.email] Dispatched shipment alert template=v2 latency_ms=15.6
+2026-11-25T00:19:21Z INFO [prod.inventory.us] Stock sync completed warehouse=us-east skus=120
+2026-11-25T00:19:24Z INFO [qa.search.query] Synthetic smoke query passed status=200
+2026-11-25T00:19:27Z INFO [prod.search.query] Query batch processed docs=158 elapsed_ms=12.6
+2026-11-25T00:19:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=101
+2026-11-25T00:19:33Z INFO [prod.auth.tokens] Key rotation check valid=true next_in_h=17
+2026-11-25T00:19:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.043
+2026-11-25T00:19:39Z INFO [prod.checkout.shipping] Rate quote cached zone=US-WEST rate=7.25
+2026-11-25T00:19:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:19:45Z INFO [prod.search.query] Query batch processed docs=143 elapsed_ms=11.3
+2026-11-25T00:19:48Z INFO [prod.auth.sso] Session token verified issuer=idp-eu-1 latency_ms=4.1
+2026-11-25T00:19:51Z INFO [staging.auth.sso] Test session ok issuer=idp-stage
+2026-11-25T00:19:54Z INFO [prod.notifications.webhook] Delivered event=order.created status=202
+2026-11-25T00:19:57Z INFO [prod.checkout.tax] Tax table checksum verified version=2026.11
+2026-11-25T00:20:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=99
+2026-11-25T00:20:03Z INFO [prod.search.query] Query batch processed docs=129 elapsed_ms=9.7
+2026-11-25T00:20:06Z INFO [prod.auth.oauth] Refresh exchange ok client=mobile-ios
+2026-11-25T00:20:09Z INFO [prod.analytics.clickstream] Flushed 296 events partition=2026-11-25
+2026-11-25T00:20:12Z INFO [prod.search.indexer] Segment merge finished shard=06 docs=8520
+2026-11-25T00:20:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:20:18Z INFO [prod.inventory.backorder] Queue depth nominal depth=3
+2026-11-25T00:20:21Z INFO [dev.payments.sandbox] Mock charge approved amount=3300
+2026-11-25T00:20:24Z INFO [prod.checkout.cart] Cart snapshot saved items=3 ttl_s=1800
+2026-11-25T00:20:27Z INFO [prod.search.query] Query batch processed docs=151 elapsed_ms=12.0
+2026-11-25T00:20:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=102
+2026-11-25T00:20:33Z INFO [prod.notifications.email] Dispatched refund notice template=v3 latency_ms=17.0
+2026-11-25T00:20:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.045
+2026-11-25T00:20:39Z INFO [qa.auth.sso] Integration suite tick status=pass
+2026-11-25T00:20:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:20:45Z INFO [prod.search.query] Query batch processed docs=144 elapsed_ms=11.4
+2026-11-25T00:20:48Z INFO [prod.auth.sso] Session token verified issuer=idp-us-2 latency_ms=4.3
+2026-11-25T00:20:51Z INFO [prod.inventory.eu] Stock sync completed warehouse=eu-central skus=120
+2026-11-25T00:20:54Z INFO [staging.checkout.promo] Promo catalog reload rules=5
+2026-11-25T00:20:57Z INFO [prod.checkout.shipping] Rate quote cached zone=EU-1 rate=8.00
+2026-11-25T00:21:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=100
+2026-11-25T00:21:03Z INFO [prod.search.query] Query batch processed docs=137 elapsed_ms=10.6
+2026-11-25T00:21:06Z INFO [prod.auth.mfa] Challenge verified method=webauthn latency_ms=5.9
+2026-11-25T00:21:09Z INFO [prod.analytics.clickstream] Flushed 284 events partition=2026-11-25
+2026-11-25T00:21:12Z INFO [prod.search.indexer] Segment merge finished shard=01 docs=8110
+2026-11-25T00:21:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:21:18Z INFO [prod.notifications.webhook] Delivered event=inventory.reserved status=200
+2026-11-25T00:21:21Z INFO [prod.inventory.us] Stock sync completed warehouse=us-east skus=120
+2026-11-25T00:21:24Z INFO [qa.inventory.eu] Stock smoke check ok
+2026-11-25T00:21:27Z INFO [prod.search.query] Query batch processed docs=156 elapsed_ms=12.5
+2026-11-25T00:21:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=101
+2026-11-25T00:21:33Z INFO [prod.auth.tokens] Key rotation check valid=true next_in_h=17
+2026-11-25T00:21:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.044
+2026-11-25T00:21:39Z INFO [prod.checkout.cart] Cart snapshot saved items=2 ttl_s=1800
+2026-11-25T00:21:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:21:45Z INFO [prod.search.query] Query batch processed docs=141 elapsed_ms=11.1
+2026-11-25T00:21:48Z INFO [prod.auth.sso] Session token verified issuer=idp-eu-2 latency_ms=4.0
+2026-11-25T00:21:51Z INFO [staging.inventory.eu] Cache warmed warehouse=eu-central keys=240
+2026-11-25T00:21:54Z INFO [prod.notifications.email] Dispatched order receipt template=v4 latency_ms=16.4
+2026-11-25T00:21:57Z INFO [prod.checkout.tax] Tax table checksum verified version=2026.11
+2026-11-25T00:22:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=99
+2026-11-25T00:22:03Z INFO [prod.search.query] Query batch processed docs=135 elapsed_ms=10.3
+2026-11-25T00:22:06Z INFO [prod.auth.oauth] Refresh exchange ok client=android-app
+2026-11-25T00:22:09Z INFO [prod.analytics.clickstream] Flushed 290 events partition=2026-11-25
+2026-11-25T00:22:12Z INFO [prod.search.indexer] Segment merge finished shard=02 docs=8230
+2026-11-25T00:22:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:22:18Z INFO [prod.inventory.backorder] Queue depth nominal depth=4
+2026-11-25T00:22:21Z INFO [dev.local.worker] Sandbox job idle heartbeat ok
+2026-11-25T00:22:24Z INFO [prod.checkout.shipping] Rate quote cached zone=US-EAST rate=6.50
+2026-11-25T00:22:27Z INFO [prod.search.query] Query batch processed docs=159 elapsed_ms=12.8
+2026-11-25T00:22:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=102
+2026-11-25T00:22:33Z INFO [prod.auth.sso] Session token verified issuer=idp-us-1 latency_ms=4.6
+2026-11-25T00:22:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.043
+2026-11-25T00:22:39Z INFO [qa.checkout.cart] Synthetic cart check passed
+2026-11-25T00:22:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:22:45Z INFO [prod.search.query] Query batch processed docs=143 elapsed_ms=11.3
+2026-11-25T00:22:48Z INFO [prod.inventory.eu] Stock sync completed warehouse=eu-central skus=120
+2026-11-25T00:22:51Z INFO [staging.auth.oauth] Mock token refreshed
+2026-11-25T00:22:54Z INFO [prod.notifications.webhook] Delivered event=order.shipped status=200
+2026-11-25T00:22:57Z INFO [prod.checkout.cart] Cart snapshot saved items=5 ttl_s=1800
+2026-11-25T00:23:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=99
+2026-11-25T00:23:03Z INFO [prod.search.query] Query batch processed docs=127 elapsed_ms=9.6
+2026-11-25T00:23:06Z INFO [prod.auth.mfa] Challenge verified method=totp latency_ms=2.9
+2026-11-25T00:23:09Z INFO [prod.analytics.clickstream] Flushed 275 events partition=2026-11-25
+2026-11-25T00:23:12Z INFO [prod.search.indexer] Segment merge finished shard=03 docs=8420
+2026-11-25T00:23:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:23:18Z INFO [prod.notifications.email] Dispatched shipment alert template=v2 latency_ms=15.5
+2026-11-25T00:23:21Z INFO [prod.inventory.us] Stock sync completed warehouse=us-east skus=120
+2026-11-25T00:23:24Z INFO [staging.search.indexer] Staging shard compact completed
+2026-11-25T00:23:27Z INFO [prod.search.query] Query batch processed docs=152 elapsed_ms=12.2
+2026-11-25T00:23:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=101
+2026-11-25T00:23:33Z INFO [prod.auth.tokens] Key rotation check valid=true next_in_h=17
+2026-11-25T00:23:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.046
+2026-11-25T00:23:39Z INFO [prod.checkout.shipping] Rate quote cached zone=APAC-1 rate=12.50
+2026-11-25T00:23:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:23:45Z INFO [prod.search.query] Query batch processed docs=146 elapsed_ms=11.5
+2026-11-25T00:23:48Z INFO [prod.auth.sso] Session token verified issuer=idp-eu-1 latency_ms=4.1
+2026-11-25T00:23:51Z INFO [qa.payments.us] Synthetic charge test passed
+2026-11-25T00:23:54Z INFO [prod.notifications.webhook] Delivered event=payment.settled status=200
+2026-11-25T00:23:57Z INFO [prod.checkout.tax] Tax table checksum verified version=2026.11
+2026-11-25T00:24:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=100
+2026-11-25T00:24:03Z INFO [prod.search.query] Query batch processed docs=139 elapsed_ms=10.8
+2026-11-25T00:24:06Z INFO [prod.auth.oauth] Refresh exchange ok client=web-storefront
+2026-11-25T00:24:09Z INFO [prod.analytics.clickstream] Flushed 299 events partition=2026-11-25
+2026-11-25T00:24:12Z INFO [prod.search.indexer] Segment merge finished shard=04 docs=8310
+2026-11-25T00:24:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:24:18Z INFO [prod.inventory.backorder] Queue depth nominal depth=3
+2026-11-25T00:24:21Z INFO [staging.payments.eu] Sandbox sepa ping status=200
+2026-11-25T00:24:24Z INFO [prod.checkout.cart] Cart snapshot saved items=3 ttl_s=1800
+2026-11-25T00:24:27Z INFO [prod.search.query] Query batch processed docs=161 elapsed_ms=13.0
+2026-11-25T00:24:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=102
+2026-11-25T00:24:33Z INFO [prod.notifications.email] Dispatched refund notice template=v3 latency_ms=17.2
+2026-11-25T00:24:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.044
+2026-11-25T00:24:39Z INFO [dev.local.worker] Sandbox job idle heartbeat ok
+2026-11-25T00:24:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:24:45Z INFO [prod.search.query] Query batch processed docs=134 elapsed_ms=10.2
+2026-11-25T00:24:48Z INFO [prod.auth.sso] Session token verified issuer=idp-us-2 latency_ms=4.4
+2026-11-25T00:24:51Z INFO [prod.inventory.eu] Stock sync completed warehouse=eu-central skus=120
+2026-11-25T00:24:54Z INFO [staging.inventory.us] Cache warmed warehouse=us-east keys=240
+2026-11-25T00:24:57Z INFO [prod.checkout.shipping] Rate quote cached zone=US-WEST rate=7.25
+2026-11-25T00:25:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=99
+2026-11-25T00:25:03Z INFO [prod.search.query] Query batch processed docs=147 elapsed_ms=11.7
+2026-11-25T00:25:06Z INFO [prod.auth.mfa] Challenge verified method=webauthn latency_ms=5.7
+2026-11-25T00:25:09Z INFO [prod.analytics.clickstream] Flushed 286 events partition=2026-11-25
+2026-11-25T00:25:12Z INFO [prod.search.indexer] Segment merge finished shard=05 docs=8070
+2026-11-25T00:25:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:25:18Z INFO [prod.notifications.webhook] Delivered event=order.created status=202
+2026-11-25T00:25:21Z INFO [prod.inventory.us] Stock sync completed warehouse=us-east skus=120
+2026-11-25T00:25:24Z INFO [qa.search.query] Synthetic smoke query passed status=200
+2026-11-25T00:25:27Z INFO [prod.search.query] Query batch processed docs=155 elapsed_ms=12.3
+2026-11-25T00:25:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=101
+2026-11-25T00:25:33Z INFO [prod.auth.tokens] Key rotation check valid=true next_in_h=17
+2026-11-25T00:25:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.043
+2026-11-25T00:25:39Z INFO [prod.checkout.cart] Cart snapshot saved items=2 ttl_s=1800
+2026-11-25T00:25:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:25:45Z INFO [prod.search.query] Query batch processed docs=130 elapsed_ms=9.9
+2026-11-25T00:25:48Z INFO [prod.auth.sso] Session token verified issuer=idp-eu-2 latency_ms=4.0
+2026-11-25T00:25:51Z INFO [staging.auth.sso] Test session ok issuer=idp-stage
+2026-11-25T00:25:54Z INFO [prod.notifications.email] Dispatched order receipt template=v4 latency_ms=16.5
+2026-11-25T00:25:57Z INFO [prod.checkout.tax] Tax table checksum verified version=2026.11
+2026-11-25T00:26:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=100
+2026-11-25T00:26:03Z INFO [prod.search.query] Query batch processed docs=144 elapsed_ms=11.4
+2026-11-25T00:26:06Z INFO [prod.auth.oauth] Refresh exchange ok client=mobile-ios
+2026-11-25T00:26:09Z INFO [prod.analytics.clickstream] Flushed 291 events partition=2026-11-25
+2026-11-25T00:26:12Z INFO [prod.search.indexer] Segment merge finished shard=06 docs=8550
+2026-11-25T00:26:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:26:18Z INFO [prod.inventory.backorder] Queue depth nominal depth=3
+2026-11-25T00:26:21Z INFO [dev.payments.sandbox] Mock charge approved amount=1800
+2026-11-25T00:26:24Z INFO [prod.checkout.shipping] Rate quote cached zone=EU-2 rate=9.50
+2026-11-25T00:26:27Z INFO [prod.search.query] Query batch processed docs=163 elapsed_ms=13.3
+2026-11-25T00:26:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=102
+2026-11-25T00:26:33Z INFO [prod.auth.sso] Session token verified issuer=idp-us-1 latency_ms=4.5
+2026-11-25T00:26:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.045
+2026-11-25T00:26:39Z INFO [qa.auth.sso] Integration suite tick status=pass
+2026-11-25T00:26:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:26:45Z INFO [prod.search.query] Query batch processed docs=138 elapsed_ms=10.7
+2026-11-25T00:26:48Z INFO [prod.inventory.eu] Stock sync completed warehouse=eu-central skus=120
+2026-11-25T00:26:51Z INFO [staging.checkout.promo] Promo catalog reload rules=5
+2026-11-25T00:26:54Z INFO [prod.notifications.webhook] Delivered event=inventory.reserved status=200
+2026-11-25T00:26:57Z INFO [prod.checkout.cart] Cart snapshot saved items=4 ttl_s=1800
+2026-11-25T00:27:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=99
+2026-11-25T00:27:03Z INFO [prod.search.query] Query batch processed docs=149 elapsed_ms=11.9
+2026-11-25T00:27:06Z INFO [prod.auth.mfa] Challenge verified method=totp latency_ms=2.8
+2026-11-25T00:27:09Z INFO [prod.analytics.clickstream] Flushed 278 events partition=2026-11-25
+2026-11-25T00:27:12Z INFO [prod.search.indexer] Segment merge finished shard=01 docs=8140
+2026-11-25T00:27:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:27:18Z INFO [prod.notifications.email] Dispatched shipment alert template=v2 latency_ms=15.9
+2026-11-25T00:27:21Z INFO [prod.inventory.us] Stock sync completed warehouse=us-east skus=120
+2026-11-25T00:27:24Z INFO [qa.inventory.eu] Stock smoke check ok
+2026-11-25T00:27:27Z INFO [prod.search.query] Query batch processed docs=131 elapsed_ms=10.0
+2026-11-25T00:27:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=101
+2026-11-25T00:27:33Z INFO [prod.auth.tokens] Key rotation check valid=true next_in_h=17
+2026-11-25T00:27:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.044
+2026-11-25T00:27:39Z INFO [prod.checkout.shipping] Rate quote cached zone=US-EAST rate=6.50
+2026-11-25T00:27:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:27:45Z INFO [prod.search.query] Query batch processed docs=154 elapsed_ms=12.1
+2026-11-25T00:27:48Z INFO [prod.auth.sso] Session token verified issuer=idp-eu-1 latency_ms=4.1
+2026-11-25T00:27:51Z INFO [staging.inventory.eu] Cache warmed warehouse=eu-central keys=240
+2026-11-25T00:27:54Z INFO [prod.notifications.webhook] Delivered event=order.shipped status=200
+2026-11-25T00:27:57Z INFO [prod.checkout.tax] Tax table checksum verified version=2026.11
+2026-11-25T00:28:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=100
+2026-11-25T00:28:03Z INFO [prod.search.query] Query batch processed docs=140 elapsed_ms=11.0
+2026-11-25T00:28:06Z INFO [prod.auth.oauth] Refresh exchange ok client=android-app
+2026-11-25T00:28:09Z INFO [prod.analytics.clickstream] Flushed 287 events partition=2026-11-25
+2026-11-25T00:28:12Z INFO [prod.search.indexer] Segment merge finished shard=02 docs=8270
+2026-11-25T00:28:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:28:18Z INFO [prod.inventory.backorder] Queue depth nominal depth=4
+2026-11-25T00:28:21Z INFO [dev.local.worker] Sandbox job idle heartbeat ok
+2026-11-25T00:28:24Z INFO [prod.checkout.cart] Cart snapshot saved items=3 ttl_s=1800
+2026-11-25T00:28:27Z INFO [prod.search.query] Query batch processed docs=158 elapsed_ms=12.7
+2026-11-25T00:28:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=102
+2026-11-25T00:28:33Z INFO [prod.notifications.email] Dispatched refund notice template=v3 latency_ms=16.7
+2026-11-25T00:28:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.043
+2026-11-25T00:28:39Z INFO [qa.checkout.cart] Synthetic cart check passed
+2026-11-25T00:28:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:28:45Z INFO [prod.search.query] Query batch processed docs=142 elapsed_ms=11.2
+2026-11-25T00:28:48Z INFO [prod.auth.sso] Session token verified issuer=idp-us-2 latency_ms=4.3
+2026-11-25T00:28:51Z INFO [prod.inventory.eu] Stock sync completed warehouse=eu-central skus=120
+2026-11-25T00:28:54Z INFO [staging.auth.oauth] Mock token refreshed
+2026-11-25T00:28:57Z INFO [prod.checkout.shipping] Rate quote cached zone=EU-1 rate=8.00
+2026-11-25T00:29:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=99
+2026-11-25T00:29:03Z INFO [prod.search.query] Query batch processed docs=128 elapsed_ms=9.8
+2026-11-25T00:29:06Z INFO [prod.auth.mfa] Challenge verified method=webauthn latency_ms=6.0
+2026-11-25T00:29:09Z INFO [prod.analytics.clickstream] Flushed 294 events partition=2026-11-25
+2026-11-25T00:29:12Z INFO [prod.search.indexer] Segment merge finished shard=03 docs=8450
+2026-11-25T00:29:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:29:18Z INFO [prod.notifications.webhook] Delivered event=payment.settled status=200
+2026-11-25T00:29:21Z INFO [prod.inventory.us] Stock sync completed warehouse=us-east skus=120
+2026-11-25T00:29:24Z INFO [staging.search.indexer] Staging shard compact completed
+2026-11-25T00:29:27Z INFO [prod.search.query] Query batch processed docs=151 elapsed_ms=12.0
+2026-11-25T00:29:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=101
+2026-11-25T00:29:33Z INFO [prod.auth.tokens] Key rotation check valid=true next_in_h=17
+2026-11-25T00:29:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.045
+2026-11-25T00:29:39Z INFO [prod.checkout.cart] Cart snapshot saved items=2 ttl_s=1800
+2026-11-25T00:29:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:29:45Z INFO [prod.search.query] Query batch processed docs=145 elapsed_ms=11.5
+2026-11-25T00:29:48Z INFO [prod.auth.sso] Session token verified issuer=idp-eu-2 latency_ms=4.0
+2026-11-25T00:29:51Z INFO [qa.payments.us] Synthetic charge test passed
+2026-11-25T00:29:54Z INFO [prod.notifications.email] Dispatched order receipt template=v4 latency_ms=16.2
+2026-11-25T00:29:57Z INFO [prod.checkout.tax] Tax table checksum verified version=2026.11
+2026-11-25T00:30:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=99
+2026-11-25T00:30:03Z INFO [prod.search.query] Query batch processed docs=136 elapsed_ms=10.5
+2026-11-25T00:30:06Z INFO [prod.auth.oauth] Refresh exchange ok client=web-storefront
+2026-11-25T00:30:09Z INFO [prod.analytics.clickstream] Flushed 280 events partition=2026-11-25
+2026-11-25T00:30:12Z INFO [prod.search.indexer] Segment merge finished shard=04 docs=8330
+2026-11-25T00:30:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:30:18Z INFO [prod.inventory.backorder] Queue depth nominal depth=3
+2026-11-25T00:30:21Z INFO [staging.payments.eu] Sandbox sepa ping status=200
+2026-11-25T00:30:24Z INFO [prod.checkout.shipping] Rate quote cached zone=US-WEST rate=7.25
+2026-11-25T00:30:27Z INFO [prod.search.query] Query batch processed docs=160 elapsed_ms=12.9
+2026-11-25T00:30:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=102
+2026-11-25T00:30:33Z INFO [prod.auth.sso] Session token verified issuer=idp-us-1 latency_ms=4.5
+2026-11-25T00:30:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.044
+2026-11-25T00:30:39Z INFO [dev.local.worker] Sandbox job idle heartbeat ok
+2026-11-25T00:30:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:30:45Z INFO [prod.search.query] Query batch processed docs=142 elapsed_ms=11.1
+2026-11-25T00:30:48Z INFO [prod.inventory.eu] Stock sync completed warehouse=eu-central skus=120
+2026-11-25T00:30:51Z INFO [staging.inventory.us] Cache warmed warehouse=us-east keys=240
+2026-11-25T00:30:54Z INFO [prod.notifications.webhook] Delivered event=order.created status=202
+2026-11-25T00:30:57Z INFO [prod.checkout.cart] Cart snapshot saved items=3 ttl_s=1800
+2026-11-25T00:31:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=100
+2026-11-25T00:31:03Z INFO [prod.search.query] Query batch processed docs=133 elapsed_ms=10.2
+2026-11-25T00:31:06Z INFO [prod.auth.mfa] Challenge verified method=totp latency_ms=2.8
+2026-11-25T00:31:09Z INFO [prod.analytics.clickstream] Flushed 297 events partition=2026-11-25
+2026-11-25T00:31:12Z INFO [prod.search.indexer] Segment merge finished shard=05 docs=8100
+2026-11-25T00:31:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:31:18Z INFO [prod.notifications.email] Dispatched refund notice template=v3 latency_ms=16.8
+2026-11-25T00:31:21Z INFO [prod.inventory.us] Stock sync completed warehouse=us-east skus=120
+2026-11-25T00:31:24Z INFO [qa.search.query] Synthetic smoke query passed status=200
+2026-11-25T00:31:27Z INFO [prod.search.query] Query batch processed docs=157 elapsed_ms=12.6
+2026-11-25T00:31:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=101
+2026-11-25T00:31:33Z INFO [prod.auth.tokens] Key rotation check valid=true next_in_h=17
+2026-11-25T00:31:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.043
+2026-11-25T00:31:39Z INFO [prod.checkout.shipping] Rate quote cached zone=EU-2 rate=9.50
+2026-11-25T00:31:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:31:45Z INFO [prod.search.query] Query batch processed docs=144 elapsed_ms=11.4
+2026-11-25T00:31:48Z INFO [prod.auth.sso] Session token verified issuer=idp-eu-1 latency_ms=4.1
+2026-11-25T00:31:51Z INFO [staging.auth.sso] Test session ok issuer=idp-stage
+2026-11-25T00:31:54Z INFO [prod.notifications.webhook] Delivered event=inventory.reserved status=200
+2026-11-25T00:31:57Z INFO [prod.checkout.tax] Tax table checksum verified version=2026.11
+2026-11-25T00:32:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=99
+2026-11-25T00:32:03Z INFO [prod.search.query] Query batch processed docs=129 elapsed_ms=9.8
+2026-11-25T00:32:06Z INFO [prod.auth.oauth] Refresh exchange ok client=android-app
+2026-11-25T00:32:09Z INFO [prod.analytics.clickstream] Flushed 283 events partition=2026-11-25
+2026-11-25T00:32:12Z INFO [prod.search.indexer] Segment merge finished shard=06 docs=8580
+2026-11-25T00:32:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:32:18Z INFO [prod.inventory.backorder] Queue depth nominal depth=4
+2026-11-25T00:32:21Z INFO [dev.payments.sandbox] Mock charge approved amount=5100
+2026-11-25T00:32:24Z INFO [prod.checkout.cart] Cart snapshot saved items=1 ttl_s=1800
+2026-11-25T00:32:27Z INFO [prod.search.query] Query batch processed docs=153 elapsed_ms=12.2
+2026-11-25T00:32:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=102
+2026-11-25T00:32:33Z INFO [prod.notifications.email] Dispatched shipment alert template=v2 latency_ms=15.8
+2026-11-25T00:32:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.045
+2026-11-25T00:32:39Z INFO [qa.auth.sso] Integration suite tick status=pass
+2026-11-25T00:32:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:32:45Z INFO [prod.search.query] Query batch processed docs=141 elapsed_ms=11.1
+2026-11-25T00:32:48Z INFO [prod.auth.sso] Session token verified issuer=idp-us-2 latency_ms=4.3
+2026-11-25T00:32:51Z INFO [prod.inventory.eu] Stock sync completed warehouse=eu-central skus=120
+2026-11-25T00:32:54Z INFO [staging.checkout.promo] Promo catalog reload rules=5
+2026-11-25T00:32:57Z INFO [prod.checkout.shipping] Rate quote cached zone=US-EAST rate=6.50
+2026-11-25T00:33:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=100
+2026-11-25T00:33:03Z INFO [prod.search.query] Query batch processed docs=137 elapsed_ms=10.6
+2026-11-25T00:33:06Z INFO [prod.auth.mfa] Challenge verified method=webauthn latency_ms=6.1
+2026-11-25T00:33:09Z INFO [prod.analytics.clickstream] Flushed 291 events partition=2026-11-25
+2026-11-25T00:33:12Z INFO [prod.search.indexer] Segment merge finished shard=01 docs=8170
+2026-11-25T00:33:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:33:18Z INFO [prod.notifications.webhook] Delivered event=order.shipped status=200
+2026-11-25T00:33:21Z INFO [prod.inventory.us] Stock sync completed warehouse=us-east skus=120
+2026-11-25T00:33:24Z INFO [qa.inventory.eu] Stock smoke check ok
+2026-11-25T00:33:27Z INFO [prod.search.query] Query batch processed docs=159 elapsed_ms=12.8
+2026-11-25T00:33:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=101
+2026-11-25T00:33:33Z INFO [prod.auth.tokens] Key rotation check valid=true next_in_h=17
+2026-11-25T00:33:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.044
+2026-11-25T00:33:39Z INFO [prod.checkout.cart] Cart snapshot saved items=4 ttl_s=1800
+2026-11-25T00:33:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:33:45Z INFO [prod.search.query] Query batch processed docs=145 elapsed_ms=11.5
+2026-11-25T00:33:48Z INFO [prod.auth.sso] Session token verified issuer=idp-eu-2 latency_ms=3.9
+2026-11-25T00:33:51Z INFO [staging.inventory.eu] Cache warmed warehouse=eu-central keys=240
+2026-11-25T00:33:54Z INFO [prod.notifications.email] Dispatched order receipt template=v4 latency_ms=16.1
+2026-11-25T00:33:57Z INFO [prod.checkout.tax] Tax table checksum verified version=2026.11
+2026-11-25T00:34:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=99
+2026-11-25T00:34:03Z INFO [prod.search.query] Query batch processed docs=131 elapsed_ms=10.1
+2026-11-25T00:34:06Z INFO [prod.auth.oauth] Refresh exchange ok client=mobile-ios
+2026-11-25T00:34:09Z INFO [prod.analytics.clickstream] Flushed 285 events partition=2026-11-25
+2026-11-25T00:34:12Z INFO [prod.search.indexer] Segment merge finished shard=02 docs=8300
+2026-11-25T00:34:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:34:18Z INFO [prod.inventory.backorder] Queue depth nominal depth=3
+2026-11-25T00:34:21Z INFO [dev.local.worker] Sandbox job idle heartbeat ok
+2026-11-25T00:34:24Z INFO [prod.checkout.shipping] Rate quote cached zone=APAC-1 rate=12.50
+2026-11-25T00:34:27Z INFO [prod.search.query] Query batch processed docs=154 elapsed_ms=12.2
+2026-11-25T00:34:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=102
+2026-11-25T00:34:33Z INFO [prod.auth.sso] Session token verified issuer=idp-us-1 latency_ms=4.5
+2026-11-25T00:34:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.043
+2026-11-25T00:34:39Z INFO [qa.checkout.cart] Synthetic cart check passed
+2026-11-25T00:34:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:34:45Z INFO [prod.search.query] Query batch processed docs=142 elapsed_ms=11.2
+2026-11-25T00:34:48Z INFO [prod.inventory.eu] Stock sync completed warehouse=eu-central skus=120
+2026-11-25T00:34:51Z INFO [staging.auth.oauth] Mock token refreshed
+2026-11-25T00:34:54Z INFO [prod.notifications.webhook] Delivered event=payment.settled status=200
+2026-11-25T00:34:57Z INFO [prod.checkout.cart] Cart snapshot saved items=2 ttl_s=1800
+2026-11-25T00:35:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=99
+2026-11-25T00:35:03Z INFO [prod.search.query] Query batch processed docs=128 elapsed_ms=9.7
+2026-11-25T00:35:06Z INFO [prod.auth.mfa] Challenge verified method=totp latency_ms=2.8
+2026-11-25T00:35:09Z INFO [prod.analytics.clickstream] Flushed 279 events partition=2026-11-25
+2026-11-25T00:35:12Z INFO [prod.search.indexer] Segment merge finished shard=03 docs=8480
+2026-11-25T00:35:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:35:18Z INFO [prod.notifications.email] Dispatched refund notice template=v3 latency_ms=16.9
+2026-11-25T00:35:21Z INFO [prod.inventory.us] Stock sync completed warehouse=us-east skus=120
+2026-11-25T00:35:24Z INFO [staging.search.indexer] Staging shard compact completed
+2026-11-25T00:35:27Z INFO [prod.search.query] Query batch processed docs=150 elapsed_ms=11.9
+2026-11-25T00:35:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=101
+2026-11-25T00:35:33Z INFO [prod.auth.tokens] Key rotation check valid=true next_in_h=17
+2026-11-25T00:35:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.046
+2026-11-25T00:35:39Z INFO [prod.checkout.shipping] Rate quote cached zone=US-WEST rate=7.25
+2026-11-25T00:35:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:35:45Z INFO [prod.search.query] Query batch processed docs=143 elapsed_ms=11.3
+2026-11-25T00:35:48Z INFO [prod.auth.sso] Session token verified issuer=idp-eu-1 latency_ms=4.1
+2026-11-25T00:35:51Z INFO [qa.payments.us] Synthetic charge test passed
+2026-11-25T00:35:54Z INFO [prod.notifications.webhook] Delivered event=order.created status=202
+2026-11-25T00:35:57Z INFO [prod.checkout.tax] Tax table checksum verified version=2026.11
+2026-11-25T00:36:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=100
+2026-11-25T00:36:03Z INFO [prod.search.query] Query batch processed docs=141 elapsed_ms=11.0
+2026-11-25T00:36:06Z INFO [prod.auth.oauth] Refresh exchange ok client=web-storefront
+2026-11-25T00:36:09Z INFO [prod.analytics.clickstream] Flushed 285 events partition=2026-11-25
+2026-11-25T00:36:12Z INFO [prod.search.indexer] Segment merge finished shard=04 docs=8350
+2026-11-25T00:36:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:36:18Z INFO [prod.inventory.backorder] Queue depth nominal depth=3
+2026-11-25T00:36:21Z INFO [staging.payments.eu] Sandbox sepa ping status=200
+2026-11-25T00:36:24Z INFO [prod.checkout.cart] Cart snapshot saved items=2 ttl_s=1800
+2026-11-25T00:36:27Z INFO [prod.search.query] Query batch processed docs=156 elapsed_ms=12.4
+2026-11-25T00:36:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=102
+2026-11-25T00:36:33Z INFO [prod.notifications.email] Dispatched order receipt template=v4 latency_ms=16.0
+2026-11-25T00:36:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.044
+2026-11-25T00:36:39Z INFO [dev.local.worker] Sandbox job idle heartbeat ok
+2026-11-25T00:36:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:36:45Z INFO [prod.search.query] Query batch processed docs=139 elapsed_ms=10.8
+2026-11-25T00:36:48Z INFO [prod.auth.sso] Session token verified issuer=idp-us-2 latency_ms=4.3
+2026-11-25T00:36:51Z INFO [prod.inventory.eu] Stock sync completed warehouse=eu-central skus=120
+2026-11-25T00:36:54Z INFO [staging.inventory.us] Cache warmed warehouse=us-east keys=240
+2026-11-25T00:36:57Z INFO [prod.checkout.shipping] Rate quote cached zone=EU-1 rate=8.00
+2026-11-25T00:37:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=99
+2026-11-25T00:37:03Z INFO [prod.search.query] Query batch processed docs=133 elapsed_ms=10.1
+2026-11-25T00:37:06Z INFO [prod.auth.mfa] Challenge verified method=webauthn latency_ms=5.8
+2026-11-25T00:37:09Z INFO [prod.analytics.clickstream] Flushed 292 events partition=2026-11-25
+2026-11-25T00:37:12Z INFO [prod.search.indexer] Segment merge finished shard=05 docs=8120
+2026-11-25T00:37:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:37:18Z INFO [prod.notifications.webhook] Delivered event=payment.settled status=200
+2026-11-25T00:37:21Z INFO [prod.inventory.us] Stock sync completed warehouse=us-east skus=120
+2026-11-25T00:37:24Z INFO [qa.search.query] Synthetic smoke query passed status=200
+2026-11-25T00:37:27Z INFO [prod.search.query] Query batch processed docs=151 elapsed_ms=12.0
+2026-11-25T00:37:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=101
+2026-11-25T00:37:33Z INFO [prod.auth.tokens] Key rotation check valid=true next_in_h=16
+2026-11-25T00:37:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.043
+2026-11-25T00:37:39Z INFO [prod.checkout.cart] Cart snapshot saved items=4 ttl_s=1800
+2026-11-25T00:37:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:37:45Z INFO [prod.search.query] Query batch processed docs=146 elapsed_ms=11.5
+2026-11-25T00:37:48Z INFO [prod.auth.sso] Session token verified issuer=idp-eu-1 latency_ms=4.1
+2026-11-25T00:37:51Z INFO [staging.auth.sso] Test session ok issuer=idp-stage
+2026-11-25T00:37:54Z INFO [prod.notifications.email] Dispatched shipment alert template=v2 latency_ms=15.6
+2026-11-25T00:37:57Z INFO [prod.checkout.tax] Tax table checksum verified version=2026.11
+2026-11-25T00:38:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=100
+2026-11-25T00:38:03Z INFO [prod.search.query] Query batch processed docs=129 elapsed_ms=9.7
+2026-11-25T00:38:06Z INFO [prod.auth.oauth] Refresh exchange ok client=mobile-ios
+2026-11-25T00:38:09Z INFO [prod.analytics.clickstream] Flushed 279 events partition=2026-11-25
+2026-11-25T00:38:12Z INFO [prod.search.indexer] Segment merge finished shard=06 docs=8600
+2026-11-25T00:38:15Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:38:18Z INFO [prod.inventory.backorder] Queue depth nominal depth=4
+2026-11-25T00:38:21Z INFO [dev.payments.sandbox] Mock charge approved amount=1400
+2026-11-25T00:38:24Z INFO [prod.checkout.shipping] Rate quote cached zone=US-WEST rate=7.25
+2026-11-25T00:38:27Z INFO [prod.search.query] Query batch processed docs=160 elapsed_ms=12.9
+2026-11-25T00:38:30Z INFO [ops.heartbeat] Tick node=router-02 rss_mb=102
+2026-11-25T00:38:33Z INFO [prod.auth.sso] Session token verified issuer=idp-us-1 latency_ms=4.5
+2026-11-25T00:38:36Z INFO [prod.analytics.funnel] Aggregated hourly checkout conversion=0.045
+2026-11-25T00:38:39Z INFO [qa.auth.sso] Integration suite tick status=pass
+2026-11-25T00:38:42Z INFO [ops.metrics.collector] Scraped 48 prometheus targets status=200
+2026-11-25T00:38:45Z INFO [prod.search.query] Query batch processed docs=142 elapsed_ms=11.1
+2026-11-25T00:38:48Z INFO [prod.inventory.eu] Stock sync completed warehouse=eu-central skus=120
+2026-11-25T00:38:51Z INFO [staging.checkout.promo] Promo catalog reload rules=5
+2026-11-25T00:38:54Z INFO [prod.notifications.webhook] Delivered event=order.created status=202
+2026-11-25T00:38:57Z INFO [prod.checkout.cart] Cart snapshot saved items=2 ttl_s=1800
+2026-11-25T00:39:00Z INFO [ops.heartbeat] Tick node=router-01 rss_mb=99
+2026-11-25T00:39:05Z INFO [ops.audit] Starting log-router incident verification replay
+2026-11-25T00:39:07Z ERROR [ops.router] EOF multiline stacktrace lost in parser.parse_lines: final buffered record dropped when no non-indented header follows at EOF
+  File "/srv/log_router/parser.py", line 94, in parse_lines
+    pending_multiline = records.pop()
+2026-11-25T00:39:10Z ERROR [ops.router] Timestamp offset sign error: input 2026-11-25T05:15:30-0500 normalized to 2026-11-25T00:15:30Z (UTC-0500 shifted -10h instead of +5h to 2026-11-25T10:15:30Z)
+  File "/srv/log_router/parser.py", line 56, in normalize_timestamp_utc
+    utc_dt = (naive + (delta * sign)).replace(tzinfo=timezone.utc)
+2026-11-25T00:39:13Z ERROR [ops.router] Routing specificity violation: tenant prod.payments.eu routed to prod.* sink (prod_default_sink) instead of payments_eu_sink because rules.select_route stopped at first match
+  File "/srv/log_router/rules.py", line 114, in select_route
+    if route_matches(pattern, tenant):
+2026-11-25T00:39:16Z ERROR [ops.router] PII leaked in dlq_audit: email alice@example.com and Bearer tok_live_987654321 passed unmasked when is_dlq=True or inside stack lines; redact_pii must deepcopy & mask all channels
+  File "/srv/log_router/rules.py", line 133, in redact_pii
+    if record.get("is_dlq") or str(record.get("level", "")).upper() == "DLQ":
+2026-11-25T00:39:19Z ERROR [ops.router] Shared dict mutation during sink fanout: primary_sink received channel="audit" after audit_sink overwrite; RouterSinkManager.emit must deepcopy per sink
+  File "/srv/log_router/sinks.py", line 110, in emit
+    sanitized["channel"] = "audit"
+2026-11-25T00:39:22Z ERROR [ops.router] RingBufferSink dropped newest event evt-004 on capacity=3 overflow instead of spilling oldest evt-001 to overflow_sink
+  File "/srv/log_router/sinks.py", line 61, in emit
+    self.overflow_sink.emit(event)
+2026-11-25T00:39:25Z ERROR [ops.router] LogRouterPipeline.flush() returned stats with pending_count=3 unrouted records left in _pending instead of propagating tail through sinks
+  File "/srv/log_router/pipeline.py", line 69, in flush
+    return self.stats()
+2026-11-25T00:39:28Z WARN [ops.audit] Replay finished with 7 failures across parser.py, rules.py, sinks.py, pipeline.py

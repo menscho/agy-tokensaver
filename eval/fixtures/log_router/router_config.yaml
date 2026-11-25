@@ -1,0 +1,352 @@
+# Multi-tenant Log Router Configuration
+# Ordered intentionally with broad parent wildcards before specific child routes.
+routes:
+  - pattern: "*"
+    sink: fallback_sink
+    escalate_on: [CRITICAL]
+    dedup_window_s: 300
+
+  - pattern: "prod.*"
+    sink: prod_default_sink
+    escalate_on: [ERROR, CRITICAL]
+    dedup_window_s: 120
+
+  - pattern: "prod.payments.*"
+    sink: prod_payments_sink
+    escalate_on: [WARN, ERROR, CRITICAL]
+    dedup_window_s: 30
+
+  - pattern: "prod.payments.eu"
+    sink: payments_eu_sink
+    escalate_on: [WARN, ERROR, CRITICAL]
+    dedup_window_s: 15
+
+  - pattern: "prod.payments.us"
+    sink: payments_us_sink
+    escalate_on: [WARN, ERROR, CRITICAL]
+    dedup_window_s: 15
+
+  - pattern: "prod.payments.apac"
+    sink: payments_apac_sink
+    escalate_on: [ERROR, CRITICAL]
+    dedup_window_s: 20
+
+  - pattern: "prod.payments.eu.sepa"
+    sink: payments_sepa_sink
+    escalate_on: [WARN, ERROR, CRITICAL]
+    dedup_window_s: 10
+
+  - pattern: "prod.payments.us.ach"
+    sink: payments_ach_sink
+    escalate_on: [WARN, ERROR, CRITICAL]
+    dedup_window_s: 10
+
+  - pattern: "prod.payments.fraud"
+    sink: fraud_alerts_sink
+    escalate_on: [INFO, WARN, ERROR, CRITICAL]
+    dedup_window_s: 5
+
+  - pattern: "prod.auth.*"
+    sink: prod_auth_sink
+    escalate_on: [ERROR, CRITICAL]
+    dedup_window_s: 60
+
+  - pattern: "prod.auth.sso"
+    sink: auth_sso_sink
+    escalate_on: [WARN, ERROR, CRITICAL]
+    dedup_window_s: 15
+
+  - pattern: "prod.auth.oauth"
+    sink: auth_oauth_sink
+    escalate_on: [WARN, ERROR, CRITICAL]
+    dedup_window_s: 15
+
+  - pattern: "prod.auth.mfa"
+    sink: auth_mfa_sink
+    escalate_on: [ERROR, CRITICAL]
+    dedup_window_s: 20
+
+  - pattern: "prod.auth.tokens"
+    sink: auth_tokens_sink
+    escalate_on: [WARN, ERROR, CRITICAL]
+    dedup_window_s: 10
+
+  - pattern: "prod.checkout.*"
+    sink: prod_checkout_sink
+    escalate_on: [ERROR, CRITICAL]
+    dedup_window_s: 45
+
+  - pattern: "prod.checkout.cart"
+    sink: checkout_cart_sink
+    escalate_on: [ERROR, CRITICAL]
+    dedup_window_s: 30
+
+  - pattern: "prod.checkout.promo"
+    sink: checkout_promo_sink
+    escalate_on: [WARN, ERROR, CRITICAL]
+    dedup_window_s: 20
+
+  - pattern: "prod.checkout.tax"
+    sink: checkout_tax_sink
+    escalate_on: [WARN, ERROR, CRITICAL]
+    dedup_window_s: 20
+
+  - pattern: "prod.checkout.shipping"
+    sink: checkout_shipping_sink
+    escalate_on: [ERROR, CRITICAL]
+    dedup_window_s: 30
+
+  - pattern: "prod.inventory.*"
+    sink: prod_inventory_sink
+    escalate_on: [ERROR, CRITICAL]
+    dedup_window_s: 60
+
+  - pattern: "prod.inventory.eu"
+    sink: inventory_eu_sink
+    escalate_on: [WARN, ERROR, CRITICAL]
+    dedup_window_s: 20
+
+  - pattern: "prod.inventory.us"
+    sink: inventory_us_sink
+    escalate_on: [WARN, ERROR, CRITICAL]
+    dedup_window_s: 20
+
+  - pattern: "prod.inventory.backorder"
+    sink: inventory_backorder_sink
+    escalate_on: [WARN, ERROR, CRITICAL]
+    dedup_window_s: 15
+
+  - pattern: "prod.ledger.*"
+    sink: prod_ledger_sink
+    escalate_on: [WARN, ERROR, CRITICAL]
+    dedup_window_s: 15
+
+  - pattern: "prod.ledger.settlement"
+    sink: ledger_settlement_sink
+    escalate_on: [WARN, ERROR, CRITICAL]
+    dedup_window_s: 10
+
+  - pattern: "prod.ledger.refunds"
+    sink: ledger_refunds_sink
+    escalate_on: [WARN, ERROR, CRITICAL]
+    dedup_window_s: 10
+
+  - pattern: "prod.search.*"
+    sink: prod_search_sink
+    escalate_on: [ERROR, CRITICAL]
+    dedup_window_s: 90
+
+  - pattern: "prod.search.indexer"
+    sink: search_indexer_sink
+    escalate_on: [ERROR, CRITICAL]
+    dedup_window_s: 60
+
+  - pattern: "prod.search.query"
+    sink: search_query_sink
+    escalate_on: [ERROR, CRITICAL]
+    dedup_window_s: 45
+
+  - pattern: "prod.notifications.*"
+    sink: prod_notify_sink
+    escalate_on: [ERROR, CRITICAL]
+    dedup_window_s: 60
+
+  - pattern: "prod.notifications.email"
+    sink: notify_email_sink
+    escalate_on: [WARN, ERROR, CRITICAL]
+    dedup_window_s: 30
+
+  - pattern: "prod.notifications.webhook"
+    sink: notify_webhook_sink
+    escalate_on: [WARN, ERROR, CRITICAL]
+    dedup_window_s: 25
+
+  - pattern: "prod.analytics.*"
+    sink: prod_analytics_sink
+    escalate_on: [CRITICAL]
+    dedup_window_s: 180
+
+  - pattern: "prod.analytics.clickstream"
+    sink: analytics_click_sink
+    escalate_on: [CRITICAL]
+    dedup_window_s: 240
+
+  - pattern: "prod.analytics.funnel"
+    sink: analytics_funnel_sink
+    escalate_on: [ERROR, CRITICAL]
+    dedup_window_s: 120
+
+  - pattern: "staging.*"
+    sink: staging_default_sink
+    escalate_on: [CRITICAL]
+    dedup_window_s: 180
+
+  - pattern: "staging.payments.*"
+    sink: staging_payments_sink
+    escalate_on: [ERROR, CRITICAL]
+    dedup_window_s: 60
+
+  - pattern: "staging.payments.eu"
+    sink: staging_payments_eu_sink
+    escalate_on: [WARN, ERROR, CRITICAL]
+    dedup_window_s: 30
+
+  - pattern: "staging.payments.us"
+    sink: staging_payments_us_sink
+    escalate_on: [WARN, ERROR, CRITICAL]
+    dedup_window_s: 30
+
+  - pattern: "staging.auth.*"
+    sink: staging_auth_sink
+    escalate_on: [ERROR, CRITICAL]
+    dedup_window_s: 90
+
+  - pattern: "staging.auth.sso"
+    sink: staging_auth_sso_sink
+    escalate_on: [ERROR, CRITICAL]
+    dedup_window_s: 45
+
+  - pattern: "staging.checkout.*"
+    sink: staging_checkout_sink
+    escalate_on: [ERROR, CRITICAL]
+    dedup_window_s: 90
+
+  - pattern: "staging.checkout.promo"
+    sink: staging_promo_sink
+    escalate_on: [WARN, ERROR, CRITICAL]
+    dedup_window_s: 45
+
+  - pattern: "staging.inventory.*"
+    sink: staging_inventory_sink
+    escalate_on: [ERROR, CRITICAL]
+    dedup_window_s: 90
+
+  - pattern: "staging.ledger.*"
+    sink: staging_ledger_sink
+    escalate_on: [ERROR, CRITICAL]
+    dedup_window_s: 60
+
+  - pattern: "staging.search.*"
+    sink: staging_search_sink
+    escalate_on: [CRITICAL]
+    dedup_window_s: 180
+
+  - pattern: "qa.*"
+    sink: qa_default_sink
+    escalate_on: [CRITICAL]
+    dedup_window_s: 300
+
+  - pattern: "qa.payments.*"
+    sink: qa_payments_sink
+    escalate_on: [ERROR, CRITICAL]
+    dedup_window_s: 120
+
+  - pattern: "qa.payments.eu"
+    sink: qa_payments_eu_sink
+    escalate_on: [ERROR, CRITICAL]
+    dedup_window_s: 60
+
+  - pattern: "qa.auth.*"
+    sink: qa_auth_sink
+    escalate_on: [ERROR, CRITICAL]
+    dedup_window_s: 120
+
+  - pattern: "qa.checkout.*"
+    sink: qa_checkout_sink
+    escalate_on: [ERROR, CRITICAL]
+    dedup_window_s: 120
+
+  - pattern: "qa.inventory.*"
+    sink: qa_inventory_sink
+    escalate_on: [ERROR, CRITICAL]
+    dedup_window_s: 120
+
+  - pattern: "dev.*"
+    sink: dev_sandbox_sink
+    escalate_on: [CRITICAL]
+    dedup_window_s: 600
+
+  - pattern: "dev.payments.*"
+    sink: dev_payments_sink
+    escalate_on: [CRITICAL]
+    dedup_window_s: 300
+
+  - pattern: "dev.auth.*"
+    sink: dev_auth_sink
+    escalate_on: [CRITICAL]
+    dedup_window_s: 300
+
+  - pattern: "dev.local.*"
+    sink: dev_local_sink
+    escalate_on: [CRITICAL]
+    dedup_window_s: 600
+
+  - pattern: "ops.*"
+    sink: ops_default_sink
+    escalate_on: [WARN, ERROR, CRITICAL]
+    dedup_window_s: 60
+
+  - pattern: "ops.metrics.*"
+    sink: ops_metrics_sink
+    escalate_on: [ERROR, CRITICAL]
+    dedup_window_s: 45
+
+  - pattern: "ops.alerts.*"
+    sink: ops_alerts_sink
+    escalate_on: [INFO, WARN, ERROR, CRITICAL]
+    dedup_window_s: 10
+
+  - pattern: "ops.alerts.pager"
+    sink: ops_pager_sink
+    escalate_on: [INFO, WARN, ERROR, CRITICAL]
+    dedup_window_s: 5
+
+  - pattern: "ops.audit.*"
+    sink: ops_audit_sink
+    escalate_on: [WARN, ERROR, CRITICAL]
+    dedup_window_s: 15
+
+  - pattern: "ops.audit.compliance"
+    sink: ops_compliance_sink
+    escalate_on: [INFO, WARN, ERROR, CRITICAL]
+    dedup_window_s: 5
+
+  - pattern: "partner.*"
+    sink: partner_default_sink
+    escalate_on: [ERROR, CRITICAL]
+    dedup_window_s: 120
+
+  - pattern: "partner.stripe.webhooks"
+    sink: partner_stripe_sink
+    escalate_on: [WARN, ERROR, CRITICAL]
+    dedup_window_s: 15
+
+  - pattern: "prod.checkout.*"
+    sink: prod_checkout_sink
+    escalate_on: [ERROR, CRITICAL]
+    dedup_window_s: 30
+
+  - pattern: "prod.checkout.fraud"
+    sink: prod_fraud_sink
+    escalate_on: [WARN, ERROR, CRITICAL]
+    dedup_window_s: 5
+
+  - pattern: "prod.search.*"
+    sink: prod_search_sink
+    escalate_on: [ERROR, CRITICAL]
+    dedup_window_s: 90
+
+  - pattern: "prod.search.vector"
+    sink: prod_vector_sink
+    escalate_on: [ERROR, CRITICAL]
+    dedup_window_s: 20
+
+  - pattern: "dev.*"
+    sink: dev_default_sink
+    escalate_on: [CRITICAL]
+    dedup_window_s: 600
+
+  - pattern: "dev.sandbox.replay"
+    sink: dev_replay_sink
+    escalate_on: [ERROR, CRITICAL]
+    dedup_window_s: 60

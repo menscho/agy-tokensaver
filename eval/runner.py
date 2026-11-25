@@ -61,8 +61,9 @@ MODE_PROFILE: dict[str, dict[str, Any]] = {
 }
 
 
-def load_tasks() -> list[dict[str, Any]]:
-    return json.loads(TASKS_PATH.read_text(encoding="utf-8"))
+def load_tasks(tasks_path: Path | None = None) -> list[dict[str, Any]]:
+    p = tasks_path or TASKS_PATH
+    return json.loads(p.read_text(encoding="utf-8"))
 
 
 def stage_fixture(task: dict[str, Any], dst: Path, init_git: bool = False) -> None:
@@ -95,12 +96,17 @@ def run_verify(task: dict[str, Any], workdir: Path) -> bool:
 
 
 def apply_reference(task: dict[str, Any], workdir: Path) -> None:
-    if "reference_edit" in task:
-        ed = task["reference_edit"]
+    def _apply_one_edit(ed: dict[str, Any]) -> None:
         fp = workdir / ed["file"]
         src = fp.read_text(encoding="utf-8")
-        assert ed["old"] in src, f"reference old snippet missing in {task['id']}"
+        assert ed["old"] in src, f"reference old snippet missing in {task['id']} ({ed['file']})"
         fp.write_text(src.replace(ed["old"], ed["new"], 1), encoding="utf-8")
+
+    if "reference_edits" in task:
+        for ed in task["reference_edits"]:
+            _apply_one_edit(ed)
+    if "reference_edit" in task:
+        _apply_one_edit(task["reference_edit"])
     elif "reference_append" in task:
         ap = task["reference_append"]
         fp = workdir / ap["file"]
@@ -113,8 +119,8 @@ def apply_reference(task: dict[str, Any], workdir: Path) -> None:
         (workdir / ewr["file"]).write_text(ewr["content"], encoding="utf-8")
 
 
-def verify_fixtures() -> int:
-    tasks = load_tasks()
+def verify_fixtures(tasks_path: Path | None = None) -> int:
+    tasks = load_tasks(tasks_path)
     ok = 0
     for t in tasks:
         with tempfile.TemporaryDirectory(prefix="agy-eval-vf-") as td:
@@ -230,10 +236,15 @@ def wilson_ci(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
     return (round(max(0.0, center - half) * 100.0, 1), round(min(1.0, center + half) * 100.0, 1))
 
 
-def _session_metrics_by_id(cid: str) -> tuple[int, int, int, int, float, int]:
-    """Read (input_tokens, cache_read_tokens, output_tokens, turns, cost_proxy, retries) for exact conversation ID."""
+def _detailed_session_metrics(cid: str) -> dict[str, Any]:
+    """Read full turn breakdown + token sums for exact conversation ID."""
+    empty: dict[str, Any] = {
+        "cid": cid, "input_tokens": 0, "cache_read_tokens": 0, "output_tokens": 0,
+        "turns": 0, "total_tokens": 0, "cost_proxy": 0.0, "retries": 0,
+        "peak_ctx": 0, "per_turn": [],
+    }
     if not cid:
-        return 0, 0, 0, 0, 0.0, 0
+        return empty
     sys.path.insert(0, str(SCRIPTS))
     sys.path.insert(0, str(ROOT / "mcp_app"))
     import replay_io
@@ -247,9 +258,24 @@ def _session_metrics_by_id(cid: str) -> tuple[int, int, int, int, float, int]:
         cr = sum(b for _, b, _ in turns)
         out = sum(c for _, _, c in turns)
         cproxy = round(sum(a * 1.0 + b * 0.05 + c * 6.0 for a, b, c in turns), 1)
+        peak_ctx = max((a + b for a, b, _ in turns), default=0)
+        per_turn = [{"in": a, "cr": b, "out": c, "ctx": a + b} for a, b, c in turns]
         retries = sum(1 for ev in (sess.get("events") or []) if "token-saver" in ev.get("content", "").lower() and ("blocked" in ev.get("content", "").lower() or "unchanged" in ev.get("content", "").lower()))
-        return inp, cr, out, len(turns), cproxy, retries
-    return 0, 0, 0, 0, 0.0, 0
+        return {
+            "cid": cid, "input_tokens": inp, "cache_read_tokens": cr, "output_tokens": out,
+            "turns": len(turns), "total_tokens": inp + cr + out, "cost_proxy": cproxy, "retries": retries,
+            "peak_ctx": peak_ctx, "per_turn": per_turn,
+        }
+    return empty
+
+
+def _session_metrics_by_id(cid: str) -> tuple[int, int, int, int, float, int]:
+    """Read (input_tokens, cache_read_tokens, output_tokens, turns, cost_proxy, retries) for exact conversation ID."""
+    d = _detailed_session_metrics(cid)
+    return (
+        int(d["input_tokens"]), int(d["cache_read_tokens"]), int(d["output_tokens"]),
+        int(d["turns"]), float(d["cost_proxy"]), int(d["retries"]),
+    )
 
 
 def _collect_live_session_metrics(t_start: float, t_end: float) -> tuple[int, float, int, str]:
@@ -348,12 +374,17 @@ def _conv_rpc(method: str, body: dict[str, Any], timeout: int = 30) -> dict[str,
         return json.loads(resp.read().decode("utf-8"))
 
 
-def _run_antigravity_conversation(title: str, prompt: str, model: str = "flash", poll_timeout: int = 150) -> tuple[str, dict[str, Any]]:
-    """Create a child Antigravity conversation, wait until RUN_STATE_IDLE, return (cid, metrics)."""
-    resp = _conv_rpc("CreateConversation", {"title": title, "model": model, "tags": ["ts-eval"], "prompt": [{"text": prompt}]})
-    cid = str((resp.get("conversation") or {}).get("id") or "")
-    if not cid:
-        raise RuntimeError(f"CreateConversation did not return id: {resp}")
+def _find_agentapi() -> str:
+    on_path = shutil.which("agentapi")
+    if on_path:
+        return on_path
+    cand = Path.home() / ".gemini" / "antigravity" / "bin" / ("agentapi.exe" if os.name == "nt" else "agentapi")
+    if cand.is_file():
+        return str(cand)
+    raise RuntimeError("agentapi binary not found on PATH or ~/.gemini/antigravity/bin/agentapi")
+
+
+def _wait_conv_idle(cid: str, poll_timeout: int = 300, min_turns: int = 0) -> dict[str, Any]:
     t0 = time.monotonic()
     saw_running = False
     while (time.monotonic() - t0) < poll_timeout:
@@ -366,18 +397,44 @@ def _run_antigravity_conversation(title: str, prompt: str, model: str = "flash",
         elif run_state == "RUN_STATE_CANCELLING":
             break
         time.sleep(1.0)
-    # Wait briefly for transcript / DB token usage flush
-    inp = cr = out = turns = retries = 0
-    cproxy = 0.0
-    for _ in range(6):
-        inp, cr, out, turns, cproxy, retries = _session_metrics_by_id(cid)
-        if inp + cr + out > 0:
+    m = _detailed_session_metrics(cid)
+    for _ in range(12):
+        if m["total_tokens"] > 0 and m["turns"] >= min_turns:
             break
-        time.sleep(0.5)
-    return cid, {
-        "cid": cid, "input_tokens": inp, "cache_read_tokens": cr, "output_tokens": out,
-        "turns": turns, "total_tokens": inp + cr + out, "cost_proxy": cproxy, "retries": retries,
-    }
+        time.sleep(0.75)
+        m = _detailed_session_metrics(cid)
+    return m
+
+
+def _start_agentapi_conv(title: str, prompt: str, model: str = "gemini-4-hydrogen-high", poll_timeout: int = 300) -> tuple[str, dict[str, Any]]:
+    bin_p = _find_agentapi()
+    cmd = [bin_p, "new-conversation", "--model", model, "--title", title, prompt]
+    p = subprocess.run(cmd, capture_output=True, text=True, timeout=poll_timeout)
+    if p.returncode != 0:
+        raise RuntimeError(f"agentapi new-conversation failed ({p.returncode}): {p.stderr.strip() or p.stdout.strip()}")
+    parsed = json.loads(p.stdout.strip() or "{}")
+    resp_conv = (parsed.get("response") or {}).get("newConversation") or {}
+    cid = str(resp_conv.get("conversationId") or resp_conv.get("conversation_id") or parsed.get("conversationId") or parsed.get("id") or "")
+    if not cid:
+        raise RuntimeError(f"agentapi new-conversation missing conversationId: {p.stdout.strip()}")
+    return cid, _wait_conv_idle(cid, poll_timeout=poll_timeout, min_turns=1)
+
+
+def _continue_agentapi_conv(cid: str, prompt: str, min_turns: int, poll_timeout: int = 300) -> dict[str, Any]:
+    bin_p = _find_agentapi()
+    p = subprocess.run([bin_p, "send-message", cid, prompt], capture_output=True, text=True, timeout=poll_timeout)
+    if p.returncode != 0:
+        raise RuntimeError(f"agentapi send-message failed ({p.returncode}): {p.stderr.strip() or p.stdout.strip()}")
+    return _wait_conv_idle(cid, poll_timeout=poll_timeout, min_turns=min_turns)
+
+
+def _run_antigravity_conversation(title: str, prompt: str, model: str = "flash", poll_timeout: int = 240) -> tuple[str, dict[str, Any]]:
+    """Create a child Antigravity conversation, wait until RUN_STATE_IDLE, return (cid, metrics)."""
+    resp = _conv_rpc("CreateConversation", {"title": title, "model": model, "tags": ["ts-eval"], "prompt": [{"text": prompt}]})
+    cid = str((resp.get("conversation") or {}).get("id") or "")
+    if not cid:
+        raise RuntimeError(f"CreateConversation did not return id: {resp}")
+    return cid, _wait_conv_idle(cid, poll_timeout=poll_timeout, min_turns=1)
 
 
 def _delete_conversation_quiet(cid: str) -> None:
@@ -409,8 +466,10 @@ def _build_handoff_packet(wd: Path, cid: str) -> str:
 
 def run_live_task(task: dict[str, Any], mode: str, run_idx: int, driver: str, agy_cmd: str = "", model: str = "flash") -> dict[str, Any] | None:
     """Stage a fresh temp repo, invoke live agent, and run `verify_cmd` WITHOUT applying reference_edit."""
+    turns_list: list[str] = [str(x) for x in (task.get("turns") or [])]
+    is_multi_turn = len(turns_list) >= 2
     is_handoff = bool(task.get("handoff_phase1_prompt") and task.get("handoff_phase2_prompt"))
-    use_scratch = driver == "antigravity"
+    use_scratch = driver in ("antigravity", "agentapi")
     if use_scratch:
         SCRATCH_EVAL_BASE.mkdir(parents=True, exist_ok=True)
         td_ctx: Any = tempfile.TemporaryDirectory(prefix=f"agy-eval-{mode}-{task['id'][:8]}-", dir=str(SCRATCH_EVAL_BASE))
@@ -421,7 +480,7 @@ def run_live_task(task: dict[str, Any], mode: str, run_idx: int, driver: str, ag
     try:
         with td_ctx as td:
             wd = Path(td) / "repo"
-            stage_fixture(task, wd, init_git=is_handoff)
+            stage_fixture(task, wd, init_git=(is_handoff or is_multi_turn))
             env = {**os.environ, **MODE_ENV.get(mode, {}), "PLUGIN_ROOT": str(ROOT)}
             t_start_wall = time.time()
             t0 = time.perf_counter()
@@ -431,16 +490,84 @@ def run_live_task(task: dict[str, Any], mode: str, run_idx: int, driver: str, ag
             )
 
             extra: dict[str, Any] = {}
-            if driver == "antigravity":
-                if is_handoff and mode != "off":
-                    cid_a, m_a = _run_antigravity_conversation(
+            if driver == "agentapi" and is_multi_turn:
+                ho_after = int(task.get("handoff_after_turn") or (len(turns_list) // 2))
+                do_reset = mode not in ("off", "guards")
+                cid_a, m_a = _start_agentapi_conv(f"eval-{mode}-{task['id']}-t1", ws_scope + turns_list[0], model=model)
+                created_cids.append(cid_a)
+                if do_reset:
+                    for idx in range(1, ho_after):
+                        m_a = _continue_agentapi_conv(cid_a, ws_scope + turns_list[idx], min_turns=m_a["turns"] + 1)
+                    packet = _build_handoff_packet(wd, cid_a)
+                    cid_b, m_b = _start_agentapi_conv(
+                        f"eval-{mode}-{task['id']}-ho",
+                        f"{packet}\n\n---\n{ws_scope}{turns_list[ho_after]}",
+                        model=model,
+                    )
+                    created_cids.append(cid_b)
+                    for idx in range(ho_after + 1, len(turns_list)):
+                        m_b = _continue_agentapi_conv(cid_b, ws_scope + turns_list[idx], min_turns=m_b["turns"] + 1)
+                    inp = m_a["input_tokens"] + m_b["input_tokens"]
+                    cr = m_a["cache_read_tokens"] + m_b["cache_read_tokens"]
+                    out = m_a["output_tokens"] + m_b["output_tokens"]
+                    tot_tok = inp + cr + out
+                    cost_proxy = round(m_a["cost_proxy"] + m_b["cost_proxy"], 1)
+                    retries = m_a["retries"] + m_b["retries"]
+                    sid = f"{cid_a[:8]}->{cid_b[:8]}"
+                    extra = {
+                        "handoff_reset": True,
+                        "handoff_packet_tokens": len(packet.encode("utf-8")) // 4,
+                        "phase1_tokens": m_a["total_tokens"],
+                        "phase2_tokens": m_b["total_tokens"],
+                        "phase1_cost_proxy": m_a["cost_proxy"],
+                        "phase2_cost_proxy": m_b["cost_proxy"],
+                        "peak_ctx_before_reset": m_a["peak_ctx"],
+                        "peak_ctx_after_reset": m_b["peak_ctx"],
+                        "input_tokens": inp, "cache_read_tokens": cr, "output_tokens": out,
+                        "turns": m_a["turns"] + m_b["turns"],
+                        "user_turns": len(turns_list),
+                        "per_turn": m_a["per_turn"] + m_b["per_turn"],
+                    }
+                else:
+                    m_all = m_a
+                    split_idx = 0
+                    for idx in range(1, len(turns_list)):
+                        if idx == ho_after:
+                            split_idx = m_all["turns"]
+                        m_all = _continue_agentapi_conv(cid_a, ws_scope + turns_list[idx], min_turns=m_all["turns"] + 1)
+                    p1_pt = m_all["per_turn"][:split_idx]
+                    p2_pt = m_all["per_turn"][split_idx:]
+                    p1_tok = sum(t["in"] + t["cr"] + t["out"] for t in p1_pt)
+                    p2_tok = sum(t["in"] + t["cr"] + t["out"] for t in p2_pt)
+                    tot_tok = m_all["total_tokens"]
+                    cost_proxy = m_all["cost_proxy"]
+                    retries = m_all["retries"]
+                    sid = cid_a[:8]
+                    extra = {
+                        "handoff_reset": False,
+                        "phase1_tokens": p1_tok,
+                        "phase2_tokens": p2_tok,
+                        "peak_ctx": m_all["peak_ctx"],
+                        "peak_ctx_before_reset": max((t["ctx"] for t in p1_pt), default=0),
+                        "peak_ctx_after_reset": max((t["ctx"] for t in p2_pt), default=0),
+                        "input_tokens": m_all["input_tokens"],
+                        "cache_read_tokens": m_all["cache_read_tokens"],
+                        "output_tokens": m_all["output_tokens"],
+                        "turns": m_all["turns"],
+                        "user_turns": len(turns_list),
+                        "per_turn": m_all["per_turn"],
+                    }
+            elif driver in ("antigravity", "agentapi"):
+                start_fn = _start_agentapi_conv if driver == "agentapi" else _run_antigravity_conversation
+                if is_handoff and mode not in ("off", "guards"):
+                    cid_a, m_a = start_fn(
                         f"eval-{mode}-{task['id']}-p1",
                         ws_scope + str(task["handoff_phase1_prompt"]),
                         model=model,
                     )
                     created_cids.append(cid_a)
                     packet = _build_handoff_packet(wd, cid_a)
-                    cid_b, m_b = _run_antigravity_conversation(
+                    cid_b, m_b = start_fn(
                         f"eval-{mode}-{task['id']}-p2",
                         f"{packet}\n\n---\n{ws_scope}{task['handoff_phase2_prompt']}",
                         model=model,
@@ -462,7 +589,7 @@ def run_live_task(task: dict[str, Any], mode: str, run_idx: int, driver: str, ag
                         "turns": m_a["turns"] + m_b["turns"],
                     }
                 else:
-                    cid, m = _run_antigravity_conversation(
+                    cid, m = start_fn(
                         f"eval-{mode}-{task['id']}",
                         ws_scope + str(task["prompt"]),
                         model=model,
@@ -583,29 +710,48 @@ def summarize(data: dict[str, Any]) -> int:
                 pkt = [int(r["handoff_packet_tokens"]) for r in sr if r.get("handoff_packet_tokens")]
                 pkt_note = f" | pkt={sum(pkt)//len(pkt)} tok" if pkt else ""
                 print(f"  {m:8s}: {k}/{n} ({k/n*100:.1f}%, CI {lo}..{hi}%) | tok={tk:,} | out={out_tk:,} | cost={cp:,.0f}{pkt_note}")
+    ab_recs = [r for r in records if r.get("phase2_tokens") is not None]
+    if ab_recs and not is_signal:
+        print("\n--- Multi-Turn Long-Session Phase Breakdown ---")
+        for m in ordered_modes:
+            ar = [r for r in records if r["mode"] == m and r.get("phase2_tokens") is not None]
+            if not ar:
+                continue
+            p1 = sum(int(r.get("phase1_tokens", 0)) for r in ar)
+            p2 = sum(int(r.get("phase2_tokens", 0)) for r in ar)
+            in_tk = sum(int(r.get("input_tokens", 0)) for r in ar)
+            cr_tk = sum(int(r.get("cache_read_tokens", 0)) for r in ar)
+            out_tk = sum(int(r.get("output_tokens", 0)) for r in ar)
+            pk1 = max((int(r.get("peak_ctx_before_reset", 0)) for r in ar), default=0)
+            pk2 = max((int(r.get("peak_ctx_after_reset", 0)) for r in ar), default=0)
+            pkt = [int(r["handoff_packet_tokens"]) for r in ar if r.get("handoff_packet_tokens")]
+            pkt_s = f" | pkt={sum(pkt)//len(pkt)}" if pkt else ""
+            print(f"  {m:8s}: n={len(ar)} | p1={p1:,} p2={p2:,} | in={in_tk:,} cr={cr_tk:,} out={out_tk:,} | peak_ctx={pk1:,}->{pk2:,}{pkt_s}")
     return 0
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--verify-fixtures", action="store_true", help="Verify all tasks fail before fix and pass after reference fix")
-    ap.add_argument("--driver", choices=("hook-replay", "antigravity", "agy", "manual"), default="hook-replay")
+    ap.add_argument("--driver", choices=("hook-replay", "antigravity", "agentapi", "agy", "manual"), default="hook-replay")
+    ap.add_argument("--tasks-file", default=None, help="Optional JSON task list (default: eval/tasks.json)")
     ap.add_argument("--modes", default="off,default,compact,max", help="Comma-separated modes to run")
     ap.add_argument("--tasks", default=None, help="Optional comma-separated task ID prefixes, e.g. T01,H01")
     ap.add_argument("--runs", type=int, default=3, help="Repetitions per (task, mode), default 3")
-    ap.add_argument("--workers", type=int, default=1, help="Parallel worker threads per mode for --driver antigravity")
-    ap.add_argument("--model", default="flash", help="Model for --driver antigravity (default: flash)")
+    ap.add_argument("--workers", type=int, default=1, help="Parallel worker threads per mode for --driver antigravity/agentapi")
+    ap.add_argument("--model", default="flash", help="Model for --driver antigravity/agentapi (default: flash)")
     ap.add_argument("--agy-cmd", default="", help="Override headless agy command template with {workspace} and {prompt}")
     ap.add_argument("--out", default=None, help="Output JSON path (defaults to eval/results/hook_eval.json or live_eval.json)")
     ap.add_argument("--summarize", default=None, help="Summarize an existing results JSON file")
     a = ap.parse_args()
 
+    tpath = Path(a.tasks_file) if a.tasks_file else None
     if a.verify_fixtures:
-        return verify_fixtures()
+        return verify_fixtures(tpath)
     if a.summarize:
         return summarize(json.loads(Path(a.summarize).read_text(encoding="utf-8")))
 
-    tasks = load_tasks()
+    tasks = load_tasks(tpath)
     if a.tasks:
         prefixes = [p.strip() for p in a.tasks.split(",") if p.strip()]
         tasks = [t for t in tasks if any(t["id"].startswith(p) for p in prefixes)]
@@ -615,21 +761,21 @@ def main() -> int:
     if a.driver == "agy" and not a.agy_cmd and not shutil.which("agy"):
         print("ERROR: `agy` CLI not found on PATH. Use `--driver antigravity`, `--driver manual`, or `--driver hook-replay`.", file=sys.stderr)
         return 2
-    if a.driver == "antigravity" and (not os.environ.get("ANTIGRAVITY_LS_ADDRESS") or not os.environ.get("ANTIGRAVITY_CSRF_TOKEN")):
-        print("ERROR: ANTIGRAVITY_LS_ADDRESS and ANTIGRAVITY_CSRF_TOKEN must be set for `--driver antigravity`.", file=sys.stderr)
+    if a.driver in ("antigravity", "agentapi") and (not os.environ.get("ANTIGRAVITY_LS_ADDRESS") or not os.environ.get("ANTIGRAVITY_CSRF_TOKEN")):
+        print(f"ERROR: ANTIGRAVITY_LS_ADDRESS and ANTIGRAVITY_CSRF_TOKEN must be set for `--driver {a.driver}`.", file=sys.stderr)
         return 2
 
     records: list[dict[str, Any]] = []
     rec_lock = threading.Lock()
-    if a.driver in ("antigravity", "agy", "manual"):
-        saved_cfg = _snapshot_hud_state() if a.driver in ("antigravity", "agy") else None
+    if a.driver in ("antigravity", "agentapi", "agy", "manual"):
+        saved_cfg = _snapshot_hud_state() if a.driver in ("antigravity", "agentapi", "agy") else None
         try:
             for mode in sel_modes:
-                if a.driver in ("antigravity", "agy"):
+                if a.driver in ("antigravity", "agentapi", "agy"):
                     _set_hud_mode(mode)
                 else:
                     input(f"\nSwitch Token Saver HUD to '{mode}', then press ENTER to begin {mode}...")
-                if a.driver == "antigravity" and a.workers > 1:
+                if a.driver in ("antigravity", "agentapi") and a.workers > 1:
                     jobs = [(run_idx, task) for run_idx in range(1, a.runs + 1) for task in tasks]
 
                     def _exec_job(job: tuple[int, dict[str, Any]]) -> dict[str, Any] | None:
@@ -676,7 +822,7 @@ def main() -> int:
     out_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "driver": a.driver,
-        "model": a.model if a.driver == "antigravity" else ("hooks" if a.driver == "hook-replay" else "manual"),
+        "model": a.model if a.driver in ("antigravity", "agentapi") else ("hooks" if a.driver == "hook-replay" else "manual"),
         "n_tasks": len(tasks),
         "runs": a.runs,
         "modes": sel_modes,

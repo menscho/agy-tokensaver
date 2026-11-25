@@ -1,0 +1,452 @@
+[
+  {
+    "id": "X01",
+    "category": "hard-multi-module",
+    "fixture": "order_engine",
+    "prompt": "Audit `pricing.py`, `promotions.py`, `seed_catalog.json`, and `deploy_audit.log` in `order_engine`. Fix all pricing and promotion calculation bugs—including monetary rounding mode, tax-exempt categories, post-discount free shipping eligibility, promotion expiration boundaries, excluded category spend rules, and stackable promo combination selection—and verify `test_orders.py` and multi-rule pricing/promo edge cases pass.",
+    "verify_cmd": "python3 -c 'import unittest; from decimal import Decimal; import pricing, promotions; res = unittest.TextTestRunner(verbosity=0).run(unittest.defaultTestLoader.loadTestsFromName(\"test_orders\")); assert res.wasSuccessful(); assert pricing.round_money(Decimal(\"2.345\")) == Decimal(\"2.35\"); assert pricing.is_tax_exempt(\"books\") is True; assert pricing.compute_tax(Decimal(\"45.00\"), category=\"books\") == Decimal(\"0.00\"); items_ship = [{\"sku\": \"ELC-001\", \"qty\": 2, \"unit_price\": \"80.00\", \"category\": \"electronics\", \"weight_kg\": \"1.0\"}]; assert pricing.calculate_shipping(Decimal(\"144.00\"), items_ship, raw_subtotal=Decimal(\"160.00\")) == Decimal(\"8.00\"); assert promotions.is_promo_valid(promotions.PROMO_CATALOG[\"FLASH25\"], Decimal(\"10.00\"), \"2026-01-01T00:00:00Z\") is True; ex_items = [{\"sku\": \"GFT-003\", \"qty\": 1, \"unit_price\": \"100.00\", \"category\": \"giftcard\", \"weight_kg\": \"0.00\"}, {\"sku\": \"BOK-001\", \"qty\": 1, \"unit_price\": \"40.00\", \"category\": \"books\", \"weight_kg\": \"0.50\"}]; r_ex = promotions.best_promo_combo(ex_items, [\"WELCOME10\", \"FREESHIP\"], \"2026-06-01T00:00:00Z\"); assert r_ex[\"applied_codes\"] == [\"WELCOME10\"] and r_ex[\"discount_amount\"] == Decimal(\"4.00\") and r_ex[\"shipping_waived\"] is False; st_items = [{\"sku\": \"ELC-001\", \"qty\": 4, \"unit_price\": \"25.00\", \"category\": \"electronics\", \"weight_kg\": \"0.50\"}]; r_st = promotions.best_promo_combo(st_items, [\"WELCOME10\", \"VIP20\", \"BULK15\"], \"2026-06-01T00:00:00Z\"); assert set(r_st[\"applied_codes\"]) == {\"WELCOME10\", \"VIP20\"} and r_st[\"discount_amount\"] == Decimal(\"28.00\") and r_st[\"discounted_subtotal\"] == Decimal(\"72.00\")'",
+    "reference_edits": [
+      {
+        "file": "pricing.py",
+        "old": "EXEMPT_CATEGORIES: frozenset[str] = frozenset({\"giftcard\"})",
+        "new": "EXEMPT_CATEGORIES: frozenset[str] = frozenset({\"giftcard\", \"books\"})"
+      },
+      {
+        "file": "pricing.py",
+        "old": "def round_money(val: Decimal) -> Decimal:\n    \"\"\"Round a Decimal monetary value to 2 decimal places using ROUND_HALF_UP.\"\"\"\n    dec = val if isinstance(val, Decimal) else Decimal(str(val))\n    return dec.quantize(CURRENCY_QUANT, rounding=ROUND_FLOOR)",
+        "new": "def round_money(val: Decimal) -> Decimal:\n    \"\"\"Round a Decimal monetary value to 2 decimal places using ROUND_HALF_UP.\"\"\"\n    dec = val if isinstance(val, Decimal) else Decimal(str(val))\n    return dec.quantize(CURRENCY_QUANT, rounding=ROUND_HALF_UP)"
+      },
+      {
+        "file": "pricing.py",
+        "old": "    basis = (\n        Decimal(str(raw_subtotal))\n        if raw_subtotal is not None\n        else discounted\n    )\n    if basis >= FREE_SHIPPING_THRESHOLD:\n        return Decimal(\"0.00\")",
+        "new": "    if discounted >= FREE_SHIPPING_THRESHOLD:\n        return Decimal(\"0.00\")"
+      },
+      {
+        "file": "promotions.py",
+        "old": "        if now_dt >= exp_dt:\n            return False",
+        "new": "        if now_dt > exp_dt:\n            return False"
+      },
+      {
+        "file": "promotions.py",
+        "old": "        if is_promo_valid(rule, total_sub, now_iso):\n            valid_rules.append(rule)\n\n    best_result = _evaluate_combo((), items, total_sub, eligible_sub, baseline_shipping)\n    for rule in valid_rules:\n        candidate = _evaluate_combo(\n            (rule,),\n            items,\n            total_sub,\n            eligible_sub,\n            baseline_shipping,\n        )\n        if candidate[\"total_savings\"] > best_result[\"total_savings\"]:\n            best_result = candidate\n    return best_result",
+        "new": "        if is_promo_valid(rule, eligible_sub, now_iso):\n            valid_rules.append(rule)\n\n    best_result = _evaluate_combo((), items, total_sub, eligible_sub, baseline_shipping)\n    candidate_combos: list[tuple[PromoRule, ...]] = [\n        (r,) for r in valid_rules if not r.stackable\n    ]\n    stackable_rules = [r for r in valid_rules if r.stackable]\n    for size in range(1, len(stackable_rules) + 1):\n        candidate_combos.extend(combinations(stackable_rules, size))\n\n    for combo in candidate_combos:\n        candidate = _evaluate_combo(\n            combo,\n            items,\n            total_sub,\n            eligible_sub,\n            baseline_shipping,\n        )\n        if candidate[\"total_savings\"] > best_result[\"total_savings\"]:\n            best_result = candidate\n    return best_result"
+      }
+    ],
+    "required_signals": [
+      "ERROR",
+      "def round_money",
+      "def best_promo_combo"
+    ]
+  },
+  {
+    "id": "X02",
+    "category": "hard-multi-module",
+    "fixture": "order_engine",
+    "prompt": "Audit `inventory.py`, `ledger.py`, and `deploy_audit.log` in `order_engine`. Fix multi-line atomic reservation rollback, single-warehouse non-split allocation (`allow_split=False`), backorder priority/FIFO ordering, payment idempotency conflict detection, and proportional refund tax rounding, and verify `test_orders.py` and all inventory/ledger invariants pass.",
+    "verify_cmd": "python3 -c 'import unittest; import inventory, ledger; tc = unittest.TestCase(); res = unittest.TextTestRunner(verbosity=0).run(unittest.defaultTestLoader.loadTestsFromName(\"test_orders\")); assert res.wasSuccessful(); st = inventory.InventoryStore({\"eu-central\": {\"A\": 5, \"B\": 1}, \"us-east\": {\"A\": 5, \"B\": 0}, \"us-west\": {\"A\": 0, \"B\": 0}}); tc.assertRaises(inventory.OutOfStockError, st.reserve_order, \"O1\", [{\"sku\": \"A\", \"qty\": 4}, {\"sku\": \"B\", \"qty\": 3}]); assert st.stock_by_wh[\"eu-central\"][\"A\"] == 5 and st.stock_by_wh[\"us-east\"][\"A\"] == 5 and \"O1\" not in st.reservations; st2 = inventory.InventoryStore({\"eu-central\": {\"S\": 2}, \"us-east\": {\"S\": 3}, \"us-west\": {\"S\": 0}}); tc.assertRaises(inventory.OutOfStockError, st2.reserve_order, \"O2\", [{\"sku\": \"S\", \"qty\": 4, \"allow_split\": False}]); assert st2.stock_by_wh[\"eu-central\"][\"S\"] == 2 and st2.stock_by_wh[\"us-east\"][\"S\"] == 3; st3 = inventory.InventoryStore({\"eu-central\": {\"S\": 2}, \"us-east\": {\"S\": 3}, \"us-west\": {\"S\": 5}}); al = st3.reserve_order(\"O3\", [{\"sku\": \"S\", \"qty\": 4, \"allow_split\": False}]); assert len(al) == 1 and al[0][\"warehouse\"] == \"us-west\" and al[0][\"qty\"] == 4 and st3.stock_by_wh[\"eu-central\"][\"S\"] == 2 and st3.stock_by_wh[\"us-west\"][\"S\"] == 1; st3.enqueue_backorder(\"B1\", \"K\", 2, 1, 1); st3.enqueue_backorder(\"B2\", \"K\", 2, 9, 5); st3.enqueue_backorder(\"B3\", \"K\", 2, 9, 2); st3.enqueue_backorder(\"B4\", \"K\", 2, 5, 3); batch = st3.pop_backorder_batch(\"K\", 4); assert [x[\"order_id\"] for x in batch] == [\"B3\", \"B2\"]; svc = ledger.LedgerService(); p1 = svc.post_payment(\"k1\", \"ORD-X\", 10825, 825); assert svc.post_payment(\"k1\", \"ORD-X\", 10825, 825) == p1; tc.assertRaises(ledger.IdempotencyConflictError, svc.post_payment, \"k1\", \"ORD-X\", 9999, 825); tc.assertRaises(ledger.IdempotencyConflictError, svc.post_payment, \"k1\", \"ORD-Y\", 10825, 825); tc.assertRaises(ledger.IdempotencyConflictError, svc.post_payment, \"k1\", \"ORD-X\", 10825, 900); rf = svc.post_refund(\"ORD-X\", 2500, 10000, 825); assert rf[\"refund_tax_cents\"] == 206 and rf[\"total_refund_cents\"] == 2706 and svc.reconcile_order(\"ORD-X\") is True; svc.post_payment(\"k2\", \"ORD-Z\", 5413, 413); rf2 = svc.post_refund(\"ORD-Z\", 2500, 5000, 413); assert rf2[\"refund_tax_cents\"] == 207 and svc.reconcile_order(\"ORD-Z\") is True'",
+    "reference_edits": [
+      {
+        "file": "inventory.py",
+        "old": "        allocations: list[dict] = []\n        warehouses = self._ordered_warehouses()\n\n        for line in lines:\n            sku = str(line[\"sku\"])\n            qty = int(line[\"qty\"])\n            if qty <= 0:\n                raise ValueError(f\"Line qty must be positive for sku={sku!r}\")\n            allow_split = bool(line.get(\"allow_split\", True))\n            remaining = qty\n\n            for wh in warehouses:\n                avail = int(self.stock_by_wh[wh].get(sku, 0))\n                if avail <= 0:\n                    continue\n                take = min(avail, remaining)\n                self.stock_by_wh[wh][sku] = avail - take\n                allocations.append(\n                    {\n                        \"order_id\": order_id,\n                        \"sku\": sku,\n                        \"warehouse\": wh,\n                        \"qty\": take,\n                        \"allow_split\": allow_split,\n                    }\n                )\n                remaining -= take\n                if remaining == 0:\n                    break\n\n            if remaining > 0:\n                raise OutOfStockError(\n                    f\"Insufficient stock for sku={sku} (short {remaining} units)\"\n                )\n\n        self.reservations[order_id] = allocations\n        return allocations",
+        "new": "        allocations: list[dict] = []\n        warehouses = self._ordered_warehouses()\n        working_stock = deepcopy(self.stock_by_wh)\n\n        for line in lines:\n            sku = str(line[\"sku\"])\n            qty = int(line[\"qty\"])\n            if qty <= 0:\n                raise ValueError(f\"Line qty must be positive for sku={sku!r}\")\n            allow_split = bool(line.get(\"allow_split\", True))\n            remaining = qty\n\n            if not allow_split:\n                for wh in warehouses:\n                    avail = int(working_stock[wh].get(sku, 0))\n                    if avail >= qty:\n                        working_stock[wh][sku] = avail - qty\n                        allocations.append(\n                            {\n                                \"order_id\": order_id,\n                                \"sku\": sku,\n                                \"warehouse\": wh,\n                                \"qty\": qty,\n                                \"allow_split\": allow_split,\n                            }\n                        )\n                        remaining = 0\n                        break\n            else:\n                for wh in warehouses:\n                    avail = int(working_stock[wh].get(sku, 0))\n                    if avail <= 0:\n                        continue\n                    take = min(avail, remaining)\n                    working_stock[wh][sku] = avail - take\n                    allocations.append(\n                        {\n                            \"order_id\": order_id,\n                            \"sku\": sku,\n                            \"warehouse\": wh,\n                            \"qty\": take,\n                            \"allow_split\": allow_split,\n                        }\n                    )\n                    remaining -= take\n                    if remaining == 0:\n                        break\n\n            if remaining > 0:\n                raise OutOfStockError(\n                    f\"Insufficient stock for sku={sku} (short {remaining} units)\"\n                )\n\n        self.stock_by_wh = working_stock\n        self.reservations[order_id] = allocations\n        return allocations"
+      },
+      {
+        "file": "inventory.py",
+        "old": "        candidates.sort(key=lambda b: (int(b[\"priority\"]), int(b[\"created_seq\"])))",
+        "new": "        candidates.sort(key=lambda b: (-int(b[\"priority\"]), int(b[\"created_seq\"])))"
+      },
+      {
+        "file": "ledger.py",
+        "old": "        if idempotency_key in self.idempotency_cache:\n            return dict(self.idempotency_cache[idempotency_key][\"result\"])",
+        "new": "        if idempotency_key in self.idempotency_cache:\n            cached = self.idempotency_cache[idempotency_key]\n            if (\n                cached[\"order_id\"] != order_id\n                or cached[\"amount_cents\"] != amount_cents\n                or cached[\"tax_cents\"] != tax_cents\n            ):\n                raise IdempotencyConflictError(\n                    f\"Idempotency key {idempotency_key!r} reused with conflicting parameters\"\n                )\n            return dict(cached[\"result\"])"
+      },
+      {
+        "file": "ledger.py",
+        "old": "        refund_tax_cents = int(\n            orig_tax_cents * (refund_subtotal_cents // orig_subtotal_cents)\n        )",
+        "new": "        refund_tax_cents = int(\n            (\n                Decimal(orig_tax_cents)\n                * Decimal(refund_subtotal_cents)\n                / Decimal(orig_subtotal_cents)\n            ).quantize(Decimal(\"1\"), rounding=ROUND_HALF_UP)\n        )"
+      }
+    ],
+    "required_signals": [
+      "ERROR",
+      "def reserve_order",
+      "def post_refund"
+    ]
+  },
+  {
+    "id": "X03",
+    "category": "hard-multi-module",
+    "fixture": "order_engine",
+    "prompt": "Investigate `deploy_audit.log` and `seed_catalog.json` to resolve all invariant failures across `pricing.py`, `promotions.py`, `inventory.py`, and `ledger.py`. Ensure end-to-end checkout flows—covering rounding, tax exemptions, post-discount shipping, promo exclusions/expiry/stacking, atomic & single-warehouse inventory reservations, backorder priority queues, idempotency conflicts, partial refund tax rounding, reconciliation, and deterministic settlement digests—work together cleanly and `test_orders.py` passes.",
+    "verify_cmd": "python3 -c 'import json, unittest; from decimal import Decimal; from pathlib import Path; import inventory, ledger, pricing, promotions; tc = unittest.TestCase(); res = unittest.TextTestRunner(verbosity=0).run(unittest.defaultTestLoader.loadTestsFromName(\"test_orders\")); assert res.wasSuccessful(); cat = json.loads(Path(\"seed_catalog.json\").read_text(encoding=\"utf-8\")); skus = {s[\"sku\"]: s for s in cat[\"skus\"]}; cart = [{**skus[\"ELC-001\"], \"qty\": 4}, {**skus[\"BOK-001\"], \"qty\": 1}, {**skus[\"GFT-001\"], \"qty\": 1}]; assert pricing.round_money(Decimal(\"2.345\")) == Decimal(\"2.35\") and pricing.is_tax_exempt(\"books\") is True and pricing.calculate_raw_subtotal(cart) == Decimal(\"170.00\"); assert promotions.is_promo_valid(promotions.PROMO_CATALOG[\"FLASH25\"], Decimal(\"10.00\"), \"2026-01-01T00:00:00Z\") is True; pr = promotions.best_promo_combo(cart, [\"WELCOME10\", \"VIP20\", \"BULK15\", \"FLASH25\"], \"2026-01-01T00:00:00Z\"); assert set(pr[\"applied_codes\"]) == {\"WELCOME10\", \"VIP20\"} and pr[\"discount_amount\"] == Decimal(\"40.60\") and pr[\"discounted_subtotal\"] == Decimal(\"129.40\") and pr[\"shipping_cost\"] == Decimal(\"8.90\"); assert pricing.calculate_order_tax(cart, Decimal(\"0.72\")) == Decimal(\"5.94\"); ex_cart = [{**skus[\"GFT-003\"], \"qty\": 1}, {**skus[\"BOK-001\"], \"qty\": 1}]; pr2 = promotions.best_promo_combo(ex_cart, [\"WELCOME10\", \"FREESHIP\"], \"2026-06-01T00:00:00Z\"); assert pr2[\"applied_codes\"] == [\"WELCOME10\"] and pr2[\"shipping_waived\"] is False; store = inventory.InventoryStore(cat[\"stock_by_wh\"]); tc.assertRaises(inventory.OutOfStockError, store.reserve_order, \"ORD-FAIL\", [{\"sku\": \"ELC-001\", \"qty\": 5}, {\"sku\": \"CLR-005\", \"qty\": 99}]); assert store.stock_by_wh[\"eu-central\"][\"ELC-001\"] == 40; al = store.reserve_order(\"ORD-NS\", [{\"sku\": \"BOK-001\", \"qty\": 40, \"allow_split\": False}]); assert len(al) == 1 and al[0][\"warehouse\"] == \"us-east\" and al[0][\"qty\"] == 40; tc.assertRaises(inventory.OutOfStockError, store.reserve_order, \"ORD-NS2\", [{\"sku\": \"BOK-001\", \"qty\": 50, \"allow_split\": False}]); store.enqueue_backorder(\"Q1\", \"BOK-002\", 1, 1, 1); store.enqueue_backorder(\"Q2\", \"BOK-002\", 1, 9, 4); store.enqueue_backorder(\"Q3\", \"BOK-002\", 1, 9, 2); assert [b[\"order_id\"] for b in store.pop_backorder_batch(\"BOK-002\", 2)] == [\"Q3\", \"Q2\"]; svc1 = ledger.LedgerService(); svc2 = ledger.LedgerService(); p1 = svc1.post_payment(\"idem-1\", \"ORD-INT\", 10825, 825, batch_id=\"B9\"); svc2.post_payment(\"idem-1\", \"ORD-INT\", 10825, 825, batch_id=\"B9\"); assert svc1.post_payment(\"idem-1\", \"ORD-INT\", 10825, 825, batch_id=\"B9\") == p1; tc.assertRaises(ledger.IdempotencyConflictError, svc1.post_payment, \"idem-1\", \"ORD-INT\", 9000, 825); rf1 = svc1.post_refund(\"ORD-INT\", 2500, 10000, 825, batch_id=\"B9\"); svc2.post_refund(\"ORD-INT\", 2500, 10000, 825, batch_id=\"B9\"); assert rf1[\"refund_tax_cents\"] == 206 and svc1.reconcile_order(\"ORD-INT\") is True; d1 = svc1.settlement_digest(\"B9\"); d2 = svc2.settlement_digest(\"B9\"); assert len(d1) == 64 and d1 == d2'",
+    "reference_edits": [
+      {
+        "file": "pricing.py",
+        "old": "EXEMPT_CATEGORIES: frozenset[str] = frozenset({\"giftcard\"})",
+        "new": "EXEMPT_CATEGORIES: frozenset[str] = frozenset({\"giftcard\", \"books\"})"
+      },
+      {
+        "file": "pricing.py",
+        "old": "def round_money(val: Decimal) -> Decimal:\n    \"\"\"Round a Decimal monetary value to 2 decimal places using ROUND_HALF_UP.\"\"\"\n    dec = val if isinstance(val, Decimal) else Decimal(str(val))\n    return dec.quantize(CURRENCY_QUANT, rounding=ROUND_FLOOR)",
+        "new": "def round_money(val: Decimal) -> Decimal:\n    \"\"\"Round a Decimal monetary value to 2 decimal places using ROUND_HALF_UP.\"\"\"\n    dec = val if isinstance(val, Decimal) else Decimal(str(val))\n    return dec.quantize(CURRENCY_QUANT, rounding=ROUND_HALF_UP)"
+      },
+      {
+        "file": "pricing.py",
+        "old": "    basis = (\n        Decimal(str(raw_subtotal))\n        if raw_subtotal is not None\n        else discounted\n    )\n    if basis >= FREE_SHIPPING_THRESHOLD:\n        return Decimal(\"0.00\")",
+        "new": "    if discounted >= FREE_SHIPPING_THRESHOLD:\n        return Decimal(\"0.00\")"
+      },
+      {
+        "file": "promotions.py",
+        "old": "        if now_dt >= exp_dt:\n            return False",
+        "new": "        if now_dt > exp_dt:\n            return False"
+      },
+      {
+        "file": "promotions.py",
+        "old": "        if is_promo_valid(rule, total_sub, now_iso):\n            valid_rules.append(rule)\n\n    best_result = _evaluate_combo((), items, total_sub, eligible_sub, baseline_shipping)\n    for rule in valid_rules:\n        candidate = _evaluate_combo(\n            (rule,),\n            items,\n            total_sub,\n            eligible_sub,\n            baseline_shipping,\n        )\n        if candidate[\"total_savings\"] > best_result[\"total_savings\"]:\n            best_result = candidate\n    return best_result",
+        "new": "        if is_promo_valid(rule, eligible_sub, now_iso):\n            valid_rules.append(rule)\n\n    best_result = _evaluate_combo((), items, total_sub, eligible_sub, baseline_shipping)\n    candidate_combos: list[tuple[PromoRule, ...]] = [\n        (r,) for r in valid_rules if not r.stackable\n    ]\n    stackable_rules = [r for r in valid_rules if r.stackable]\n    for size in range(1, len(stackable_rules) + 1):\n        candidate_combos.extend(combinations(stackable_rules, size))\n\n    for combo in candidate_combos:\n        candidate = _evaluate_combo(\n            combo,\n            items,\n            total_sub,\n            eligible_sub,\n            baseline_shipping,\n        )\n        if candidate[\"total_savings\"] > best_result[\"total_savings\"]:\n            best_result = candidate\n    return best_result"
+      },
+      {
+        "file": "inventory.py",
+        "old": "        allocations: list[dict] = []\n        warehouses = self._ordered_warehouses()\n\n        for line in lines:\n            sku = str(line[\"sku\"])\n            qty = int(line[\"qty\"])\n            if qty <= 0:\n                raise ValueError(f\"Line qty must be positive for sku={sku!r}\")\n            allow_split = bool(line.get(\"allow_split\", True))\n            remaining = qty\n\n            for wh in warehouses:\n                avail = int(self.stock_by_wh[wh].get(sku, 0))\n                if avail <= 0:\n                    continue\n                take = min(avail, remaining)\n                self.stock_by_wh[wh][sku] = avail - take\n                allocations.append(\n                    {\n                        \"order_id\": order_id,\n                        \"sku\": sku,\n                        \"warehouse\": wh,\n                        \"qty\": take,\n                        \"allow_split\": allow_split,\n                    }\n                )\n                remaining -= take\n                if remaining == 0:\n                    break\n\n            if remaining > 0:\n                raise OutOfStockError(\n                    f\"Insufficient stock for sku={sku} (short {remaining} units)\"\n                )\n\n        self.reservations[order_id] = allocations\n        return allocations",
+        "new": "        allocations: list[dict] = []\n        warehouses = self._ordered_warehouses()\n        working_stock = deepcopy(self.stock_by_wh)\n\n        for line in lines:\n            sku = str(line[\"sku\"])\n            qty = int(line[\"qty\"])\n            if qty <= 0:\n                raise ValueError(f\"Line qty must be positive for sku={sku!r}\")\n            allow_split = bool(line.get(\"allow_split\", True))\n            remaining = qty\n\n            if not allow_split:\n                for wh in warehouses:\n                    avail = int(working_stock[wh].get(sku, 0))\n                    if avail >= qty:\n                        working_stock[wh][sku] = avail - qty\n                        allocations.append(\n                            {\n                                \"order_id\": order_id,\n                                \"sku\": sku,\n                                \"warehouse\": wh,\n                                \"qty\": qty,\n                                \"allow_split\": allow_split,\n                            }\n                        )\n                        remaining = 0\n                        break\n            else:\n                for wh in warehouses:\n                    avail = int(working_stock[wh].get(sku, 0))\n                    if avail <= 0:\n                        continue\n                    take = min(avail, remaining)\n                    working_stock[wh][sku] = avail - take\n                    allocations.append(\n                        {\n                            \"order_id\": order_id,\n                            \"sku\": sku,\n                            \"warehouse\": wh,\n                            \"qty\": take,\n                            \"allow_split\": allow_split,\n                        }\n                    )\n                    remaining -= take\n                    if remaining == 0:\n                        break\n\n            if remaining > 0:\n                raise OutOfStockError(\n                    f\"Insufficient stock for sku={sku} (short {remaining} units)\"\n                )\n\n        self.stock_by_wh = working_stock\n        self.reservations[order_id] = allocations\n        return allocations"
+      },
+      {
+        "file": "inventory.py",
+        "old": "        candidates.sort(key=lambda b: (int(b[\"priority\"]), int(b[\"created_seq\"])))",
+        "new": "        candidates.sort(key=lambda b: (-int(b[\"priority\"]), int(b[\"created_seq\"])))"
+      },
+      {
+        "file": "ledger.py",
+        "old": "        if idempotency_key in self.idempotency_cache:\n            return dict(self.idempotency_cache[idempotency_key][\"result\"])",
+        "new": "        if idempotency_key in self.idempotency_cache:\n            cached = self.idempotency_cache[idempotency_key]\n            if (\n                cached[\"order_id\"] != order_id\n                or cached[\"amount_cents\"] != amount_cents\n                or cached[\"tax_cents\"] != tax_cents\n            ):\n                raise IdempotencyConflictError(\n                    f\"Idempotency key {idempotency_key!r} reused with conflicting parameters\"\n                )\n            return dict(cached[\"result\"])"
+      },
+      {
+        "file": "ledger.py",
+        "old": "        refund_tax_cents = int(\n            orig_tax_cents * (refund_subtotal_cents // orig_subtotal_cents)\n        )",
+        "new": "        refund_tax_cents = int(\n            (\n                Decimal(orig_tax_cents)\n                * Decimal(refund_subtotal_cents)\n                / Decimal(orig_subtotal_cents)\n            ).quantize(Decimal(\"1\"), rounding=ROUND_HALF_UP)\n        )"
+      }
+    ],
+    "required_signals": [
+      "ERROR",
+      "def round_money",
+      "def reserve_order",
+      "def post_refund"
+    ]
+  },
+  {
+    "id": "X04",
+    "category": "hard-multi-module",
+    "fixture": "log_router",
+    "prompt": "Audit `parser.py`, `rules.py`, and `incident_stream.log` in `log_router`. Fix UTC timezone offset normalization for both positive and negative offsets, ensure trailing multiline stacktraces at EOF are emitted by `parse_lines`, and make `redact_pii` perform deep-copied redaction of emails and Bearer/`tok_` tokens across `message`, `stack`, and nested `payload`/`meta` dicts regardless of `is_dlq` or `level=\"DLQ\"`. Verify `test_router.py` and parser/redaction invariants pass.",
+    "verify_cmd": "python3 -c 'import unittest; import parser, rules; res = unittest.TextTestRunner(verbosity=0).run(unittest.defaultTestLoader.loadTestsFromName(\"test_router\")); assert res.wasSuccessful(); t1 = parser.normalize_timestamp_utc(\"2026-11-25T05:15:30-05:00\"); t2 = parser.normalize_timestamp_utc(\"2026-11-25T12:15:30+0200\"); assert t1[0] == \"2026-11-25T10:15:30Z\" and t2[0] == \"2026-11-25T10:15:30Z\" and t1[1] == t2[1]; recs = parser.parse_lines([\"2026-11-25T05:15:30-05:00 ERROR [prod.api] Panic\", \"  at handler(app.py:12)\", \"  File app.py, line 12\"]); assert len(recs) == 1 and recs[0][\"timestamp_utc\"] == \"2026-11-25T10:15:30Z\" and len(recs[0][\"stack\"]) == 2 and \"handler\" in recs[0][\"stack\"][0] and \"line 12\" in recs[0][\"stack\"][1]; orig1 = {\"level\": \"ERROR\", \"is_dlq\": True, \"message\": \"User alice@example.com auth Bearer secret123\", \"stack\": [\"  token=tok_live_987654321 email=bob@test.org\"], \"payload\": {\"email\": \"carol@ex.io\", \"tok\": \"tok_abc123456\"}}; out1 = rules.redact_pii(orig1); assert \"alice@example.com\" not in out1[\"message\"] and \"secret123\" not in out1[\"message\"] and \"tok_live_987654321\" not in out1[\"stack\"][0] and \"bob@test.org\" not in out1[\"stack\"][0] and \"carol@ex.io\" not in out1[\"payload\"][\"email\"] and \"tok_abc123456\" not in out1[\"payload\"][\"tok\"]; out1[\"stack\"].append(\"mut\"); out1[\"payload\"][\"x\"] = 1; assert len(orig1[\"stack\"]) == 1 and \"x\" not in orig1[\"payload\"] and \"alice@example.com\" in orig1[\"message\"]; orig2 = {\"level\": \"DLQ\", \"message\": \"Bearer tok_dlq_112233 for dave@example.com\", \"stack\": [\"  at user(eve@example.com)\"], \"meta\": {\"key\": \"tok_meta_998877\"}}; out2 = rules.redact_pii(orig2); assert \"tok_dlq_112233\" not in out2[\"message\"] and \"dave@example.com\" not in out2[\"message\"] and \"eve@example.com\" not in out2[\"stack\"][0] and \"tok_meta_998877\" not in out2[\"meta\"][\"key\"]'",
+    "reference_edits": [
+      {
+        "file": "parser.py",
+        "old": "        utc_dt = (naive + (delta * sign)).replace(tzinfo=timezone.utc)",
+        "new": "        utc_dt = (naive - (delta * sign)).replace(tzinfo=timezone.utc)"
+      },
+      {
+        "file": "parser.py",
+        "old": "        parsed = parse_header_line(stripped_nl)\n        if parsed is not None:\n            records.append(parsed)\n\n    return records",
+        "new": "        parsed = parse_header_line(stripped_nl)\n        if parsed is not None:\n            records.append(parsed)\n\n    if pending_multiline is not None:\n        records.append(pending_multiline)\n\n    return records"
+      },
+      {
+        "file": "rules.py",
+        "old": "def redact_pii(record: dict) -> dict:\n    \"\"\"Redact emails and bearer/tok_ secrets in a copy of ``record``.\"\"\"\n    if record.get(\"is_dlq\") or str(record.get(\"level\", \"\")).upper() == \"DLQ\":\n        return dict(record)\n\n    out = dict(record)\n    if \"message\" in out and isinstance(out[\"message\"], str):\n        out[\"message\"] = _mask_text(out[\"message\"])\n    out[\"redacted\"] = True\n    return out",
+        "new": "def _mask_value(value: object) -> object:\n    if isinstance(value, str):\n        return _mask_text(value)\n    if isinstance(value, list):\n        return [_mask_value(item) for item in value]\n    if isinstance(value, dict):\n        return {k: _mask_value(v) for k, v in value.items()}\n    return value\n\n\ndef redact_pii(record: dict) -> dict:\n    \"\"\"Redact emails and bearer/tok_ secrets in a deep copy of ``record``.\"\"\"\n    out = deepcopy(record)\n    for key in (\"message\", \"stack\", \"payload\", \"meta\"):\n        if key in out:\n            out[key] = _mask_value(out[key])\n    out[\"redacted\"] = True\n    return out"
+      }
+    ],
+    "required_signals": [
+      "ERROR",
+      "def normalize_timestamp_utc",
+      "def redact_pii"
+    ]
+  },
+  {
+    "id": "X05",
+    "category": "hard-multi-module",
+    "fixture": "log_router",
+    "prompt": "Audit `rules.py`, `sinks.py`, `pipeline.py`, `router_config.yaml`, and `incident_stream.log` in `log_router`. Fix specificity-based route selection, ring buffer overflow spilling (keeping newest buffered items while spilling the oldest), isolated deep-copy fanout with PII redaction across primary/audit/DLQ sinks, and `LogRouterPipeline.flush()` draining remaining sub-batch records. Verify `test_router.py` and full routing/sink/pipeline checks pass.",
+    "verify_cmd": "python3 -c 'import unittest; from pathlib import Path; import pipeline, rules, sinks; res = unittest.TextTestRunner(verbosity=0).run(unittest.defaultTestLoader.loadTestsFromName(\"test_router\")); assert res.wasSuccessful(); cfg = Path(\"router_config.yaml\").read_text(encoding=\"utf-8\"); routes = rules.load_routes_yaml(cfg); assert rules.select_route(routes, \"prod.payments.eu\")[\"sink\"] == \"payments_eu_sink\"; assert rules.select_route(routes, \"partner.stripe.webhooks\")[\"sink\"] == \"partner_stripe_sink\"; ov = sinks.MemorySink(\"ov\"); ring = sinks.RingBufferSink(2, overflow_sink=ov); ring.emit({\"id\": 1}); ring.emit({\"id\": 2}); ring.emit({\"id\": 3}); assert [e[\"id\"] for e in ring.snapshot()] == [2, 3] and [e[\"id\"] for e in ov.snapshot()] == [1]; pay_eu = sinks.MemorySink(\"payments_eu_sink\"); audit = sinks.MemorySink(\"audit\"); dlq = sinks.MemorySink(\"dlq\"); mgr = sinks.RouterSinkManager(audit_sink=audit, dlq_sink=dlq, sink_map={\"payments_eu_sink\": pay_eu}); ev = {\"level\": \"ERROR\", \"tenant\": \"prod.payments.eu\", \"message\": \"Auth failed alice@example.com Bearer tok_secret_999999\", \"stack\": [\"  user=bob@example.com\"], \"payload\": {\"tok\": \"tok_nested_123456\"}}; mgr.emit(ev, rules.select_route(routes, \"prod.payments.eu\")); assert pay_eu.events[0][\"channel\"] == \"primary\" and audit.events[0][\"channel\"] == \"audit\" and dlq.events[0][\"channel\"] == \"dlq\"; pay_eu.events[0][\"channel\"] = \"MUTATED\"; pay_eu.events[0][\"stack\"].append(\"extra\"); pay_eu.events[0][\"payload\"][\"added\"] = 1; assert audit.events[0][\"channel\"] == \"audit\" and dlq.events[0][\"channel\"] == \"dlq\" and len(ev[\"stack\"]) == 1 and \"added\" not in ev[\"payload\"] and len(audit.events[0][\"stack\"]) == 1 and \"added\" not in dlq.events[0][\"payload\"]; dump = repr(pay_eu.events[0]) + repr(audit.events[0]) + repr(dlq.events[0]); assert all(s not in dump for s in (\"alice@example.com\", \"bob@example.com\", \"tok_secret_999999\", \"tok_nested_123456\")); p_eu = sinks.MemorySink(\"payments_eu_sink\"); p_stripe = sinks.MemorySink(\"partner_stripe_sink\"); mgr2 = sinks.RouterSinkManager(sink_map={\"payments_eu_sink\": p_eu, \"partner_stripe_sink\": p_stripe}); pipe = pipeline.LogRouterPipeline(cfg, sink_manager=mgr2, batch_size=4); lines = [\"2026-11-25T10:00:01Z INFO [prod.payments.eu] ok 1\", \"2026-11-25T10:00:02Z INFO [prod.payments.eu] ok 2\", \"2026-11-25T10:00:03Z INFO [prod.payments.eu] ok 3\", \"2026-11-25T10:00:04Z INFO [prod.payments.eu] ok 4\", \"2026-11-25T10:00:05Z WARN [partner.stripe.webhooks] Webhook timeout for ops@example.com\"]; pipe.ingest(lines); pre = pipe.stats(); assert pre[\"total_routed\"] == 4 and pre[\"pending_count\"] == 1; post = pipe.flush(); assert post[\"total_routed\"] == 5 and post[\"pending_count\"] == 0 and len(p_eu.events) == 4 and len(p_stripe.events) == 1 and \"ops@example.com\" not in p_stripe.events[0][\"message\"]'",
+    "reference_edits": [
+      {
+        "file": "rules.py",
+        "old": "def select_route(routes: list[dict], tenant: str) -> dict:\n    \"\"\"Select the routing rule for ``tenant`` based on pattern specificity.\"\"\"\n    for route in routes:\n        pattern = str(route.get(\"pattern\", \"*\"))\n        if route_matches(pattern, tenant):\n            return dict(route)\n    return {\n        \"pattern\": \"*\",\n        \"sink\": \"default_sink\",\n        \"escalate_on\": [\"ERROR\", \"CRITICAL\"],\n        \"dedup_window_s\": 60,\n    }",
+        "new": "def select_route(routes: list[dict], tenant: str) -> dict:\n    \"\"\"Select the routing rule for ``tenant`` based on pattern specificity.\"\"\"\n    best_route: dict | None = None\n    best_score: tuple[int, int, int, int] | None = None\n    for route in routes:\n        pattern = str(route.get(\"pattern\", \"*\"))\n        if route_matches(pattern, tenant):\n            score = route_specificity(pattern, tenant)\n            if best_score is None or score > best_score:\n                best_score = score\n                best_route = route\n    if best_route is not None:\n        return dict(best_route)\n    return {\n        \"pattern\": \"*\",\n        \"sink\": \"default_sink\",\n        \"escalate_on\": [\"ERROR\", \"CRITICAL\"],\n        \"dedup_window_s\": 60,\n    }"
+      },
+      {
+        "file": "rules.py",
+        "old": "def redact_pii(record: dict) -> dict:\n    \"\"\"Redact emails and bearer/tok_ secrets in a copy of ``record``.\"\"\"\n    if record.get(\"is_dlq\") or str(record.get(\"level\", \"\")).upper() == \"DLQ\":\n        return dict(record)\n\n    out = dict(record)\n    if \"message\" in out and isinstance(out[\"message\"], str):\n        out[\"message\"] = _mask_text(out[\"message\"])\n    out[\"redacted\"] = True\n    return out",
+        "new": "def _mask_value(value: object) -> object:\n    if isinstance(value, str):\n        return _mask_text(value)\n    if isinstance(value, list):\n        return [_mask_value(item) for item in value]\n    if isinstance(value, dict):\n        return {k: _mask_value(v) for k, v in value.items()}\n    return value\n\n\ndef redact_pii(record: dict) -> dict:\n    \"\"\"Redact emails and bearer/tok_ secrets in a deep copy of ``record``.\"\"\"\n    out = deepcopy(record)\n    for key in (\"message\", \"stack\", \"payload\", \"meta\"):\n        if key in out:\n            out[key] = _mask_value(out[key])\n    out[\"redacted\"] = True\n    return out"
+      },
+      {
+        "file": "sinks.py",
+        "old": "    def emit(self, event: dict) -> None:\n        \"\"\"Append ``event``, spilling the oldest buffered item if at capacity.\"\"\"\n        if len(self._buffer) >= self.capacity:\n            if self.overflow_sink is not None:\n                self.overflow_sink.emit(event)\n            return\n        self._buffer.append(event)",
+        "new": "    def emit(self, event: dict) -> None:\n        \"\"\"Append ``event``, spilling the oldest buffered item if at capacity.\"\"\"\n        if len(self._buffer) >= self.capacity:\n            oldest = self._buffer.pop(0)\n            if self.overflow_sink is not None:\n                self.overflow_sink.emit(oldest)\n        self._buffer.append(deepcopy(event))"
+      },
+      {
+        "file": "sinks.py",
+        "old": "        primary_target = self._resolve_primary(sink_name)\n        sanitized = redact_pii(event)\n        sanitized[\"route\"] = route.get(\"pattern\", \"*\")\n        sanitized[\"sink\"] = sink_name\n        sanitized[\"channel\"] = \"primary\"\n        primary_target.emit(sanitized)\n\n        sanitized[\"channel\"] = \"audit\"\n        self.audit_sink.emit(sanitized)\n\n        if should_dlq:\n            dlq_event = dict(event)\n            dlq_event[\"is_dlq\"] = True\n            dlq_event[\"channel\"] = \"dlq\"\n            dlq_event[\"sink\"] = \"dlq_audit\"\n            dlq_event = redact_pii(dlq_event)\n            self.dlq_sink.emit(dlq_event)",
+        "new": "        primary_target = self._resolve_primary(sink_name)\n        base_sanitized = redact_pii(deepcopy(event))\n        route_pattern = route.get(\"pattern\", \"*\")\n\n        primary_event = deepcopy(base_sanitized)\n        primary_event[\"route\"] = route_pattern\n        primary_event[\"sink\"] = sink_name\n        primary_event[\"channel\"] = \"primary\"\n        primary_target.emit(primary_event)\n\n        audit_event = deepcopy(base_sanitized)\n        audit_event[\"route\"] = route_pattern\n        audit_event[\"sink\"] = sink_name\n        audit_event[\"channel\"] = \"audit\"\n        self.audit_sink.emit(audit_event)\n\n        if should_dlq:\n            dlq_event = deepcopy(base_sanitized)\n            dlq_event[\"route\"] = route_pattern\n            dlq_event[\"is_dlq\"] = True\n            dlq_event[\"channel\"] = \"dlq\"\n            dlq_event[\"sink\"] = \"dlq_audit\"\n            dlq_event = redact_pii(dlq_event)\n            self.dlq_sink.emit(dlq_event)"
+      },
+      {
+        "file": "pipeline.py",
+        "old": "    def flush(self) -> dict:\n        \"\"\"Flush buffered pending records through sinks and return latest stats.\"\"\"\n        return self.stats()",
+        "new": "    def flush(self) -> dict:\n        \"\"\"Flush buffered pending records through sinks and return latest stats.\"\"\"\n        while self._pending:\n            rec = self._pending.pop(0)\n            self._route_and_emit(rec)\n        return self.stats()"
+      }
+    ],
+    "required_signals": [
+      "ERROR",
+      "def select_route",
+      "def flush"
+    ]
+  },
+  {
+    "id": "X06",
+    "category": "handoff-continuity",
+    "fixture": "order_engine",
+    "prompt": "Audit `order_engine` modules along with `deploy_audit.log` and `seed_catalog.json`. Fix all defects in `pricing.py` (rounding, shipping threshold, tax-exempt categories), `promotions.py` (excluded categories, inclusive expiration boundary, stackable combo selection), and `ledger.py` (idempotency conflict enforcement and proportional refund tax rounding), document discount/tax/shipping findings in `NOTES.md`, and verify cross-module invoice calculations and `test_orders.py` pass.",
+    "handoff_phase1_prompt": "Phase 1 of 2: Audit the `order_engine` modules together with `deploy_audit.log` and `seed_catalog.json`. Fix ONLY `pricing.py` completely (rounding mode, post-discount shipping threshold, and tax-exempt categories), and verify `test_orders.py` passes. Document your exact discount, tax, and shipping findings—as well as the remaining defects identified in `promotions.py` and `ledger.py`—in `NOTES.md`. Do NOT edit `promotions.py` or `ledger.py` yet.",
+    "handoff_phase2_prompt": "Phase 2 of 2: Continue from the handoff packet above and `NOTES.md`. Keep the completed `pricing.py` fixes intact without redoing them unless needed; using those `pricing.py` fixes, resolve all bugs in `promotions.py` (excluded categories vs minimum spend/discounts, inclusive expiration check, and stackable combo optimization) and `ledger.py` (proportional refund tax rounding and idempotency parameter-conflict errors), and ensure cross-module invoice calculations and `test_orders.py` pass.",
+    "verify_cmd": "python3 -c 'import json, unittest; from decimal import Decimal; from pathlib import Path; import ledger, pricing, promotions; tc = unittest.TestCase(); res = unittest.TextTestRunner(verbosity=0).run(unittest.defaultTestLoader.loadTestsFromName(\"test_orders\")); assert res.wasSuccessful(); cat = json.loads(Path(\"seed_catalog.json\").read_text(encoding=\"utf-8\")); skus = {s[\"sku\"]: s for s in cat[\"skus\"]}; assert pricing.round_money(Decimal(\"2.345\")) == Decimal(\"2.35\") and pricing.is_tax_exempt(\"books\") is True and pricing.compute_tax(Decimal(\"45.00\"), category=\"books\") == Decimal(\"0.00\"); cart = [{**skus[\"ELC-001\"], \"qty\": 4}, {**skus[\"BOK-001\"], \"qty\": 1}, {**skus[\"GFT-001\"], \"qty\": 1}]; assert pricing.calculate_raw_subtotal(cart) == Decimal(\"170.00\"); assert promotions.is_promo_valid(promotions.PROMO_CATALOG[\"FLASH25\"], Decimal(\"10.00\"), \"2026-01-01T00:00:00Z\") is True; pr = promotions.best_promo_combo(cart, [\"WELCOME10\", \"VIP20\", \"BULK15\"], \"2026-06-01T00:00:00Z\"); assert set(pr[\"applied_codes\"]) == {\"WELCOME10\", \"VIP20\"} and pr[\"discount_amount\"] == Decimal(\"40.60\") and pr[\"discounted_subtotal\"] == Decimal(\"129.40\") and pr[\"shipping_cost\"] == Decimal(\"8.90\"); assert pricing.calculate_order_tax(cart, Decimal(\"0.72\")) == Decimal(\"5.94\"); ex_cart = [{**skus[\"GFT-003\"], \"qty\": 1}, {**skus[\"BOK-001\"], \"qty\": 1}]; pr2 = promotions.best_promo_combo(ex_cart, [\"WELCOME10\", \"FREESHIP\"], \"2026-06-01T00:00:00Z\"); assert pr2[\"applied_codes\"] == [\"WELCOME10\"] and pr2[\"shipping_waived\"] is False; svc = ledger.LedgerService(); p1 = svc.post_payment(\"idem-x06\", \"ORD-X06\", 10825, 825, batch_id=\"H1\"); assert svc.post_payment(\"idem-x06\", \"ORD-X06\", 10825, 825, batch_id=\"H1\") == p1; tc.assertRaises(ledger.IdempotencyConflictError, svc.post_payment, \"idem-x06\", \"ORD-X06\", 11000, 825); rf = svc.post_refund(\"ORD-X06\", 2500, 10000, 825, batch_id=\"H1\"); assert rf[\"refund_tax_cents\"] == 206 and svc.reconcile_order(\"ORD-X06\") is True; svc.post_payment(\"idem-x06-b\", \"ORD-X06B\", 5413, 413, batch_id=\"H1\"); rf2 = svc.post_refund(\"ORD-X06B\", 2500, 5000, 413, batch_id=\"H1\"); assert rf2[\"refund_tax_cents\"] == 207 and svc.reconcile_order(\"ORD-X06B\") is True'",
+    "reference_edits": [
+      {
+        "file": "pricing.py",
+        "old": "EXEMPT_CATEGORIES: frozenset[str] = frozenset({\"giftcard\"})",
+        "new": "EXEMPT_CATEGORIES: frozenset[str] = frozenset({\"giftcard\", \"books\"})"
+      },
+      {
+        "file": "pricing.py",
+        "old": "def round_money(val: Decimal) -> Decimal:\n    \"\"\"Round a Decimal monetary value to 2 decimal places using ROUND_HALF_UP.\"\"\"\n    dec = val if isinstance(val, Decimal) else Decimal(str(val))\n    return dec.quantize(CURRENCY_QUANT, rounding=ROUND_FLOOR)",
+        "new": "def round_money(val: Decimal) -> Decimal:\n    \"\"\"Round a Decimal monetary value to 2 decimal places using ROUND_HALF_UP.\"\"\"\n    dec = val if isinstance(val, Decimal) else Decimal(str(val))\n    return dec.quantize(CURRENCY_QUANT, rounding=ROUND_HALF_UP)"
+      },
+      {
+        "file": "pricing.py",
+        "old": "    basis = (\n        Decimal(str(raw_subtotal))\n        if raw_subtotal is not None\n        else discounted\n    )\n    if basis >= FREE_SHIPPING_THRESHOLD:\n        return Decimal(\"0.00\")",
+        "new": "    if discounted >= FREE_SHIPPING_THRESHOLD:\n        return Decimal(\"0.00\")"
+      },
+      {
+        "file": "promotions.py",
+        "old": "        if now_dt >= exp_dt:\n            return False",
+        "new": "        if now_dt > exp_dt:\n            return False"
+      },
+      {
+        "file": "promotions.py",
+        "old": "        if is_promo_valid(rule, total_sub, now_iso):\n            valid_rules.append(rule)\n\n    best_result = _evaluate_combo((), items, total_sub, eligible_sub, baseline_shipping)\n    for rule in valid_rules:\n        candidate = _evaluate_combo(\n            (rule,),\n            items,\n            total_sub,\n            eligible_sub,\n            baseline_shipping,\n        )\n        if candidate[\"total_savings\"] > best_result[\"total_savings\"]:\n            best_result = candidate\n    return best_result",
+        "new": "        if is_promo_valid(rule, eligible_sub, now_iso):\n            valid_rules.append(rule)\n\n    best_result = _evaluate_combo((), items, total_sub, eligible_sub, baseline_shipping)\n    candidate_combos: list[tuple[PromoRule, ...]] = [\n        (r,) for r in valid_rules if not r.stackable\n    ]\n    stackable_rules = [r for r in valid_rules if r.stackable]\n    for size in range(1, len(stackable_rules) + 1):\n        candidate_combos.extend(combinations(stackable_rules, size))\n\n    for combo in candidate_combos:\n        candidate = _evaluate_combo(\n            combo,\n            items,\n            total_sub,\n            eligible_sub,\n            baseline_shipping,\n        )\n        if candidate[\"total_savings\"] > best_result[\"total_savings\"]:\n            best_result = candidate\n    return best_result"
+      },
+      {
+        "file": "ledger.py",
+        "old": "        if idempotency_key in self.idempotency_cache:\n            return dict(self.idempotency_cache[idempotency_key][\"result\"])",
+        "new": "        if idempotency_key in self.idempotency_cache:\n            cached = self.idempotency_cache[idempotency_key]\n            if (\n                cached[\"order_id\"] != order_id\n                or cached[\"amount_cents\"] != amount_cents\n                or cached[\"tax_cents\"] != tax_cents\n            ):\n                raise IdempotencyConflictError(\n                    f\"Idempotency key {idempotency_key!r} reused with conflicting parameters\"\n                )\n            return dict(cached[\"result\"])"
+      },
+      {
+        "file": "ledger.py",
+        "old": "        refund_tax_cents = int(\n            orig_tax_cents * (refund_subtotal_cents // orig_subtotal_cents)\n        )",
+        "new": "        refund_tax_cents = int(\n            (\n                Decimal(orig_tax_cents)\n                * Decimal(refund_subtotal_cents)\n                / Decimal(orig_subtotal_cents)\n            ).quantize(Decimal(\"1\"), rounding=ROUND_HALF_UP)\n        )"
+      }
+    ],
+    "required_signals": [
+      "ERROR",
+      "def round_money",
+      "def best_promo_combo",
+      "def post_refund"
+    ]
+  },
+  {
+    "id": "L01",
+    "category": "ab-long",
+    "fixture": "order_engine",
+    "prompt": "Audit `deploy_audit.log`, `seed_catalog.json`, and all four modules (`pricing.py`, `promotions.py`, `inventory.py`, `ledger.py`) in `order_engine`. Document findings in `AUDIT.md`, fix all defects across all four modules, and verify `test_orders.py` plus full end-to-end checkout, promo, inventory, and ledger integration invariants pass.",
+    "handoff_after_turn": 3,
+    "turns": [
+      "Inspect `deploy_audit.log`, `seed_catalog.json`, `test_orders.py`, and the four `order_engine` modules (`pricing.py`, `promotions.py`, `inventory.py`, `ledger.py`). Document every invariant violation and specification mismatch you discover in `AUDIT.md` without modifying any Python source files yet.",
+      "Fix all bugs in `pricing.py` (monetary rounding mode, free shipping threshold evaluation on post-discount subtotal, and tax-exempt categories) and verify `test_orders.py` passes along with checks for rounding, book tax exemption, and shipping.",
+      "Now fix all bugs in `promotions.py` (excluding non-eligible categories from `min_spend` and discounts, inclusive expiration comparison, and evaluating valid stackable promo combinations alongside non-stackable singles). Verify `test_orders.py` passes without regressing `pricing.py`, and summarize the remaining defects to fix in `inventory.py` and `ledger.py`.",
+      "Continuing from our earlier audit and fixes (preserving `pricing.py` and `promotions.py`), fix all bugs in `inventory.py`: atomic multi-line reservation rollback on `OutOfStockError`, single-warehouse enforcement when `allow_split=False`, and priority/FIFO ordering in `pop_backorder_batch`. Verify `test_orders.py` passes.",
+      "Continuing from the completed fixes in `pricing.py`, `promotions.py`, and `inventory.py`, fix all bugs in `ledger.py`: strict idempotency parameter validation raising `IdempotencyConflictError` on mismatched replays, and exact `Decimal` `ROUND_HALF_UP` proportional refund tax calculation. Verify `test_orders.py` passes.",
+      "Run a full end-to-end integration and regression check across `seed_catalog.json`, `pricing.py`, `promotions.py`, `inventory.py`, `ledger.py`, and `test_orders.py`—covering cross-module checkout totals, promo stacking with excluded items, atomic and non-split reservations, backorder popping, payment/refund reconciliation, and settlement digest determinism—ensuring all behavior from earlier turns stays intact."
+    ],
+    "verify_cmd": "python3 -c 'import json, unittest; from decimal import Decimal; from pathlib import Path; import inventory, ledger, pricing, promotions; tc = unittest.TestCase(); res = unittest.TextTestRunner(verbosity=0).run(unittest.defaultTestLoader.loadTestsFromName(\"test_orders\")); assert res.wasSuccessful(); cat = json.loads(Path(\"seed_catalog.json\").read_text(encoding=\"utf-8\")); skus = {s[\"sku\"]: s for s in cat[\"skus\"]}; assert pricing.round_money(Decimal(\"2.345\")) == Decimal(\"2.35\") and pricing.is_tax_exempt(\"books\") is True and pricing.compute_tax(Decimal(\"45.00\"), category=\"books\") == Decimal(\"0.00\"); assert pricing.calculate_shipping(Decimal(\"144.00\"), [{**skus[\"ELC-008\"], \"qty\": 1, \"weight_kg\": \"1.0\"}], raw_subtotal=Decimal(\"160.00\")) == Decimal(\"6.50\"); assert promotions.is_promo_valid(promotions.PROMO_CATALOG[\"WELCOME10\"], Decimal(\"30.00\"), \"2026-12-31T23:59:59Z\") is True; assert promotions.is_promo_valid(promotions.PROMO_CATALOG[\"FLASH25\"], Decimal(\"10.00\"), \"2026-01-01T00:00:00Z\") is True; c1 = [{**skus[\"ELC-001\"], \"qty\": 4}, {**skus[\"CLR-001\"], \"qty\": 2}, {**skus[\"GFT-001\"], \"qty\": 1}]; pr1 = promotions.best_promo_combo(c1, [\"WELCOME10\", \"VIP20\", \"FREESHIP\", \"BULK15\"], \"2026-06-01T00:00:00Z\"); assert set(pr1[\"applied_codes\"]) == {\"WELCOME10\", \"VIP20\", \"FREESHIP\"} and pr1[\"discount_amount\"] == Decimal(\"28.00\") and pr1[\"shipping_cost\"] == Decimal(\"0.00\"); c_ex = [{**skus[\"GFT-003\"], \"qty\": 1}, {**skus[\"BOK-001\"], \"qty\": 1}]; pr_ex = promotions.best_promo_combo(c_ex, [\"WELCOME10\", \"FREESHIP\"], \"2026-06-01T00:00:00Z\"); assert pr_ex[\"applied_codes\"] == [\"WELCOME10\"] and pr_ex[\"shipping_waived\"] is False; st = inventory.InventoryStore(cat[\"stock_by_wh\"]); tc.assertRaises(inventory.OutOfStockError, st.reserve_order, \"L01-FAIL\", [{\"sku\": \"ELC-001\", \"qty\": 5}, {\"sku\": \"CLR-005\", \"qty\": 99}]); assert st.stock_by_wh[\"eu-central\"][\"ELC-001\"] == 40; al = st.reserve_order(\"L01-NS\", [{\"sku\": \"BOK-001\", \"qty\": 40, \"allow_split\": False}]); assert len(al) == 1 and al[0][\"warehouse\"] == \"us-east\" and al[0][\"qty\"] == 40; tc.assertRaises(inventory.OutOfStockError, st.reserve_order, \"L01-NS2\", [{\"sku\": \"BOK-001\", \"qty\": 50, \"allow_split\": False}]); st.enqueue_backorder(\"O1\", \"BOK-001\", 2, 2, 1); st.enqueue_backorder(\"O2\", \"BOK-001\", 2, 7, 4); st.enqueue_backorder(\"O3\", \"BOK-001\", 2, 7, 2); assert [b[\"order_id\"] for b in st.pop_backorder_batch(\"BOK-001\", 4)] == [\"O3\", \"O2\"]; svc = ledger.LedgerService(); svc.post_payment(\"k-l01\", \"ORD-L01\", 10825, 825, batch_id=\"L01\"); tc.assertRaises(ledger.IdempotencyConflictError, svc.post_payment, \"k-l01\", \"ORD-L01\", 10826, 825); rf = svc.post_refund(\"ORD-L01\", 2500, 10000, 825, batch_id=\"L01\"); assert rf[\"refund_tax_cents\"] == 206 and svc.reconcile_order(\"ORD-L01\") is True'",
+    "reference_edits": [
+      {
+        "file": "pricing.py",
+        "old": "EXEMPT_CATEGORIES: frozenset[str] = frozenset({\"giftcard\"})",
+        "new": "EXEMPT_CATEGORIES: frozenset[str] = frozenset({\"giftcard\", \"books\"})"
+      },
+      {
+        "file": "pricing.py",
+        "old": "def round_money(val: Decimal) -> Decimal:\n    \"\"\"Round a Decimal monetary value to 2 decimal places using ROUND_HALF_UP.\"\"\"\n    dec = val if isinstance(val, Decimal) else Decimal(str(val))\n    return dec.quantize(CURRENCY_QUANT, rounding=ROUND_FLOOR)",
+        "new": "def round_money(val: Decimal) -> Decimal:\n    \"\"\"Round a Decimal monetary value to 2 decimal places using ROUND_HALF_UP.\"\"\"\n    dec = val if isinstance(val, Decimal) else Decimal(str(val))\n    return dec.quantize(CURRENCY_QUANT, rounding=ROUND_HALF_UP)"
+      },
+      {
+        "file": "pricing.py",
+        "old": "    basis = (\n        Decimal(str(raw_subtotal))\n        if raw_subtotal is not None\n        else discounted\n    )\n    if basis >= FREE_SHIPPING_THRESHOLD:\n        return Decimal(\"0.00\")",
+        "new": "    if discounted >= FREE_SHIPPING_THRESHOLD:\n        return Decimal(\"0.00\")"
+      },
+      {
+        "file": "promotions.py",
+        "old": "        if now_dt >= exp_dt:\n            return False",
+        "new": "        if now_dt > exp_dt:\n            return False"
+      },
+      {
+        "file": "promotions.py",
+        "old": "        if is_promo_valid(rule, total_sub, now_iso):\n            valid_rules.append(rule)\n\n    best_result = _evaluate_combo((), items, total_sub, eligible_sub, baseline_shipping)\n    for rule in valid_rules:\n        candidate = _evaluate_combo(\n            (rule,),\n            items,\n            total_sub,\n            eligible_sub,\n            baseline_shipping,\n        )\n        if candidate[\"total_savings\"] > best_result[\"total_savings\"]:\n            best_result = candidate\n    return best_result",
+        "new": "        if is_promo_valid(rule, eligible_sub, now_iso):\n            valid_rules.append(rule)\n\n    best_result = _evaluate_combo((), items, total_sub, eligible_sub, baseline_shipping)\n    candidate_combos: list[tuple[PromoRule, ...]] = [\n        (r,) for r in valid_rules if not r.stackable\n    ]\n    stackable_rules = [r for r in valid_rules if r.stackable]\n    for size in range(1, len(stackable_rules) + 1):\n        candidate_combos.extend(combinations(stackable_rules, size))\n\n    for combo in candidate_combos:\n        candidate = _evaluate_combo(\n            combo,\n            items,\n            total_sub,\n            eligible_sub,\n            baseline_shipping,\n        )\n        if candidate[\"total_savings\"] > best_result[\"total_savings\"]:\n            best_result = candidate\n    return best_result"
+      },
+      {
+        "file": "inventory.py",
+        "old": "        allocations: list[dict] = []\n        warehouses = self._ordered_warehouses()\n\n        for line in lines:\n            sku = str(line[\"sku\"])\n            qty = int(line[\"qty\"])\n            if qty <= 0:\n                raise ValueError(f\"Line qty must be positive for sku={sku!r}\")\n            allow_split = bool(line.get(\"allow_split\", True))\n            remaining = qty\n\n            for wh in warehouses:\n                avail = int(self.stock_by_wh[wh].get(sku, 0))\n                if avail <= 0:\n                    continue\n                take = min(avail, remaining)\n                self.stock_by_wh[wh][sku] = avail - take\n                allocations.append(\n                    {\n                        \"order_id\": order_id,\n                        \"sku\": sku,\n                        \"warehouse\": wh,\n                        \"qty\": take,\n                        \"allow_split\": allow_split,\n                    }\n                )\n                remaining -= take\n                if remaining == 0:\n                    break\n\n            if remaining > 0:\n                raise OutOfStockError(\n                    f\"Insufficient stock for sku={sku} (short {remaining} units)\"\n                )\n\n        self.reservations[order_id] = allocations\n        return allocations",
+        "new": "        allocations: list[dict] = []\n        warehouses = self._ordered_warehouses()\n        working_stock = deepcopy(self.stock_by_wh)\n\n        for line in lines:\n            sku = str(line[\"sku\"])\n            qty = int(line[\"qty\"])\n            if qty <= 0:\n                raise ValueError(f\"Line qty must be positive for sku={sku!r}\")\n            allow_split = bool(line.get(\"allow_split\", True))\n            remaining = qty\n\n            if not allow_split:\n                for wh in warehouses:\n                    avail = int(working_stock[wh].get(sku, 0))\n                    if avail >= qty:\n                        working_stock[wh][sku] = avail - qty\n                        allocations.append(\n                            {\n                                \"order_id\": order_id,\n                                \"sku\": sku,\n                                \"warehouse\": wh,\n                                \"qty\": qty,\n                                \"allow_split\": allow_split,\n                            }\n                        )\n                        remaining = 0\n                        break\n            else:\n                for wh in warehouses:\n                    avail = int(working_stock[wh].get(sku, 0))\n                    if avail <= 0:\n                        continue\n                    take = min(avail, remaining)\n                    working_stock[wh][sku] = avail - take\n                    allocations.append(\n                        {\n                            \"order_id\": order_id,\n                            \"sku\": sku,\n                            \"warehouse\": wh,\n                            \"qty\": take,\n                            \"allow_split\": allow_split,\n                        }\n                    )\n                    remaining -= take\n                    if remaining == 0:\n                        break\n\n            if remaining > 0:\n                raise OutOfStockError(\n                    f\"Insufficient stock for sku={sku} (short {remaining} units)\"\n                )\n\n        self.stock_by_wh = working_stock\n        self.reservations[order_id] = allocations\n        return allocations"
+      },
+      {
+        "file": "inventory.py",
+        "old": "        candidates.sort(key=lambda b: (int(b[\"priority\"]), int(b[\"created_seq\"])))",
+        "new": "        candidates.sort(key=lambda b: (-int(b[\"priority\"]), int(b[\"created_seq\"])))"
+      },
+      {
+        "file": "ledger.py",
+        "old": "        if idempotency_key in self.idempotency_cache:\n            return dict(self.idempotency_cache[idempotency_key][\"result\"])",
+        "new": "        if idempotency_key in self.idempotency_cache:\n            cached = self.idempotency_cache[idempotency_key]\n            if (\n                cached[\"order_id\"] != order_id\n                or cached[\"amount_cents\"] != amount_cents\n                or cached[\"tax_cents\"] != tax_cents\n            ):\n                raise IdempotencyConflictError(\n                    f\"Idempotency key {idempotency_key!r} reused with conflicting parameters\"\n                )\n            return dict(cached[\"result\"])"
+      },
+      {
+        "file": "ledger.py",
+        "old": "        refund_tax_cents = int(\n            orig_tax_cents * (refund_subtotal_cents // orig_subtotal_cents)\n        )",
+        "new": "        refund_tax_cents = int(\n            (\n                Decimal(orig_tax_cents)\n                * Decimal(refund_subtotal_cents)\n                / Decimal(orig_subtotal_cents)\n            ).quantize(Decimal(\"1\"), rounding=ROUND_HALF_UP)\n        )"
+      }
+    ],
+    "required_signals": [
+      "ERROR",
+      "def round_money",
+      "def reserve_order",
+      "def post_refund"
+    ]
+  },
+  {
+    "id": "L02",
+    "category": "ab-long",
+    "fixture": "log_router",
+    "prompt": "Audit `incident_stream.log`, `router_config.yaml`, and all four modules (`parser.py`, `rules.py`, `sinks.py`, `pipeline.py`) in `log_router`. Document findings in `FINDINGS.md`, fix all defects across all four modules, and verify `test_router.py` plus end-to-end log parsing, specificity routing, deep-copy PII redaction, ring buffer overflow spilling, and pipeline flushing pass.",
+    "handoff_after_turn": 3,
+    "turns": [
+      "Inspect `incident_stream.log`, `router_config.yaml`, `test_router.py`, and the four `log_router` modules (`parser.py`, `rules.py`, `sinks.py`, `pipeline.py`). Write a concise engineering summary of all identified bugs and invariants in `FINDINGS.md` without editing Python modules yet.",
+      "Fix all bugs in `parser.py` (accurate UTC timezone offset conversion for positive/negative offsets and flushing any trailing multiline stacktrace record at EOF) and verify `test_router.py` passes along with parser checks.",
+      "Now fix all bugs in `rules.py` (specificity-based route selection using `router_config.yaml` semantics and deep-copy PII redaction across `message`, `stack`, and nested `payload`/`meta` dicts regardless of `is_dlq` or `level=\"DLQ\"`). Verify `test_router.py` passes without regressing `parser.py`, and summarize the remaining defects to address in `sinks.py` and `pipeline.py`.",
+      "Continuing from our earlier findings and completed `parser.py` and `rules.py` work, fix all bugs in `sinks.py`: `RingBufferSink` must retain the newest events up to capacity while spilling the oldest item to `overflow_sink`, and `RouterSinkManager.emit` must deliver isolated deep copies with PII redacted to primary, audit, and DLQ sinks. Verify `test_router.py` passes.",
+      "Continuing from the completed fixes in `parser.py`, `rules.py`, and `sinks.py`, fix `pipeline.py` so `LogRouterPipeline.flush()` routes and emits all remaining buffered records in `_pending` before returning updated metrics from `stats()`. Verify `test_router.py` passes.",
+      "Run a full end-to-end integration and regression suite across `router_config.yaml`, `incident_stream.log`, `parser.py`, `rules.py`, `sinks.py`, `pipeline.py`, and `test_router.py`—covering timezone offsets, EOF stacktraces, specific tenant routing, ring buffer overflow, isolated multi-sink DLQ/audit PII redaction, and sub-batch pipeline flushing—keeping all earlier fixes intact."
+    ],
+    "verify_cmd": "python3 -c 'import unittest; from pathlib import Path; import parser, pipeline, rules, sinks; res = unittest.TextTestRunner(verbosity=0).run(unittest.defaultTestLoader.loadTestsFromName(\"test_router\")); assert res.wasSuccessful(); cfg = Path(\"router_config.yaml\").read_text(encoding=\"utf-8\"); routes = rules.load_routes_yaml(cfg); assert rules.select_route(routes, \"prod.payments.eu\")[\"sink\"] == \"payments_eu_sink\" and rules.select_route(routes, \"partner.stripe.webhooks\")[\"sink\"] == \"partner_stripe_sink\"; ov = sinks.MemorySink(\"ov\"); ring = sinks.RingBufferSink(2, overflow_sink=ov); ring.emit({\"id\": 1}); ring.emit({\"id\": 2}); ring.emit({\"id\": 3}); assert [e[\"id\"] for e in ring.snapshot()] == [2, 3] and [e[\"id\"] for e in ov.snapshot()] == [1]; pay_eu = sinks.MemorySink(\"payments_eu_sink\"); stripe = sinks.MemorySink(\"partner_stripe_sink\"); audit = sinks.MemorySink(\"audit\"); dlq = sinks.MemorySink(\"dlq\"); mgr = sinks.RouterSinkManager(audit_sink=audit, dlq_sink=dlq, sink_map={\"payments_eu_sink\": pay_eu, \"partner_stripe_sink\": stripe}); pipe = pipeline.LogRouterPipeline(cfg, sink_manager=mgr, batch_size=4); lines = [\"2026-11-25T05:15:30-05:00 INFO [prod.payments.eu] Charge ok 1\", \"2026-11-25T12:15:30+0200 INFO [prod.payments.eu] Charge ok 2\", \"2026-11-25T10:00:03Z INFO [prod.payments.eu] Charge ok 3\", \"2026-11-25T10:00:04Z INFO [prod.payments.eu] Charge ok 4\", \"2026-11-25T05:20:00-05:00 ERROR [partner.stripe.webhooks] Webhook error for alice@example.com Bearer tok_live_987654321\", \"  at dispatch(bob@example.com)\", \"  File webhook.py, line 88\"]; emitted = pipe.ingest(lines); assert emitted == 4 and pipe.stats()[\"pending_count\"] == 1; st = pipe.flush(); assert st[\"total_routed\"] == 5 and st[\"pending_count\"] == 0 and st[\"escalated_count\"] == 1; assert len(pay_eu.events) == 4 and len(stripe.events) == 1 and len(dlq.events) == 1 and len(audit.events) == 5; assert pay_eu.events[0][\"timestamp_utc\"] == \"2026-11-25T10:15:30Z\" and pay_eu.events[1][\"timestamp_utc\"] == \"2026-11-25T10:15:30Z\"; assert stripe.events[0][\"timestamp_utc\"] == \"2026-11-25T10:20:00Z\" and len(stripe.events[0][\"stack\"]) == 2; assert stripe.events[0][\"channel\"] == \"primary\" and audit.events[4][\"channel\"] == \"audit\" and dlq.events[0][\"channel\"] == \"dlq\"; stripe.events[0][\"channel\"] = \"MUT\"; stripe.events[0][\"stack\"].append(\"x\"); assert audit.events[4][\"channel\"] == \"audit\" and dlq.events[0][\"channel\"] == \"dlq\" and len(dlq.events[0][\"stack\"]) == 2; dump = repr(stripe.events[0]) + repr(audit.events[4]) + repr(dlq.events[0]); assert all(s not in dump for s in (\"alice@example.com\", \"bob@example.com\", \"tok_live_987654321\"))'",
+    "reference_edits": [
+      {
+        "file": "parser.py",
+        "old": "        utc_dt = (naive + (delta * sign)).replace(tzinfo=timezone.utc)",
+        "new": "        utc_dt = (naive - (delta * sign)).replace(tzinfo=timezone.utc)"
+      },
+      {
+        "file": "parser.py",
+        "old": "        parsed = parse_header_line(stripped_nl)\n        if parsed is not None:\n            records.append(parsed)\n\n    return records",
+        "new": "        parsed = parse_header_line(stripped_nl)\n        if parsed is not None:\n            records.append(parsed)\n\n    if pending_multiline is not None:\n        records.append(pending_multiline)\n\n    return records"
+      },
+      {
+        "file": "rules.py",
+        "old": "def select_route(routes: list[dict], tenant: str) -> dict:\n    \"\"\"Select the routing rule for ``tenant`` based on pattern specificity.\"\"\"\n    for route in routes:\n        pattern = str(route.get(\"pattern\", \"*\"))\n        if route_matches(pattern, tenant):\n            return dict(route)\n    return {\n        \"pattern\": \"*\",\n        \"sink\": \"default_sink\",\n        \"escalate_on\": [\"ERROR\", \"CRITICAL\"],\n        \"dedup_window_s\": 60,\n    }",
+        "new": "def select_route(routes: list[dict], tenant: str) -> dict:\n    \"\"\"Select the routing rule for ``tenant`` based on pattern specificity.\"\"\"\n    best_route: dict | None = None\n    best_score: tuple[int, int, int, int] | None = None\n    for route in routes:\n        pattern = str(route.get(\"pattern\", \"*\"))\n        if route_matches(pattern, tenant):\n            score = route_specificity(pattern, tenant)\n            if best_score is None or score > best_score:\n                best_score = score\n                best_route = route\n    if best_route is not None:\n        return dict(best_route)\n    return {\n        \"pattern\": \"*\",\n        \"sink\": \"default_sink\",\n        \"escalate_on\": [\"ERROR\", \"CRITICAL\"],\n        \"dedup_window_s\": 60,\n    }"
+      },
+      {
+        "file": "rules.py",
+        "old": "def redact_pii(record: dict) -> dict:\n    \"\"\"Redact emails and bearer/tok_ secrets in a copy of ``record``.\"\"\"\n    if record.get(\"is_dlq\") or str(record.get(\"level\", \"\")).upper() == \"DLQ\":\n        return dict(record)\n\n    out = dict(record)\n    if \"message\" in out and isinstance(out[\"message\"], str):\n        out[\"message\"] = _mask_text(out[\"message\"])\n    out[\"redacted\"] = True\n    return out",
+        "new": "def _mask_value(value: object) -> object:\n    if isinstance(value, str):\n        return _mask_text(value)\n    if isinstance(value, list):\n        return [_mask_value(item) for item in value]\n    if isinstance(value, dict):\n        return {k: _mask_value(v) for k, v in value.items()}\n    return value\n\n\ndef redact_pii(record: dict) -> dict:\n    \"\"\"Redact emails and bearer/tok_ secrets in a deep copy of ``record``.\"\"\"\n    out = deepcopy(record)\n    for key in (\"message\", \"stack\", \"payload\", \"meta\"):\n        if key in out:\n            out[key] = _mask_value(out[key])\n    out[\"redacted\"] = True\n    return out"
+      },
+      {
+        "file": "sinks.py",
+        "old": "    def emit(self, event: dict) -> None:\n        \"\"\"Append ``event``, spilling the oldest buffered item if at capacity.\"\"\"\n        if len(self._buffer) >= self.capacity:\n            if self.overflow_sink is not None:\n                self.overflow_sink.emit(event)\n            return\n        self._buffer.append(event)",
+        "new": "    def emit(self, event: dict) -> None:\n        \"\"\"Append ``event``, spilling the oldest buffered item if at capacity.\"\"\"\n        if len(self._buffer) >= self.capacity:\n            oldest = self._buffer.pop(0)\n            if self.overflow_sink is not None:\n                self.overflow_sink.emit(oldest)\n        self._buffer.append(deepcopy(event))"
+      },
+      {
+        "file": "sinks.py",
+        "old": "        primary_target = self._resolve_primary(sink_name)\n        sanitized = redact_pii(event)\n        sanitized[\"route\"] = route.get(\"pattern\", \"*\")\n        sanitized[\"sink\"] = sink_name\n        sanitized[\"channel\"] = \"primary\"\n        primary_target.emit(sanitized)\n\n        sanitized[\"channel\"] = \"audit\"\n        self.audit_sink.emit(sanitized)\n\n        if should_dlq:\n            dlq_event = dict(event)\n            dlq_event[\"is_dlq\"] = True\n            dlq_event[\"channel\"] = \"dlq\"\n            dlq_event[\"sink\"] = \"dlq_audit\"\n            dlq_event = redact_pii(dlq_event)\n            self.dlq_sink.emit(dlq_event)",
+        "new": "        primary_target = self._resolve_primary(sink_name)\n        base_sanitized = redact_pii(deepcopy(event))\n        route_pattern = route.get(\"pattern\", \"*\")\n\n        primary_event = deepcopy(base_sanitized)\n        primary_event[\"route\"] = route_pattern\n        primary_event[\"sink\"] = sink_name\n        primary_event[\"channel\"] = \"primary\"\n        primary_target.emit(primary_event)\n\n        audit_event = deepcopy(base_sanitized)\n        audit_event[\"route\"] = route_pattern\n        audit_event[\"sink\"] = sink_name\n        audit_event[\"channel\"] = \"audit\"\n        self.audit_sink.emit(audit_event)\n\n        if should_dlq:\n            dlq_event = deepcopy(base_sanitized)\n            dlq_event[\"route\"] = route_pattern\n            dlq_event[\"is_dlq\"] = True\n            dlq_event[\"channel\"] = \"dlq\"\n            dlq_event[\"sink\"] = \"dlq_audit\"\n            dlq_event = redact_pii(dlq_event)\n            self.dlq_sink.emit(dlq_event)"
+      },
+      {
+        "file": "pipeline.py",
+        "old": "    def flush(self) -> dict:\n        \"\"\"Flush buffered pending records through sinks and return latest stats.\"\"\"\n        return self.stats()",
+        "new": "    def flush(self) -> dict:\n        \"\"\"Flush buffered pending records through sinks and return latest stats.\"\"\"\n        while self._pending:\n            rec = self._pending.pop(0)\n            self._route_and_emit(rec)\n        return self.stats()"
+      }
+    ],
+    "required_signals": [
+      "ERROR",
+      "def parse_lines",
+      "def select_route",
+      "def flush"
+    ]
+  },
+  {
+    "id": "L03",
+    "category": "ab-long",
+    "fixture": "order_engine",
+    "prompt": "Fix `inventory.py`, `pricing.py`, `promotions.py`, and `ledger.py` in `order_engine` using `seed_catalog.json` and `deploy_audit.log` so that a full multi-warehouse fulfillment, promo stacking, payment, and refund reconciliation workflow passes alongside `test_orders.py`.",
+    "handoff_after_turn": 3,
+    "turns": [
+      "Inspect `seed_catalog.json`, `deploy_audit.log`, `test_orders.py`, and the four `order_engine` modules (`inventory.py`, `pricing.py`, `promotions.py`, `ledger.py`). Record a concise plan of the multi-warehouse fulfillment, pricing/promo, and refund reconciliation defects in `FINDINGS.md` without editing Python files yet.",
+      "Fix all bugs in `inventory.py` first: atomic multi-line reservation rollback on `OutOfStockError`, single-warehouse enforcement when `allow_split=False`, and highest-priority/FIFO tie-breaking in `pop_backorder_batch`. Verify `test_orders.py` passes.",
+      "Now fix all bugs in `pricing.py` (half-up monetary rounding, free shipping evaluation against discounted subtotal, and exempting `books` alongside `giftcard` from sales tax) while keeping `inventory.py` intact. Verify `test_orders.py` passes, and summarize the remaining defects in `promotions.py` and `ledger.py`.",
+      "Continuing from our prior work (keeping `inventory.py` and `pricing.py` fixes intact), fix all bugs in `promotions.py`: excluding `giftcard`/`clearance` from `min_spend` and discounts, inclusive expiration comparison, and evaluating valid stackable promo combinations. Verify `test_orders.py` passes.",
+      "Continuing from the completed fixes in `inventory.py`, `pricing.py`, and `promotions.py`, fix all bugs in `ledger.py` (raising `IdempotencyConflictError` on mismatched key replay and `Decimal` `ROUND_HALF_UP` proportional refund tax calculation). Verify `test_orders.py` passes.",
+      "Run an end-to-end multi-warehouse + promo + refund reconciliation workflow across `seed_catalog.json`, `pricing.py`, `promotions.py`, `inventory.py`, `ledger.py`, and `test_orders.py` (testing bundle volume discounts, post-discount shipping fees, tax exemptions, stackable promos, inclusive expiry, non-split warehouse routing, atomic rollback, backorder priority queue, idempotency conflict, partial refund reconciliation, and settlement digest determinism) without regressing any earlier turn."
+    ],
+    "verify_cmd": "python3 -c 'import json, unittest; from decimal import Decimal; from pathlib import Path; import inventory, ledger, pricing, promotions; tc = unittest.TestCase(); res = unittest.TextTestRunner(verbosity=0).run(unittest.defaultTestLoader.loadTestsFromName(\"test_orders\")); assert res.wasSuccessful(); cat = json.loads(Path(\"seed_catalog.json\").read_text(encoding=\"utf-8\")); skus = {s[\"sku\"]: s for s in cat[\"skus\"]}; store = inventory.InventoryStore(cat[\"stock_by_wh\"]); tc.assertRaises(inventory.OutOfStockError, store.reserve_order, \"W-FAIL\", [{\"sku\": \"ELC-002\", \"qty\": 5}, {\"sku\": \"CLR-005\", \"qty\": 10}]); assert store.stock_by_wh[\"eu-central\"][\"ELC-002\"] == 25; al_ns = store.reserve_order(\"W-NS\", [{\"sku\": \"ELC-002\", \"qty\": 35, \"allow_split\": False}]); assert len(al_ns) == 1 and al_ns[0][\"warehouse\"] == \"us-east\" and store.stock_by_wh[\"eu-central\"][\"ELC-002\"] == 25 and store.stock_by_wh[\"us-east\"][\"ELC-002\"] == 5; store.enqueue_backorder(\"BO-1\", \"ELC-002\", 3, 2, 10); store.enqueue_backorder(\"BO-2\", \"ELC-002\", 3, 8, 20); store.enqueue_backorder(\"BO-3\", \"ELC-002\", 3, 8, 5); assert [b[\"order_id\"] for b in store.pop_backorder_batch(\"ELC-002\", 6)] == [\"BO-3\", \"BO-2\"]; cart = [{**skus[\"ELC-001\"], \"qty\": 1, \"bundle_qty\": 10}, {**skus[\"BOK-002\"], \"qty\": 1}, {**skus[\"CLR-003\"], \"qty\": 1}]; assert pricing.round_money(Decimal(\"12.345\")) == Decimal(\"12.35\") and pricing.is_tax_exempt(\"books\") is True; sub = pricing.calculate_subtotal(cart); assert sub == Decimal(\"318.50\"); pr = promotions.best_promo_combo(cart, [\"WELCOME10\", \"VIP20\", \"BULK15\"], \"2026-12-31T23:59:59Z\"); assert set(pr[\"applied_codes\"]) == {\"WELCOME10\", \"VIP20\"} and pr[\"discount_amount\"] == Decimal(\"81.06\") and pr[\"discounted_subtotal\"] == Decimal(\"237.44\"); assert pricing.calculate_shipping(Decimal(\"140.00\"), cart, raw_subtotal=Decimal(\"160.00\")) > Decimal(\"0.00\"); assert promotions.is_promo_valid(promotions.PROMO_CATALOG[\"FLASH25\"], Decimal(\"10.00\"), \"2026-01-01T00:00:00Z\") is True; cart_ex = [{**skus[\"GFT-003\"], \"qty\": 1}, {**skus[\"CLR-003\"], \"qty\": 2}]; pr_ex = promotions.best_promo_combo(cart_ex, [\"WELCOME10\", \"BULK15\", \"FREESHIP\"], \"2026-06-01T00:00:00Z\"); assert pr_ex[\"applied_codes\"] == [] and pr_ex[\"discount_amount\"] == Decimal(\"0.00\"); svc1 = ledger.LedgerService(); svc2 = ledger.LedgerService(); svc1.post_payment(\"idem-w1\", \"W-NS\", 25000, 1800, batch_id=\"BW\"); svc2.post_payment(\"idem-w1\", \"W-NS\", 25000, 1800, batch_id=\"BW\"); tc.assertRaises(ledger.IdempotencyConflictError, svc1.post_payment, \"idem-w1\", \"W-NS\", 25000, 1900, batch_id=\"BW\"); rf1 = svc1.post_refund(\"W-NS\", 5000, 23200, 1800, batch_id=\"BW\"); svc2.post_refund(\"W-NS\", 5000, 23200, 1800, batch_id=\"BW\"); assert rf1[\"refund_tax_cents\"] == 388 and svc1.reconcile_order(\"W-NS\") is True and svc1.settlement_digest(\"BW\") == svc2.settlement_digest(\"BW\")'",
+    "reference_edits": [
+      {
+        "file": "inventory.py",
+        "old": "        allocations: list[dict] = []\n        warehouses = self._ordered_warehouses()\n\n        for line in lines:\n            sku = str(line[\"sku\"])\n            qty = int(line[\"qty\"])\n            if qty <= 0:\n                raise ValueError(f\"Line qty must be positive for sku={sku!r}\")\n            allow_split = bool(line.get(\"allow_split\", True))\n            remaining = qty\n\n            for wh in warehouses:\n                avail = int(self.stock_by_wh[wh].get(sku, 0))\n                if avail <= 0:\n                    continue\n                take = min(avail, remaining)\n                self.stock_by_wh[wh][sku] = avail - take\n                allocations.append(\n                    {\n                        \"order_id\": order_id,\n                        \"sku\": sku,\n                        \"warehouse\": wh,\n                        \"qty\": take,\n                        \"allow_split\": allow_split,\n                    }\n                )\n                remaining -= take\n                if remaining == 0:\n                    break\n\n            if remaining > 0:\n                raise OutOfStockError(\n                    f\"Insufficient stock for sku={sku} (short {remaining} units)\"\n                )\n\n        self.reservations[order_id] = allocations\n        return allocations",
+        "new": "        allocations: list[dict] = []\n        warehouses = self._ordered_warehouses()\n        working_stock = deepcopy(self.stock_by_wh)\n\n        for line in lines:\n            sku = str(line[\"sku\"])\n            qty = int(line[\"qty\"])\n            if qty <= 0:\n                raise ValueError(f\"Line qty must be positive for sku={sku!r}\")\n            allow_split = bool(line.get(\"allow_split\", True))\n            remaining = qty\n\n            if not allow_split:\n                for wh in warehouses:\n                    avail = int(working_stock[wh].get(sku, 0))\n                    if avail >= qty:\n                        working_stock[wh][sku] = avail - qty\n                        allocations.append(\n                            {\n                                \"order_id\": order_id,\n                                \"sku\": sku,\n                                \"warehouse\": wh,\n                                \"qty\": qty,\n                                \"allow_split\": allow_split,\n                            }\n                        )\n                        remaining = 0\n                        break\n            else:\n                for wh in warehouses:\n                    avail = int(working_stock[wh].get(sku, 0))\n                    if avail <= 0:\n                        continue\n                    take = min(avail, remaining)\n                    working_stock[wh][sku] = avail - take\n                    allocations.append(\n                        {\n                            \"order_id\": order_id,\n                            \"sku\": sku,\n                            \"warehouse\": wh,\n                            \"qty\": take,\n                            \"allow_split\": allow_split,\n                        }\n                    )\n                    remaining -= take\n                    if remaining == 0:\n                        break\n\n            if remaining > 0:\n                raise OutOfStockError(\n                    f\"Insufficient stock for sku={sku} (short {remaining} units)\"\n                )\n\n        self.stock_by_wh = working_stock\n        self.reservations[order_id] = allocations\n        return allocations"
+      },
+      {
+        "file": "inventory.py",
+        "old": "        candidates.sort(key=lambda b: (int(b[\"priority\"]), int(b[\"created_seq\"])))",
+        "new": "        candidates.sort(key=lambda b: (-int(b[\"priority\"]), int(b[\"created_seq\"])))"
+      },
+      {
+        "file": "pricing.py",
+        "old": "EXEMPT_CATEGORIES: frozenset[str] = frozenset({\"giftcard\"})",
+        "new": "EXEMPT_CATEGORIES: frozenset[str] = frozenset({\"giftcard\", \"books\"})"
+      },
+      {
+        "file": "pricing.py",
+        "old": "def round_money(val: Decimal) -> Decimal:\n    \"\"\"Round a Decimal monetary value to 2 decimal places using ROUND_HALF_UP.\"\"\"\n    dec = val if isinstance(val, Decimal) else Decimal(str(val))\n    return dec.quantize(CURRENCY_QUANT, rounding=ROUND_FLOOR)",
+        "new": "def round_money(val: Decimal) -> Decimal:\n    \"\"\"Round a Decimal monetary value to 2 decimal places using ROUND_HALF_UP.\"\"\"\n    dec = val if isinstance(val, Decimal) else Decimal(str(val))\n    return dec.quantize(CURRENCY_QUANT, rounding=ROUND_HALF_UP)"
+      },
+      {
+        "file": "pricing.py",
+        "old": "    basis = (\n        Decimal(str(raw_subtotal))\n        if raw_subtotal is not None\n        else discounted\n    )\n    if basis >= FREE_SHIPPING_THRESHOLD:\n        return Decimal(\"0.00\")",
+        "new": "    if discounted >= FREE_SHIPPING_THRESHOLD:\n        return Decimal(\"0.00\")"
+      },
+      {
+        "file": "promotions.py",
+        "old": "        if now_dt >= exp_dt:\n            return False",
+        "new": "        if now_dt > exp_dt:\n            return False"
+      },
+      {
+        "file": "promotions.py",
+        "old": "        if is_promo_valid(rule, total_sub, now_iso):\n            valid_rules.append(rule)\n\n    best_result = _evaluate_combo((), items, total_sub, eligible_sub, baseline_shipping)\n    for rule in valid_rules:\n        candidate = _evaluate_combo(\n            (rule,),\n            items,\n            total_sub,\n            eligible_sub,\n            baseline_shipping,\n        )\n        if candidate[\"total_savings\"] > best_result[\"total_savings\"]:\n            best_result = candidate\n    return best_result",
+        "new": "        if is_promo_valid(rule, eligible_sub, now_iso):\n            valid_rules.append(rule)\n\n    best_result = _evaluate_combo((), items, total_sub, eligible_sub, baseline_shipping)\n    candidate_combos: list[tuple[PromoRule, ...]] = [\n        (r,) for r in valid_rules if not r.stackable\n    ]\n    stackable_rules = [r for r in valid_rules if r.stackable]\n    for size in range(1, len(stackable_rules) + 1):\n        candidate_combos.extend(combinations(stackable_rules, size))\n\n    for combo in candidate_combos:\n        candidate = _evaluate_combo(\n            combo,\n            items,\n            total_sub,\n            eligible_sub,\n            baseline_shipping,\n        )\n        if candidate[\"total_savings\"] > best_result[\"total_savings\"]:\n            best_result = candidate\n    return best_result"
+      },
+      {
+        "file": "ledger.py",
+        "old": "        if idempotency_key in self.idempotency_cache:\n            return dict(self.idempotency_cache[idempotency_key][\"result\"])",
+        "new": "        if idempotency_key in self.idempotency_cache:\n            cached = self.idempotency_cache[idempotency_key]\n            if (\n                cached[\"order_id\"] != order_id\n                or cached[\"amount_cents\"] != amount_cents\n                or cached[\"tax_cents\"] != tax_cents\n            ):\n                raise IdempotencyConflictError(\n                    f\"Idempotency key {idempotency_key!r} reused with conflicting parameters\"\n                )\n            return dict(cached[\"result\"])"
+      },
+      {
+        "file": "ledger.py",
+        "old": "        refund_tax_cents = int(\n            orig_tax_cents * (refund_subtotal_cents // orig_subtotal_cents)\n        )",
+        "new": "        refund_tax_cents = int(\n            (\n                Decimal(orig_tax_cents)\n                * Decimal(refund_subtotal_cents)\n                / Decimal(orig_subtotal_cents)\n            ).quantize(Decimal(\"1\"), rounding=ROUND_HALF_UP)\n        )"
+      }
+    ],
+    "required_signals": [
+      "ERROR",
+      "def reserve_order",
+      "def round_money",
+      "def best_promo_combo"
+    ]
+  }
+]

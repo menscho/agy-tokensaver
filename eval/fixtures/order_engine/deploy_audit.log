@@ -1,0 +1,839 @@
+[2026-11-24T00:00:01Z] INFO  [cluster] Heartbeat tick seq=0001 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T00:01:00Z] INFO  [cluster] Heartbeat tick seq=0002 worker=ord-us-01 rss_mb=139 queue_depth=1
+[2026-11-24T00:02:00Z] INFO  [catalog] Synced SKU batch batch=01 count=20 checksum=a18f21cc
+[2026-11-24T00:03:00Z] INFO  [cluster] Heartbeat tick seq=0003 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T00:04:00Z] INFO  [cluster] Heartbeat tick seq=0004 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T00:05:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T00:06:00Z] INFO  [cluster] Heartbeat tick seq=0005 worker=ord-eu-01 rss_mb=142 queue_depth=2
+[2026-11-24T00:07:00Z] INFO  [catalog] Synced SKU batch batch=02 count=20 checksum=b40d9912
+[2026-11-24T00:08:00Z] INFO  [cluster] Heartbeat tick seq=0006 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T00:09:00Z] INFO  [cluster] Heartbeat tick seq=0007 worker=ord-eu-02 rss_mb=143 queue_depth=1
+[2026-11-24T00:10:00Z] INFO  [health] Readiness probe passed latency_ms=1.9 db_pool=7/32
+[2026-11-24T00:11:00Z] INFO  [cluster] Heartbeat tick seq=0008 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T00:12:00Z] INFO  [ledger] Periodic checkpoint verified entries=12040 imbalance=0
+[2026-11-24T00:13:00Z] INFO  [cluster] Heartbeat tick seq=0009 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T00:14:00Z] INFO  [cluster] Heartbeat tick seq=0010 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T00:15:00Z] INFO  [health] Readiness probe passed latency_ms=2.4 db_pool=9/32
+[2026-11-24T00:16:00Z] INFO  [cluster] Heartbeat tick seq=0011 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T00:17:00Z] INFO  [catalog] Synced SKU batch batch=03 count=20 checksum=c72e4410
+[2026-11-24T00:18:00Z] INFO  [cluster] Heartbeat tick seq=0012 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T00:19:00Z] INFO  [cluster] Heartbeat tick seq=0013 worker=ord-eu-01 rss_mb=143 queue_depth=2
+[2026-11-24T00:20:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T00:21:00Z] INFO  [cluster] Heartbeat tick seq=0014 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T00:22:00Z] INFO  [inventory] Warehouse snapshot eu-central skus=120 total_units=6810
+[2026-11-24T00:23:00Z] INFO  [cluster] Heartbeat tick seq=0015 worker=ord-eu-02 rss_mb=144 queue_depth=1
+[2026-11-24T00:24:00Z] INFO  [cluster] Heartbeat tick seq=0016 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T00:25:00Z] INFO  [health] Readiness probe passed latency_ms=1.8 db_pool=8/32
+[2026-11-24T00:26:00Z] INFO  [cluster] Heartbeat tick seq=0017 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T00:27:00Z] INFO  [catalog] Synced SKU batch batch=04 count=20 checksum=d91a02f4
+[2026-11-24T00:28:00Z] INFO  [cluster] Heartbeat tick seq=0018 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T00:29:00Z] INFO  [cluster] Heartbeat tick seq=0019 worker=ord-eu-02 rss_mb=145 queue_depth=1
+[2026-11-24T00:30:00Z] INFO  [health] Readiness probe passed latency_ms=2.3 db_pool=10/32
+[2026-11-24T00:31:00Z] INFO  [cluster] Heartbeat tick seq=0020 worker=ord-us-02 rss_mb=142 queue_depth=0
+[2026-11-24T00:32:00Z] INFO  [inventory] Warehouse snapshot us-east skus=120 total_units=7480
+[2026-11-24T00:33:00Z] INFO  [cluster] Heartbeat tick seq=0021 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T00:34:00Z] INFO  [cluster] Heartbeat tick seq=0022 worker=ord-us-01 rss_mb=140 queue_depth=2
+[2026-11-24T00:35:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T00:36:00Z] INFO  [cluster] Heartbeat tick seq=0023 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T00:37:00Z] INFO  [catalog] Synced SKU batch batch=05 count=20 checksum=e55b78c1
+[2026-11-24T00:38:00Z] INFO  [cluster] Heartbeat tick seq=0024 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T00:39:00Z] INFO  [cluster] Heartbeat tick seq=0025 worker=ord-eu-01 rss_mb=143 queue_depth=1
+[2026-11-24T00:40:00Z] INFO  [health] Readiness probe passed latency_ms=1.9 db_pool=7/32
+[2026-11-24T00:42:00Z] WARN  [pricing] Legacy currency cache warmup skipped (RESOLVED in PR #412 - no action needed)
+[2026-11-24T00:43:00Z] INFO  [cluster] Heartbeat tick seq=0027 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T00:44:00Z] INFO  [cluster] Heartbeat tick seq=0028 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T00:45:00Z] INFO  [health] Readiness probe passed latency_ms=2.2 db_pool=8/32
+[2026-11-24T00:46:00Z] INFO  [cluster] Heartbeat tick seq=0029 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T00:47:00Z] INFO  [catalog] Synced SKU batch batch=06 count=20 checksum=f09c31a8
+[2026-11-24T00:48:00Z] INFO  [cluster] Heartbeat tick seq=0030 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T00:49:00Z] INFO  [cluster] Heartbeat tick seq=0031 worker=ord-eu-02 rss_mb=144 queue_depth=2
+[2026-11-24T00:50:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T00:51:00Z] INFO  [cluster] Heartbeat tick seq=0032 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T00:52:00Z] INFO  [inventory] Warehouse snapshot us-west skus=120 total_units=6120
+[2026-11-24T00:53:00Z] INFO  [cluster] Heartbeat tick seq=0033 worker=ord-eu-01 rss_mb=142 queue_depth=1
+[2026-11-24T00:54:00Z] INFO  [cluster] Heartbeat tick seq=0034 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T00:55:00Z] INFO  [health] Readiness probe passed latency_ms=1.8 db_pool=7/32
+[2026-11-24T00:56:00Z] INFO  [cluster] Heartbeat tick seq=0035 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T00:57:00Z] INFO  [ledger] Periodic checkpoint verified entries=12110 imbalance=0
+[2026-11-24T00:58:00Z] INFO  [cluster] Heartbeat tick seq=0036 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T00:59:00Z] INFO  [cluster] Heartbeat tick seq=0037 worker=ord-eu-01 rss_mb=143 queue_depth=1
+[2026-11-24T01:00:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T01:01:00Z] INFO  [cluster] Heartbeat tick seq=0038 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T01:02:00Z] INFO  [cluster] Heartbeat tick seq=0039 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T01:03:00Z] INFO  [cluster] Heartbeat tick seq=0040 worker=ord-us-02 rss_mb=141 queue_depth=2
+[2026-11-24T01:04:00Z] INFO  [cluster] Heartbeat tick seq=0041 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T01:05:00Z] INFO  [health] Readiness probe passed latency_ms=1.9 db_pool=8/32
+[2026-11-24T01:06:00Z] INFO  [cluster] Heartbeat tick seq=0042 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T01:07:00Z] INFO  [cluster] Heartbeat tick seq=0043 worker=ord-eu-02 rss_mb=144 queue_depth=1
+[2026-11-24T01:08:00Z] INFO  [cluster] Heartbeat tick seq=0044 worker=ord-us-02 rss_mb=142 queue_depth=0
+[2026-11-24T01:09:00Z] INFO  [cluster] Heartbeat tick seq=0045 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T01:10:00Z] INFO  [health] Readiness probe passed latency_ms=2.3 db_pool=9/32
+[2026-11-24T01:11:00Z] INFO  [cluster] Heartbeat tick seq=0046 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T01:12:00Z] INFO  [cluster] Heartbeat tick seq=0047 worker=ord-eu-02 rss_mb=144 queue_depth=1
+[2026-11-24T01:13:00Z] INFO  [cluster] Heartbeat tick seq=0048 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T01:14:00Z] INFO  [cluster] Heartbeat tick seq=0049 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T01:15:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T01:16:00Z] INFO  [cluster] Heartbeat tick seq=0050 worker=ord-us-01 rss_mb=140 queue_depth=2
+[2026-11-24T01:17:00Z] INFO  [cluster] Heartbeat tick seq=0051 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T01:18:00Z] INFO  [cluster] Heartbeat tick seq=0052 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T01:19:00Z] INFO  [cluster] Heartbeat tick seq=0053 worker=ord-eu-01 rss_mb=142 queue_depth=1
+[2026-11-24T01:20:00Z] INFO  [health] Readiness probe passed latency_ms=1.7 db_pool=7/32
+[2026-11-24T01:21:00Z] INFO  [cluster] Heartbeat tick seq=0054 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T01:22:00Z] INFO  [cluster] Heartbeat tick seq=0055 worker=ord-eu-02 rss_mb=145 queue_depth=0
+[2026-11-24T01:23:00Z] INFO  [cluster] Heartbeat tick seq=0056 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T01:24:00Z] INFO  [cluster] Heartbeat tick seq=0057 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T01:25:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T01:26:00Z] INFO  [cluster] Heartbeat tick seq=0058 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T01:27:00Z] INFO  [cluster] Heartbeat tick seq=0059 worker=ord-eu-02 rss_mb=144 queue_depth=2
+[2026-11-24T01:28:00Z] INFO  [cluster] Heartbeat tick seq=0060 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T01:29:00Z] INFO  [cluster] Heartbeat tick seq=0061 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T01:30:00Z] INFO  [health] Readiness probe passed latency_ms=2.2 db_pool=9/32
+[2026-11-24T01:31:00Z] INFO  [cluster] Heartbeat tick seq=0062 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T01:32:00Z] INFO  [cluster] Heartbeat tick seq=0063 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T01:33:00Z] INFO  [cluster] Heartbeat tick seq=0064 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T01:34:00Z] INFO  [cluster] Heartbeat tick seq=0065 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T01:35:00Z] INFO  [health] Readiness probe passed latency_ms=1.9 db_pool=8/32
+[2026-11-24T01:36:00Z] INFO  [cluster] Heartbeat tick seq=0066 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T01:37:00Z] INFO  [cluster] Heartbeat tick seq=0067 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T01:38:00Z] INFO  [cluster] Heartbeat tick seq=0068 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T01:39:00Z] INFO  [cluster] Heartbeat tick seq=0069 worker=ord-eu-01 rss_mb=142 queue_depth=2
+[2026-11-24T01:40:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T01:41:00Z] INFO  [cluster] Heartbeat tick seq=0070 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T01:42:00Z] INFO  [cluster] Heartbeat tick seq=0071 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T01:43:00Z] INFO  [cluster] Heartbeat tick seq=0072 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T01:44:00Z] INFO  [cluster] Heartbeat tick seq=0073 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T01:45:00Z] INFO  [health] Readiness probe passed latency_ms=1.8 db_pool=7/32
+[2026-11-24T01:46:00Z] INFO  [cluster] Heartbeat tick seq=0074 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T01:47:00Z] INFO  [cluster] Heartbeat tick seq=0075 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T01:48:00Z] INFO  [cluster] Heartbeat tick seq=0076 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T01:49:00Z] INFO  [cluster] Heartbeat tick seq=0077 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T01:50:00Z] INFO  [health] Readiness probe passed latency_ms=2.3 db_pool=9/32
+[2026-11-24T01:51:00Z] INFO  [cluster] Heartbeat tick seq=0078 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T01:52:00Z] INFO  [cluster] Heartbeat tick seq=0079 worker=ord-eu-02 rss_mb=145 queue_depth=2
+[2026-11-24T01:53:00Z] INFO  [cluster] Heartbeat tick seq=0080 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T01:54:00Z] INFO  [cluster] Heartbeat tick seq=0081 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T01:55:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T01:56:00Z] INFO  [cluster] Heartbeat tick seq=0082 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T01:57:00Z] INFO  [cluster] Heartbeat tick seq=0083 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T01:58:00Z] INFO  [cluster] Heartbeat tick seq=0084 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T01:59:00Z] INFO  [cluster] Heartbeat tick seq=0085 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T02:00:00Z] INFO  [health] Readiness probe passed latency_ms=1.9 db_pool=8/32
+[2026-11-24T02:01:00Z] INFO  [cluster] Heartbeat tick seq=0086 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T02:02:00Z] INFO  [cluster] Heartbeat tick seq=0087 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T02:03:00Z] INFO  [cluster] Heartbeat tick seq=0088 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T02:04:00Z] INFO  [cluster] Heartbeat tick seq=0089 worker=ord-eu-01 rss_mb=142 queue_depth=2
+[2026-11-24T02:05:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T02:06:00Z] INFO  [cluster] Heartbeat tick seq=0090 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T02:07:00Z] INFO  [cluster] Heartbeat tick seq=0091 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T02:08:00Z] INFO  [cluster] Heartbeat tick seq=0092 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T02:09:00Z] INFO  [cluster] Heartbeat tick seq=0093 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T02:10:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=7/32
+[2026-11-24T02:11:00Z] INFO  [cluster] Heartbeat tick seq=0094 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T02:12:00Z] INFO  [cluster] Heartbeat tick seq=0095 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T02:13:00Z] INFO  [cluster] Heartbeat tick seq=0096 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T02:14:00Z] INFO  [cluster] Heartbeat tick seq=0097 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T02:15:00Z] INFO  [health] Readiness probe passed latency_ms=2.4 db_pool=9/32
+[2026-11-24T02:16:00Z] INFO  [cluster] Heartbeat tick seq=0098 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T02:17:00Z] INFO  [cluster] Heartbeat tick seq=0099 worker=ord-eu-02 rss_mb=145 queue_depth=2
+[2026-11-24T02:18:00Z] INFO  [cluster] Heartbeat tick seq=0100 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T02:19:00Z] INFO  [cluster] Heartbeat tick seq=0101 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T02:20:00Z] INFO  [health] Readiness probe passed latency_ms=1.8 db_pool=8/32
+[2026-11-24T02:21:00Z] INFO  [cluster] Heartbeat tick seq=0102 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T02:22:00Z] INFO  [cluster] Heartbeat tick seq=0103 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T02:23:00Z] INFO  [cluster] Heartbeat tick seq=0104 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T02:24:00Z] INFO  [cluster] Heartbeat tick seq=0105 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T02:25:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T02:26:00Z] INFO  [cluster] Heartbeat tick seq=0106 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T02:27:00Z] INFO  [cluster] Heartbeat tick seq=0107 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T02:28:00Z] INFO  [cluster] Heartbeat tick seq=0108 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T02:29:00Z] INFO  [cluster] Heartbeat tick seq=0109 worker=ord-eu-01 rss_mb=143 queue_depth=2
+[2026-11-24T02:30:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T02:31:00Z] INFO  [cluster] Heartbeat tick seq=0110 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T02:32:00Z] INFO  [cluster] Heartbeat tick seq=0111 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T02:33:00Z] INFO  [cluster] Heartbeat tick seq=0112 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T02:34:00Z] INFO  [cluster] Heartbeat tick seq=0113 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T02:35:00Z] INFO  [health] Readiness probe passed latency_ms=1.9 db_pool=7/32
+[2026-11-24T02:36:00Z] INFO  [cluster] Heartbeat tick seq=0114 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T02:37:00Z] INFO  [cluster] Heartbeat tick seq=0115 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T02:38:00Z] INFO  [cluster] Heartbeat tick seq=0116 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T02:39:00Z] INFO  [cluster] Heartbeat tick seq=0117 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T02:40:00Z] INFO  [health] Readiness probe passed latency_ms=2.2 db_pool=9/32
+[2026-11-24T02:41:00Z] INFO  [cluster] Heartbeat tick seq=0118 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T02:42:00Z] INFO  [cluster] Heartbeat tick seq=0119 worker=ord-eu-02 rss_mb=145 queue_depth=2
+[2026-11-24T02:43:00Z] INFO  [cluster] Heartbeat tick seq=0120 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T02:44:00Z] INFO  [cluster] Heartbeat tick seq=0121 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T02:45:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T02:46:00Z] INFO  [cluster] Heartbeat tick seq=0122 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T02:47:00Z] INFO  [cluster] Heartbeat tick seq=0123 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T02:48:00Z] INFO  [cluster] Heartbeat tick seq=0124 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T02:49:00Z] INFO  [cluster] Heartbeat tick seq=0125 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T02:50:00Z] INFO  [health] Readiness probe passed latency_ms=1.8 db_pool=8/32
+[2026-11-24T02:51:00Z] INFO  [cluster] Heartbeat tick seq=0126 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T02:52:00Z] INFO  [cluster] Heartbeat tick seq=0127 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T02:53:00Z] INFO  [cluster] Heartbeat tick seq=0128 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T02:54:00Z] INFO  [cluster] Heartbeat tick seq=0129 worker=ord-eu-01 rss_mb=142 queue_depth=2
+[2026-11-24T02:55:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T02:56:00Z] INFO  [cluster] Heartbeat tick seq=0130 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T02:57:00Z] INFO  [cluster] Heartbeat tick seq=0131 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T02:58:00Z] INFO  [cluster] Heartbeat tick seq=0132 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T02:59:00Z] INFO  [cluster] Heartbeat tick seq=0133 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T03:00:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=7/32
+[2026-11-24T03:01:00Z] INFO  [cluster] Heartbeat tick seq=0134 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T03:02:00Z] INFO  [cluster] Heartbeat tick seq=0135 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T03:03:00Z] INFO  [cluster] Heartbeat tick seq=0136 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T03:04:00Z] INFO  [cluster] Heartbeat tick seq=0137 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T03:05:00Z] INFO  [health] Readiness probe passed latency_ms=2.3 db_pool=9/32
+[2026-11-24T03:06:00Z] INFO  [cluster] Heartbeat tick seq=0138 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T03:07:00Z] INFO  [cluster] Heartbeat tick seq=0139 worker=ord-eu-02 rss_mb=145 queue_depth=2
+[2026-11-24T03:08:00Z] INFO  [cluster] Heartbeat tick seq=0140 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T03:09:00Z] INFO  [cluster] Heartbeat tick seq=0141 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T03:10:00Z] INFO  [health] Readiness probe passed latency_ms=1.9 db_pool=8/32
+[2026-11-24T03:11:00Z] INFO  [cluster] Heartbeat tick seq=0142 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T03:12:00Z] INFO  [cluster] Heartbeat tick seq=0143 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T03:13:00Z] INFO  [cluster] Heartbeat tick seq=0144 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T03:14:00Z] INFO  [cluster] Heartbeat tick seq=0145 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T03:15:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T03:16:00Z] INFO  [cluster] Heartbeat tick seq=0146 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T03:17:00Z] INFO  [cluster] Heartbeat tick seq=0147 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T03:18:00Z] INFO  [cluster] Heartbeat tick seq=0148 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T03:19:00Z] INFO  [cluster] Heartbeat tick seq=0149 worker=ord-eu-01 rss_mb=142 queue_depth=2
+[2026-11-24T03:20:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T03:21:00Z] INFO  [cluster] Heartbeat tick seq=0150 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T03:22:00Z] INFO  [cluster] Heartbeat tick seq=0151 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T03:23:00Z] INFO  [cluster] Heartbeat tick seq=0152 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T03:24:00Z] INFO  [cluster] Heartbeat tick seq=0153 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T03:25:00Z] INFO  [health] Readiness probe passed latency_ms=1.8 db_pool=7/32
+[2026-11-24T03:26:00Z] INFO  [cluster] Heartbeat tick seq=0154 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T03:27:00Z] INFO  [cluster] Heartbeat tick seq=0155 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T03:28:00Z] INFO  [cluster] Heartbeat tick seq=0156 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T03:29:00Z] INFO  [cluster] Heartbeat tick seq=0157 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T03:30:00Z] INFO  [health] Readiness probe passed latency_ms=2.2 db_pool=9/32
+[2026-11-24T03:31:00Z] INFO  [cluster] Heartbeat tick seq=0158 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T03:32:00Z] INFO  [cluster] Heartbeat tick seq=0159 worker=ord-eu-02 rss_mb=145 queue_depth=2
+[2026-11-24T03:33:00Z] INFO  [cluster] Heartbeat tick seq=0160 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T03:34:00Z] INFO  [cluster] Heartbeat tick seq=0161 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T03:35:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T03:36:00Z] INFO  [cluster] Heartbeat tick seq=0162 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T03:37:00Z] INFO  [cluster] Heartbeat tick seq=0163 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T03:38:00Z] INFO  [cluster] Heartbeat tick seq=0164 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T03:39:00Z] INFO  [cluster] Heartbeat tick seq=0165 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T03:40:00Z] INFO  [health] Readiness probe passed latency_ms=1.9 db_pool=8/32
+[2026-11-24T03:41:00Z] INFO  [cluster] Heartbeat tick seq=0166 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T03:42:00Z] INFO  [cluster] Heartbeat tick seq=0167 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T03:43:00Z] INFO  [cluster] Heartbeat tick seq=0168 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T03:44:00Z] INFO  [cluster] Heartbeat tick seq=0169 worker=ord-eu-01 rss_mb=143 queue_depth=2
+[2026-11-24T03:45:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T03:46:00Z] INFO  [cluster] Heartbeat tick seq=0170 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T03:47:00Z] INFO  [cluster] Heartbeat tick seq=0171 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T03:48:00Z] INFO  [cluster] Heartbeat tick seq=0172 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T03:49:00Z] INFO  [cluster] Heartbeat tick seq=0173 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T03:50:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=7/32
+[2026-11-24T03:51:00Z] INFO  [cluster] Heartbeat tick seq=0174 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T03:52:00Z] INFO  [cluster] Heartbeat tick seq=0175 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T03:53:00Z] INFO  [cluster] Heartbeat tick seq=0176 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T03:54:00Z] INFO  [cluster] Heartbeat tick seq=0177 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T03:55:00Z] INFO  [health] Readiness probe passed latency_ms=2.3 db_pool=9/32
+[2026-11-24T03:56:00Z] INFO  [cluster] Heartbeat tick seq=0178 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T03:57:00Z] INFO  [cluster] Heartbeat tick seq=0179 worker=ord-eu-02 rss_mb=145 queue_depth=2
+[2026-11-24T03:58:00Z] INFO  [cluster] Heartbeat tick seq=0180 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T03:59:00Z] INFO  [cluster] Heartbeat tick seq=0181 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T04:00:00Z] INFO  [health] Readiness probe passed latency_ms=1.8 db_pool=8/32
+[2026-11-24T04:01:00Z] INFO  [cluster] Heartbeat tick seq=0182 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T04:02:00Z] INFO  [cluster] Heartbeat tick seq=0183 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T04:03:00Z] INFO  [cluster] Heartbeat tick seq=0184 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T04:04:00Z] INFO  [cluster] Heartbeat tick seq=0185 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T04:05:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T04:06:00Z] INFO  [cluster] Heartbeat tick seq=0186 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T04:07:00Z] INFO  [cluster] Heartbeat tick seq=0187 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T04:08:00Z] INFO  [cluster] Heartbeat tick seq=0188 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T04:09:00Z] INFO  [cluster] Heartbeat tick seq=0189 worker=ord-eu-01 rss_mb=142 queue_depth=2
+[2026-11-24T04:10:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T04:11:00Z] INFO  [cluster] Heartbeat tick seq=0190 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T04:12:00Z] INFO  [cluster] Heartbeat tick seq=0191 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T04:13:00Z] INFO  [cluster] Heartbeat tick seq=0192 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T04:14:00Z] INFO  [cluster] Heartbeat tick seq=0193 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T04:15:00Z] INFO  [health] Readiness probe passed latency_ms=1.9 db_pool=7/32
+[2026-11-24T04:16:00Z] INFO  [cluster] Heartbeat tick seq=0194 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T04:17:00Z] INFO  [cluster] Heartbeat tick seq=0195 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T04:18:00Z] INFO  [cluster] Heartbeat tick seq=0196 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T04:19:00Z] INFO  [cluster] Heartbeat tick seq=0197 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T04:20:00Z] INFO  [health] Readiness probe passed latency_ms=2.2 db_pool=9/32
+[2026-11-24T04:21:00Z] INFO  [cluster] Heartbeat tick seq=0198 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T04:22:00Z] INFO  [cluster] Heartbeat tick seq=0199 worker=ord-eu-02 rss_mb=145 queue_depth=2
+[2026-11-24T04:23:00Z] INFO  [cluster] Heartbeat tick seq=0200 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T04:24:00Z] INFO  [cluster] Heartbeat tick seq=0201 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T04:25:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T04:26:00Z] INFO  [cluster] Heartbeat tick seq=0202 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T04:27:00Z] INFO  [cluster] Heartbeat tick seq=0203 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T04:28:00Z] INFO  [cluster] Heartbeat tick seq=0204 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T04:29:00Z] INFO  [cluster] Heartbeat tick seq=0205 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T04:30:00Z] INFO  [health] Readiness probe passed latency_ms=1.8 db_pool=8/32
+[2026-11-24T04:31:00Z] INFO  [cluster] Heartbeat tick seq=0206 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T04:32:00Z] INFO  [cluster] Heartbeat tick seq=0207 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T04:33:00Z] INFO  [cluster] Heartbeat tick seq=0208 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T04:34:00Z] INFO  [cluster] Heartbeat tick seq=0209 worker=ord-eu-01 rss_mb=142 queue_depth=2
+[2026-11-24T04:35:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T04:36:00Z] INFO  [cluster] Heartbeat tick seq=0210 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T04:37:00Z] INFO  [cluster] Heartbeat tick seq=0211 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T04:38:00Z] INFO  [cluster] Heartbeat tick seq=0212 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T04:39:00Z] INFO  [cluster] Heartbeat tick seq=0213 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T04:40:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=7/32
+[2026-11-24T04:41:00Z] INFO  [cluster] Heartbeat tick seq=0214 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T04:42:00Z] INFO  [cluster] Heartbeat tick seq=0215 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T04:43:00Z] INFO  [cluster] Heartbeat tick seq=0216 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T04:44:00Z] INFO  [cluster] Heartbeat tick seq=0217 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T04:45:00Z] INFO  [health] Readiness probe passed latency_ms=2.3 db_pool=9/32
+[2026-11-24T04:46:00Z] INFO  [cluster] Heartbeat tick seq=0218 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T04:47:00Z] INFO  [cluster] Heartbeat tick seq=0219 worker=ord-eu-02 rss_mb=145 queue_depth=2
+[2026-11-24T04:48:00Z] INFO  [cluster] Heartbeat tick seq=0220 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T04:49:00Z] INFO  [cluster] Heartbeat tick seq=0221 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T04:50:00Z] INFO  [health] Readiness probe passed latency_ms=1.9 db_pool=8/32
+[2026-11-24T04:51:00Z] INFO  [cluster] Heartbeat tick seq=0222 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T04:52:00Z] INFO  [cluster] Heartbeat tick seq=0223 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T04:53:00Z] INFO  [cluster] Heartbeat tick seq=0224 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T04:54:00Z] INFO  [cluster] Heartbeat tick seq=0225 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T04:55:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T04:56:00Z] INFO  [cluster] Heartbeat tick seq=0226 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T04:57:00Z] INFO  [cluster] Heartbeat tick seq=0227 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T04:58:00Z] INFO  [cluster] Heartbeat tick seq=0228 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T04:59:00Z] INFO  [cluster] Heartbeat tick seq=0229 worker=ord-eu-01 rss_mb=143 queue_depth=2
+[2026-11-24T05:00:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T05:01:00Z] INFO  [cluster] Heartbeat tick seq=0230 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T05:02:00Z] INFO  [cluster] Heartbeat tick seq=0231 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T05:03:00Z] INFO  [cluster] Heartbeat tick seq=0232 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T05:04:00Z] INFO  [cluster] Heartbeat tick seq=0233 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T05:05:00Z] INFO  [health] Readiness probe passed latency_ms=1.8 db_pool=7/32
+[2026-11-24T05:06:00Z] INFO  [cluster] Heartbeat tick seq=0234 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T05:07:00Z] INFO  [cluster] Heartbeat tick seq=0235 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T05:08:00Z] INFO  [cluster] Heartbeat tick seq=0236 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T05:09:00Z] INFO  [cluster] Heartbeat tick seq=0237 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T05:10:00Z] INFO  [health] Readiness probe passed latency_ms=2.2 db_pool=9/32
+[2026-11-24T05:11:00Z] INFO  [cluster] Heartbeat tick seq=0238 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T05:12:00Z] INFO  [cluster] Heartbeat tick seq=0239 worker=ord-eu-02 rss_mb=145 queue_depth=2
+[2026-11-24T05:13:00Z] INFO  [cluster] Heartbeat tick seq=0240 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T05:14:00Z] INFO  [cluster] Heartbeat tick seq=0241 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T05:15:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T05:16:00Z] INFO  [cluster] Heartbeat tick seq=0242 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T05:17:00Z] INFO  [cluster] Heartbeat tick seq=0243 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T05:18:00Z] INFO  [cluster] Heartbeat tick seq=0244 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T05:19:00Z] INFO  [cluster] Heartbeat tick seq=0245 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T05:20:00Z] INFO  [health] Readiness probe passed latency_ms=1.9 db_pool=8/32
+[2026-11-24T05:21:00Z] INFO  [cluster] Heartbeat tick seq=0246 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T05:22:00Z] INFO  [cluster] Heartbeat tick seq=0247 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T05:23:00Z] INFO  [cluster] Heartbeat tick seq=0248 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T05:24:00Z] INFO  [cluster] Heartbeat tick seq=0249 worker=ord-eu-01 rss_mb=143 queue_depth=2
+[2026-11-24T05:25:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T05:26:00Z] INFO  [cluster] Heartbeat tick seq=0250 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T05:27:00Z] INFO  [cluster] Heartbeat tick seq=0251 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T05:28:00Z] INFO  [cluster] Heartbeat tick seq=0252 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T05:29:00Z] INFO  [cluster] Heartbeat tick seq=0253 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T05:30:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=7/32
+[2026-11-24T05:31:00Z] INFO  [cluster] Heartbeat tick seq=0254 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T05:32:00Z] INFO  [cluster] Heartbeat tick seq=0255 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T05:33:00Z] INFO  [cluster] Heartbeat tick seq=0256 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T05:34:00Z] INFO  [cluster] Heartbeat tick seq=0257 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T05:35:00Z] INFO  [health] Readiness probe passed latency_ms=2.3 db_pool=9/32
+[2026-11-24T05:36:00Z] INFO  [cluster] Heartbeat tick seq=0258 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T05:37:00Z] INFO  [cluster] Heartbeat tick seq=0259 worker=ord-eu-02 rss_mb=145 queue_depth=2
+[2026-11-24T05:38:00Z] INFO  [cluster] Heartbeat tick seq=0260 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T05:39:00Z] INFO  [cluster] Heartbeat tick seq=0261 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T05:40:00Z] INFO  [health] Readiness probe passed latency_ms=1.9 db_pool=8/32
+[2026-11-24T05:41:00Z] INFO  [cluster] Heartbeat tick seq=0262 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T05:42:00Z] INFO  [cluster] Heartbeat tick seq=0263 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T05:43:00Z] INFO  [cluster] Heartbeat tick seq=0264 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T05:44:00Z] INFO  [cluster] Heartbeat tick seq=0265 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T05:45:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T05:46:00Z] INFO  [cluster] Heartbeat tick seq=0266 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T05:47:00Z] INFO  [cluster] Heartbeat tick seq=0267 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T05:48:00Z] INFO  [cluster] Heartbeat tick seq=0268 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T05:49:00Z] INFO  [cluster] Heartbeat tick seq=0269 worker=ord-eu-01 rss_mb=142 queue_depth=2
+[2026-11-24T05:50:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T05:51:00Z] INFO  [cluster] Heartbeat tick seq=0270 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T05:52:00Z] INFO  [cluster] Heartbeat tick seq=0271 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T05:53:00Z] INFO  [cluster] Heartbeat tick seq=0272 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T05:54:00Z] INFO  [cluster] Heartbeat tick seq=0273 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T05:55:00Z] INFO  [health] Readiness probe passed latency_ms=1.8 db_pool=7/32
+[2026-11-24T05:56:00Z] INFO  [cluster] Heartbeat tick seq=0274 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T05:57:00Z] INFO  [cluster] Heartbeat tick seq=0275 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T05:58:00Z] INFO  [cluster] Heartbeat tick seq=0276 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T05:59:00Z] INFO  [cluster] Heartbeat tick seq=0277 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T06:00:00Z] INFO  [health] Readiness probe passed latency_ms=2.2 db_pool=9/32
+[2026-11-24T06:01:00Z] INFO  [cluster] Heartbeat tick seq=0278 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T06:02:00Z] INFO  [cluster] Heartbeat tick seq=0279 worker=ord-eu-02 rss_mb=145 queue_depth=2
+[2026-11-24T06:03:00Z] INFO  [cluster] Heartbeat tick seq=0280 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T06:04:00Z] INFO  [cluster] Heartbeat tick seq=0281 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T06:05:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T06:06:00Z] INFO  [cluster] Heartbeat tick seq=0282 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T06:07:00Z] INFO  [cluster] Heartbeat tick seq=0283 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T06:08:00Z] INFO  [cluster] Heartbeat tick seq=0284 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T06:09:00Z] INFO  [cluster] Heartbeat tick seq=0285 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T06:10:00Z] INFO  [health] Readiness probe passed latency_ms=1.9 db_pool=8/32
+[2026-11-24T06:11:00Z] INFO  [cluster] Heartbeat tick seq=0286 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T06:12:00Z] INFO  [cluster] Heartbeat tick seq=0287 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T06:13:00Z] INFO  [cluster] Heartbeat tick seq=0288 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T06:14:00Z] INFO  [cluster] Heartbeat tick seq=0289 worker=ord-eu-01 rss_mb=143 queue_depth=2
+[2026-11-24T06:15:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T06:16:00Z] INFO  [cluster] Heartbeat tick seq=0290 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T06:17:00Z] INFO  [cluster] Heartbeat tick seq=0291 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T06:18:00Z] INFO  [cluster] Heartbeat tick seq=0292 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T06:19:00Z] INFO  [cluster] Heartbeat tick seq=0293 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T06:20:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=7/32
+[2026-11-24T06:21:00Z] INFO  [cluster] Heartbeat tick seq=0294 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T06:22:00Z] INFO  [cluster] Heartbeat tick seq=0295 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T06:23:00Z] INFO  [cluster] Heartbeat tick seq=0296 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T06:24:00Z] INFO  [cluster] Heartbeat tick seq=0297 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T06:25:00Z] INFO  [health] Readiness probe passed latency_ms=2.3 db_pool=9/32
+[2026-11-24T06:26:00Z] INFO  [cluster] Heartbeat tick seq=0298 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T06:27:00Z] INFO  [cluster] Heartbeat tick seq=0299 worker=ord-eu-02 rss_mb=145 queue_depth=2
+[2026-11-24T06:28:00Z] INFO  [cluster] Heartbeat tick seq=0300 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T06:29:00Z] INFO  [cluster] Heartbeat tick seq=0301 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T06:30:00Z] INFO  [health] Readiness probe passed latency_ms=1.9 db_pool=8/32
+[2026-11-24T06:31:00Z] INFO  [cluster] Heartbeat tick seq=0302 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T06:32:00Z] INFO  [cluster] Heartbeat tick seq=0303 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T06:33:00Z] INFO  [cluster] Heartbeat tick seq=0304 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T06:34:00Z] INFO  [cluster] Heartbeat tick seq=0305 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T06:35:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T06:36:00Z] INFO  [cluster] Heartbeat tick seq=0306 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T06:37:00Z] INFO  [cluster] Heartbeat tick seq=0307 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T06:38:00Z] INFO  [cluster] Heartbeat tick seq=0308 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T06:39:00Z] INFO  [cluster] Heartbeat tick seq=0309 worker=ord-eu-01 rss_mb=142 queue_depth=2
+[2026-11-24T06:40:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T06:41:00Z] INFO  [cluster] Heartbeat tick seq=0310 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T06:42:00Z] INFO  [cluster] Heartbeat tick seq=0311 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T06:43:00Z] INFO  [cluster] Heartbeat tick seq=0312 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T06:44:00Z] INFO  [cluster] Heartbeat tick seq=0313 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T06:45:00Z] INFO  [health] Readiness probe passed latency_ms=1.8 db_pool=7/32
+[2026-11-24T06:46:00Z] INFO  [cluster] Heartbeat tick seq=0314 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T06:47:00Z] INFO  [cluster] Heartbeat tick seq=0315 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T06:48:00Z] INFO  [cluster] Heartbeat tick seq=0316 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T06:49:00Z] INFO  [cluster] Heartbeat tick seq=0317 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T06:50:00Z] INFO  [health] Readiness probe passed latency_ms=2.2 db_pool=9/32
+[2026-11-24T06:51:00Z] INFO  [cluster] Heartbeat tick seq=0318 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T06:52:00Z] INFO  [cluster] Heartbeat tick seq=0319 worker=ord-eu-02 rss_mb=145 queue_depth=2
+[2026-11-24T06:53:00Z] INFO  [cluster] Heartbeat tick seq=0320 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T06:54:00Z] INFO  [cluster] Heartbeat tick seq=0321 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T06:55:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T06:56:00Z] INFO  [cluster] Heartbeat tick seq=0322 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T06:57:00Z] INFO  [cluster] Heartbeat tick seq=0323 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T06:58:00Z] INFO  [cluster] Heartbeat tick seq=0324 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T06:59:00Z] INFO  [cluster] Heartbeat tick seq=0325 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T07:00:00Z] INFO  [health] Readiness probe passed latency_ms=1.9 db_pool=8/32
+[2026-11-24T07:01:00Z] INFO  [cluster] Heartbeat tick seq=0326 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T07:02:00Z] INFO  [cluster] Heartbeat tick seq=0327 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T07:03:00Z] INFO  [cluster] Heartbeat tick seq=0328 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T07:04:00Z] INFO  [cluster] Heartbeat tick seq=0329 worker=ord-eu-01 rss_mb=143 queue_depth=2
+[2026-11-24T07:05:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T07:06:00Z] INFO  [cluster] Heartbeat tick seq=0330 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T07:07:00Z] INFO  [cluster] Heartbeat tick seq=0331 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T07:08:00Z] INFO  [cluster] Heartbeat tick seq=0332 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T07:09:00Z] INFO  [cluster] Heartbeat tick seq=0333 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T07:10:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=7/32
+[2026-11-24T07:11:00Z] INFO  [cluster] Heartbeat tick seq=0334 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T07:12:00Z] INFO  [cluster] Heartbeat tick seq=0335 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T07:13:00Z] INFO  [cluster] Heartbeat tick seq=0336 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T07:14:00Z] INFO  [cluster] Heartbeat tick seq=0337 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T07:15:00Z] INFO  [health] Readiness probe passed latency_ms=2.3 db_pool=9/32
+[2026-11-24T07:16:00Z] INFO  [cluster] Heartbeat tick seq=0338 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T07:17:00Z] INFO  [cluster] Heartbeat tick seq=0339 worker=ord-eu-02 rss_mb=145 queue_depth=2
+[2026-11-24T07:18:00Z] INFO  [cluster] Heartbeat tick seq=0340 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T07:19:00Z] INFO  [cluster] Heartbeat tick seq=0341 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T07:20:00Z] INFO  [health] Readiness probe passed latency_ms=1.9 db_pool=8/32
+[2026-11-24T07:21:00Z] INFO  [cluster] Heartbeat tick seq=0342 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T07:22:00Z] INFO  [cluster] Heartbeat tick seq=0343 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T07:23:00Z] INFO  [cluster] Heartbeat tick seq=0344 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T07:24:00Z] INFO  [cluster] Heartbeat tick seq=0345 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T07:25:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T07:26:00Z] INFO  [cluster] Heartbeat tick seq=0346 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T07:27:00Z] INFO  [cluster] Heartbeat tick seq=0347 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T07:28:00Z] INFO  [cluster] Heartbeat tick seq=0348 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T07:29:00Z] INFO  [cluster] Heartbeat tick seq=0349 worker=ord-eu-01 rss_mb=142 queue_depth=2
+[2026-11-24T07:30:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T07:31:00Z] INFO  [cluster] Heartbeat tick seq=0350 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T07:32:00Z] INFO  [cluster] Heartbeat tick seq=0351 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T07:33:00Z] INFO  [cluster] Heartbeat tick seq=0352 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T07:34:00Z] INFO  [cluster] Heartbeat tick seq=0353 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T07:35:00Z] INFO  [health] Readiness probe passed latency_ms=1.8 db_pool=7/32
+[2026-11-24T07:36:00Z] INFO  [cluster] Heartbeat tick seq=0354 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T07:37:00Z] INFO  [cluster] Heartbeat tick seq=0355 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T07:38:00Z] INFO  [cluster] Heartbeat tick seq=0356 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T07:39:00Z] INFO  [cluster] Heartbeat tick seq=0357 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T07:40:00Z] INFO  [health] Readiness probe passed latency_ms=2.2 db_pool=9/32
+[2026-11-24T07:41:00Z] INFO  [cluster] Heartbeat tick seq=0358 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T07:42:00Z] INFO  [cluster] Heartbeat tick seq=0359 worker=ord-eu-02 rss_mb=145 queue_depth=2
+[2026-11-24T07:43:00Z] INFO  [cluster] Heartbeat tick seq=0360 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T07:44:00Z] INFO  [cluster] Heartbeat tick seq=0361 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T07:45:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T07:46:00Z] INFO  [cluster] Heartbeat tick seq=0362 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T07:47:00Z] INFO  [cluster] Heartbeat tick seq=0363 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T07:48:00Z] INFO  [cluster] Heartbeat tick seq=0364 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T07:49:00Z] INFO  [cluster] Heartbeat tick seq=0365 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T07:50:00Z] INFO  [health] Readiness probe passed latency_ms=1.9 db_pool=8/32
+[2026-11-24T07:51:00Z] INFO  [cluster] Heartbeat tick seq=0366 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T07:52:00Z] INFO  [cluster] Heartbeat tick seq=0367 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T07:53:00Z] INFO  [cluster] Heartbeat tick seq=0368 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T07:54:00Z] INFO  [cluster] Heartbeat tick seq=0369 worker=ord-eu-01 rss_mb=142 queue_depth=2
+[2026-11-24T07:55:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T07:56:00Z] INFO  [cluster] Heartbeat tick seq=0370 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T07:57:00Z] INFO  [cluster] Heartbeat tick seq=0371 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T07:58:00Z] INFO  [cluster] Heartbeat tick seq=0372 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T07:59:00Z] INFO  [cluster] Heartbeat tick seq=0373 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T08:00:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=7/32
+[2026-11-24T08:01:00Z] INFO  [cluster] Heartbeat tick seq=0374 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T08:02:00Z] INFO  [cluster] Heartbeat tick seq=0375 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T08:03:00Z] INFO  [cluster] Heartbeat tick seq=0376 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T08:04:00Z] INFO  [cluster] Heartbeat tick seq=0377 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T08:05:00Z] INFO  [health] Readiness probe passed latency_ms=2.3 db_pool=9/32
+[2026-11-24T08:06:00Z] INFO  [cluster] Heartbeat tick seq=0378 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T08:07:00Z] INFO  [cluster] Heartbeat tick seq=0379 worker=ord-eu-02 rss_mb=145 queue_depth=2
+[2026-11-24T08:08:00Z] INFO  [cluster] Heartbeat tick seq=0380 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T08:09:00Z] INFO  [cluster] Heartbeat tick seq=0381 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T08:10:00Z] INFO  [health] Readiness probe passed latency_ms=1.9 db_pool=8/32
+[2026-11-24T08:11:00Z] INFO  [cluster] Heartbeat tick seq=0382 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T08:12:00Z] INFO  [cluster] Heartbeat tick seq=0383 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T08:13:00Z] INFO  [cluster] Heartbeat tick seq=0384 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T08:14:00Z] INFO  [cluster] Heartbeat tick seq=0385 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T08:15:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T08:16:00Z] INFO  [cluster] Heartbeat tick seq=0386 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T08:17:00Z] INFO  [cluster] Heartbeat tick seq=0387 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T08:18:00Z] INFO  [cluster] Heartbeat tick seq=0388 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T08:19:00Z] INFO  [cluster] Heartbeat tick seq=0389 worker=ord-eu-01 rss_mb=143 queue_depth=2
+[2026-11-24T08:20:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T08:21:00Z] INFO  [cluster] Heartbeat tick seq=0390 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T08:22:00Z] INFO  [cluster] Heartbeat tick seq=0391 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T08:23:00Z] INFO  [cluster] Heartbeat tick seq=0392 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T08:24:00Z] INFO  [cluster] Heartbeat tick seq=0393 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T08:25:00Z] INFO  [health] Readiness probe passed latency_ms=1.8 db_pool=7/32
+[2026-11-24T08:26:00Z] INFO  [cluster] Heartbeat tick seq=0394 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T08:27:00Z] INFO  [cluster] Heartbeat tick seq=0395 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T08:28:00Z] INFO  [cluster] Heartbeat tick seq=0396 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T08:29:00Z] INFO  [cluster] Heartbeat tick seq=0397 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T08:30:00Z] INFO  [health] Readiness probe passed latency_ms=2.2 db_pool=9/32
+[2026-11-24T08:31:00Z] INFO  [cluster] Heartbeat tick seq=0398 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T08:32:00Z] INFO  [cluster] Heartbeat tick seq=0399 worker=ord-eu-02 rss_mb=145 queue_depth=2
+[2026-11-24T08:33:00Z] INFO  [cluster] Heartbeat tick seq=0400 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T08:34:00Z] INFO  [cluster] Heartbeat tick seq=0401 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T08:35:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T08:36:00Z] INFO  [cluster] Heartbeat tick seq=0402 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T08:37:00Z] INFO  [cluster] Heartbeat tick seq=0403 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T08:38:00Z] INFO  [cluster] Heartbeat tick seq=0404 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T08:39:00Z] INFO  [cluster] Heartbeat tick seq=0405 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T08:40:00Z] INFO  [health] Readiness probe passed latency_ms=1.9 db_pool=8/32
+[2026-11-24T08:41:00Z] INFO  [cluster] Heartbeat tick seq=0406 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T08:42:00Z] INFO  [cluster] Heartbeat tick seq=0407 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T08:43:00Z] INFO  [cluster] Heartbeat tick seq=0408 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T08:44:00Z] INFO  [cluster] Heartbeat tick seq=0409 worker=ord-eu-01 rss_mb=142 queue_depth=2
+[2026-11-24T08:45:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T08:46:00Z] INFO  [cluster] Heartbeat tick seq=0410 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T08:47:00Z] INFO  [cluster] Heartbeat tick seq=0411 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T08:48:00Z] INFO  [cluster] Heartbeat tick seq=0412 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T08:49:00Z] INFO  [cluster] Heartbeat tick seq=0413 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T08:50:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=7/32
+[2026-11-24T08:51:00Z] INFO  [cluster] Heartbeat tick seq=0414 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T08:52:00Z] INFO  [cluster] Heartbeat tick seq=0415 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T08:53:00Z] INFO  [cluster] Heartbeat tick seq=0416 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T08:54:00Z] INFO  [cluster] Heartbeat tick seq=0417 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T08:55:00Z] INFO  [health] Readiness probe passed latency_ms=2.3 db_pool=9/32
+[2026-11-24T08:56:00Z] INFO  [cluster] Heartbeat tick seq=0418 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T08:57:00Z] INFO  [cluster] Heartbeat tick seq=0419 worker=ord-eu-02 rss_mb=145 queue_depth=2
+[2026-11-24T08:58:00Z] INFO  [cluster] Heartbeat tick seq=0420 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T08:59:00Z] INFO  [cluster] Heartbeat tick seq=0421 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T09:00:00Z] INFO  [health] Readiness probe passed latency_ms=1.9 db_pool=8/32
+[2026-11-24T09:01:00Z] INFO  [cluster] Heartbeat tick seq=0422 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T09:02:00Z] INFO  [cluster] Heartbeat tick seq=0423 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T09:03:00Z] INFO  [cluster] Heartbeat tick seq=0424 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T09:04:00Z] INFO  [cluster] Heartbeat tick seq=0425 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T09:05:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T09:06:00Z] INFO  [cluster] Heartbeat tick seq=0426 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T09:07:00Z] INFO  [cluster] Heartbeat tick seq=0427 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T09:08:00Z] INFO  [cluster] Heartbeat tick seq=0428 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T09:09:00Z] INFO  [cluster] Heartbeat tick seq=0429 worker=ord-eu-01 rss_mb=142 queue_depth=2
+[2026-11-24T09:10:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T09:11:00Z] INFO  [cluster] Heartbeat tick seq=0430 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T09:12:00Z] INFO  [cluster] Heartbeat tick seq=0431 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T09:13:00Z] INFO  [cluster] Heartbeat tick seq=0432 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T09:14:00Z] INFO  [cluster] Heartbeat tick seq=0433 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T09:15:00Z] INFO  [health] Readiness probe passed latency_ms=1.8 db_pool=7/32
+[2026-11-24T09:16:00Z] INFO  [cluster] Heartbeat tick seq=0434 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T09:17:00Z] INFO  [cluster] Heartbeat tick seq=0435 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T09:18:00Z] INFO  [cluster] Heartbeat tick seq=0436 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T09:19:00Z] INFO  [cluster] Heartbeat tick seq=0437 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T09:20:00Z] INFO  [health] Readiness probe passed latency_ms=2.2 db_pool=9/32
+[2026-11-24T09:21:00Z] INFO  [cluster] Heartbeat tick seq=0438 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T09:22:00Z] INFO  [cluster] Heartbeat tick seq=0439 worker=ord-eu-02 rss_mb=145 queue_depth=2
+[2026-11-24T09:23:00Z] INFO  [cluster] Heartbeat tick seq=0440 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T09:24:00Z] INFO  [cluster] Heartbeat tick seq=0441 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T09:25:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T09:26:00Z] INFO  [cluster] Heartbeat tick seq=0442 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T09:27:00Z] INFO  [cluster] Heartbeat tick seq=0443 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T09:28:00Z] INFO  [cluster] Heartbeat tick seq=0444 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T09:29:00Z] INFO  [cluster] Heartbeat tick seq=0445 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T09:30:00Z] INFO  [health] Readiness probe passed latency_ms=1.9 db_pool=8/32
+[2026-11-24T09:31:00Z] INFO  [cluster] Heartbeat tick seq=0446 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T09:32:00Z] INFO  [cluster] Heartbeat tick seq=0447 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T09:33:00Z] INFO  [cluster] Heartbeat tick seq=0448 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T09:34:00Z] INFO  [cluster] Heartbeat tick seq=0449 worker=ord-eu-01 rss_mb=143 queue_depth=2
+[2026-11-24T09:35:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T09:36:00Z] INFO  [cluster] Heartbeat tick seq=0450 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T09:37:00Z] INFO  [cluster] Heartbeat tick seq=0451 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T09:38:00Z] INFO  [cluster] Heartbeat tick seq=0452 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T09:39:00Z] INFO  [cluster] Heartbeat tick seq=0453 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T09:40:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=7/32
+[2026-11-24T09:41:00Z] INFO  [cluster] Heartbeat tick seq=0454 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T09:42:00Z] INFO  [cluster] Heartbeat tick seq=0455 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T09:43:00Z] INFO  [cluster] Heartbeat tick seq=0456 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T09:44:00Z] INFO  [cluster] Heartbeat tick seq=0457 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T09:45:00Z] INFO  [health] Readiness probe passed latency_ms=2.3 db_pool=9/32
+[2026-11-24T09:46:00Z] INFO  [cluster] Heartbeat tick seq=0458 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T09:47:00Z] INFO  [cluster] Heartbeat tick seq=0459 worker=ord-eu-02 rss_mb=145 queue_depth=2
+[2026-11-24T09:48:00Z] INFO  [cluster] Heartbeat tick seq=0460 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T09:49:00Z] INFO  [cluster] Heartbeat tick seq=0461 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T09:50:00Z] INFO  [health] Readiness probe passed latency_ms=1.9 db_pool=8/32
+[2026-11-24T09:51:00Z] INFO  [cluster] Heartbeat tick seq=0462 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T09:52:00Z] INFO  [cluster] Heartbeat tick seq=0463 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T09:53:00Z] INFO  [cluster] Heartbeat tick seq=0464 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T09:54:00Z] INFO  [cluster] Heartbeat tick seq=0465 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T09:55:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T09:56:00Z] INFO  [cluster] Heartbeat tick seq=0466 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T09:57:00Z] INFO  [cluster] Heartbeat tick seq=0467 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T09:58:00Z] INFO  [cluster] Heartbeat tick seq=0468 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T09:59:00Z] INFO  [cluster] Heartbeat tick seq=0469 worker=ord-eu-01 rss_mb=142 queue_depth=2
+[2026-11-24T10:00:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T10:01:00Z] INFO  [cluster] Heartbeat tick seq=0470 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T10:02:00Z] INFO  [cluster] Heartbeat tick seq=0471 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T10:03:00Z] INFO  [cluster] Heartbeat tick seq=0472 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T10:04:00Z] INFO  [cluster] Heartbeat tick seq=0473 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T10:05:00Z] INFO  [health] Readiness probe passed latency_ms=1.8 db_pool=7/32
+[2026-11-24T10:06:00Z] INFO  [cluster] Heartbeat tick seq=0474 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T10:07:00Z] INFO  [cluster] Heartbeat tick seq=0475 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T10:08:00Z] INFO  [cluster] Heartbeat tick seq=0476 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T10:09:00Z] INFO  [cluster] Heartbeat tick seq=0477 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T10:10:00Z] INFO  [health] Readiness probe passed latency_ms=2.2 db_pool=9/32
+[2026-11-24T10:11:00Z] INFO  [cluster] Heartbeat tick seq=0478 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T10:12:00Z] INFO  [cluster] Heartbeat tick seq=0479 worker=ord-eu-02 rss_mb=145 queue_depth=2
+[2026-11-24T10:13:00Z] INFO  [cluster] Heartbeat tick seq=0480 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T10:14:00Z] INFO  [cluster] Heartbeat tick seq=0481 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T10:15:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T10:16:00Z] INFO  [cluster] Heartbeat tick seq=0482 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T10:17:00Z] INFO  [cluster] Heartbeat tick seq=0483 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T10:18:00Z] INFO  [cluster] Heartbeat tick seq=0484 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T10:19:00Z] INFO  [cluster] Heartbeat tick seq=0485 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T10:20:00Z] INFO  [health] Readiness probe passed latency_ms=1.9 db_pool=8/32
+[2026-11-24T10:21:00Z] INFO  [cluster] Heartbeat tick seq=0486 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T10:22:00Z] INFO  [cluster] Heartbeat tick seq=0487 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T10:23:00Z] INFO  [cluster] Heartbeat tick seq=0488 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T10:24:00Z] INFO  [cluster] Heartbeat tick seq=0489 worker=ord-eu-01 rss_mb=142 queue_depth=2
+[2026-11-24T10:25:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T10:26:00Z] INFO  [cluster] Heartbeat tick seq=0490 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T10:27:00Z] INFO  [cluster] Heartbeat tick seq=0491 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T10:28:00Z] INFO  [cluster] Heartbeat tick seq=0492 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T10:29:00Z] INFO  [cluster] Heartbeat tick seq=0493 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T10:30:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=7/32
+[2026-11-24T10:31:00Z] INFO  [cluster] Heartbeat tick seq=0494 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T10:32:00Z] INFO  [cluster] Heartbeat tick seq=0495 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T10:33:00Z] INFO  [cluster] Heartbeat tick seq=0496 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T10:34:00Z] INFO  [cluster] Heartbeat tick seq=0497 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T10:35:00Z] INFO  [health] Readiness probe passed latency_ms=2.3 db_pool=9/32
+[2026-11-24T10:36:00Z] INFO  [cluster] Heartbeat tick seq=0498 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T10:37:00Z] INFO  [cluster] Heartbeat tick seq=0499 worker=ord-eu-02 rss_mb=145 queue_depth=2
+[2026-11-24T10:38:00Z] INFO  [cluster] Heartbeat tick seq=0500 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T10:39:00Z] INFO  [cluster] Heartbeat tick seq=0501 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T10:40:00Z] INFO  [health] Readiness probe passed latency_ms=1.9 db_pool=8/32
+[2026-11-24T10:41:00Z] INFO  [cluster] Heartbeat tick seq=0502 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T10:42:00Z] INFO  [cluster] Heartbeat tick seq=0503 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T10:43:00Z] INFO  [cluster] Heartbeat tick seq=0504 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T10:44:00Z] INFO  [cluster] Heartbeat tick seq=0505 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T10:45:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T10:46:00Z] INFO  [cluster] Heartbeat tick seq=0506 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T10:47:00Z] INFO  [cluster] Heartbeat tick seq=0507 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T10:48:00Z] INFO  [cluster] Heartbeat tick seq=0508 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T10:49:00Z] INFO  [cluster] Heartbeat tick seq=0509 worker=ord-eu-01 rss_mb=143 queue_depth=2
+[2026-11-24T10:50:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T10:51:00Z] INFO  [cluster] Heartbeat tick seq=0510 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T10:52:00Z] INFO  [cluster] Heartbeat tick seq=0511 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T10:53:00Z] INFO  [cluster] Heartbeat tick seq=0512 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T10:54:00Z] INFO  [cluster] Heartbeat tick seq=0513 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T10:55:00Z] INFO  [health] Readiness probe passed latency_ms=1.8 db_pool=7/32
+[2026-11-24T10:56:00Z] INFO  [cluster] Heartbeat tick seq=0514 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T10:57:00Z] INFO  [cluster] Heartbeat tick seq=0515 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T10:58:00Z] INFO  [cluster] Heartbeat tick seq=0516 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T10:59:00Z] INFO  [cluster] Heartbeat tick seq=0517 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T11:00:00Z] INFO  [health] Readiness probe passed latency_ms=2.2 db_pool=9/32
+[2026-11-24T11:01:00Z] INFO  [cluster] Heartbeat tick seq=0518 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T11:02:00Z] INFO  [cluster] Heartbeat tick seq=0519 worker=ord-eu-02 rss_mb=145 queue_depth=2
+[2026-11-24T11:03:00Z] INFO  [cluster] Heartbeat tick seq=0520 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T11:04:00Z] INFO  [cluster] Heartbeat tick seq=0521 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T11:05:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T11:06:00Z] INFO  [cluster] Heartbeat tick seq=0522 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T11:07:00Z] INFO  [cluster] Heartbeat tick seq=0523 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T11:08:00Z] INFO  [cluster] Heartbeat tick seq=0524 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T11:09:00Z] INFO  [cluster] Heartbeat tick seq=0525 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T11:10:00Z] INFO  [health] Readiness probe passed latency_ms=1.9 db_pool=8/32
+[2026-11-24T11:11:00Z] INFO  [cluster] Heartbeat tick seq=0526 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T11:12:00Z] INFO  [cluster] Heartbeat tick seq=0527 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T11:13:00Z] INFO  [cluster] Heartbeat tick seq=0528 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T11:14:00Z] INFO  [cluster] Heartbeat tick seq=0529 worker=ord-eu-01 rss_mb=142 queue_depth=2
+[2026-11-24T11:15:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T11:16:00Z] INFO  [cluster] Heartbeat tick seq=0530 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T11:17:00Z] INFO  [cluster] Heartbeat tick seq=0531 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T11:18:00Z] INFO  [cluster] Heartbeat tick seq=0532 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T11:19:00Z] INFO  [cluster] Heartbeat tick seq=0533 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T11:20:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=7/32
+[2026-11-24T11:21:00Z] INFO  [cluster] Heartbeat tick seq=0534 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T11:22:00Z] INFO  [cluster] Heartbeat tick seq=0535 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T11:23:00Z] INFO  [cluster] Heartbeat tick seq=0536 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T11:24:00Z] INFO  [cluster] Heartbeat tick seq=0537 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T11:25:00Z] INFO  [health] Readiness probe passed latency_ms=2.3 db_pool=9/32
+[2026-11-24T11:26:00Z] INFO  [cluster] Heartbeat tick seq=0538 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T11:27:00Z] INFO  [cluster] Heartbeat tick seq=0539 worker=ord-eu-02 rss_mb=145 queue_depth=2
+[2026-11-24T11:28:00Z] INFO  [cluster] Heartbeat tick seq=0540 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T11:29:00Z] INFO  [cluster] Heartbeat tick seq=0541 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T11:30:00Z] INFO  [health] Readiness probe passed latency_ms=1.9 db_pool=8/32
+[2026-11-24T11:31:00Z] INFO  [cluster] Heartbeat tick seq=0542 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T11:32:00Z] INFO  [cluster] Heartbeat tick seq=0543 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T11:33:00Z] INFO  [cluster] Heartbeat tick seq=0544 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T11:34:00Z] INFO  [cluster] Heartbeat tick seq=0545 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T11:35:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T11:36:00Z] INFO  [cluster] Heartbeat tick seq=0546 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T11:37:00Z] INFO  [cluster] Heartbeat tick seq=0547 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T11:38:00Z] INFO  [cluster] Heartbeat tick seq=0548 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T11:39:00Z] INFO  [cluster] Heartbeat tick seq=0549 worker=ord-eu-01 rss_mb=142 queue_depth=2
+[2026-11-24T11:40:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T11:41:00Z] INFO  [cluster] Heartbeat tick seq=0550 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T11:42:00Z] INFO  [cluster] Heartbeat tick seq=0551 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T11:43:00Z] INFO  [cluster] Heartbeat tick seq=0552 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T11:44:00Z] INFO  [cluster] Heartbeat tick seq=0553 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T11:45:00Z] INFO  [health] Readiness probe passed latency_ms=1.8 db_pool=7/32
+[2026-11-24T11:46:00Z] INFO  [cluster] Heartbeat tick seq=0554 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T11:47:00Z] INFO  [cluster] Heartbeat tick seq=0555 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T11:48:00Z] INFO  [cluster] Heartbeat tick seq=0556 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T11:49:00Z] INFO  [cluster] Heartbeat tick seq=0557 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T11:50:00Z] INFO  [health] Readiness probe passed latency_ms=2.2 db_pool=9/32
+[2026-11-24T11:51:00Z] INFO  [cluster] Heartbeat tick seq=0558 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T11:52:00Z] INFO  [cluster] Heartbeat tick seq=0559 worker=ord-eu-02 rss_mb=145 queue_depth=2
+[2026-11-24T11:53:00Z] INFO  [cluster] Heartbeat tick seq=0560 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T11:54:00Z] INFO  [cluster] Heartbeat tick seq=0561 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T11:55:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T11:56:00Z] INFO  [cluster] Heartbeat tick seq=0562 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T11:57:00Z] INFO  [cluster] Heartbeat tick seq=0563 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T11:58:00Z] INFO  [cluster] Heartbeat tick seq=0564 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T11:59:00Z] INFO  [cluster] Heartbeat tick seq=0565 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T12:00:00Z] INFO  [health] Readiness probe passed latency_ms=1.9 db_pool=8/32
+[2026-11-24T12:01:00Z] INFO  [cluster] Heartbeat tick seq=0566 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T12:02:00Z] INFO  [cluster] Heartbeat tick seq=0567 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T12:03:00Z] INFO  [cluster] Heartbeat tick seq=0568 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T12:04:00Z] INFO  [cluster] Heartbeat tick seq=0569 worker=ord-eu-01 rss_mb=143 queue_depth=2
+[2026-11-24T12:05:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T12:06:00Z] INFO  [cluster] Heartbeat tick seq=0570 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T12:07:00Z] INFO  [cluster] Heartbeat tick seq=0571 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T12:08:00Z] INFO  [cluster] Heartbeat tick seq=0572 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T12:09:00Z] INFO  [cluster] Heartbeat tick seq=0573 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T12:10:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=7/32
+[2026-11-24T12:11:00Z] INFO  [cluster] Heartbeat tick seq=0574 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T12:12:00Z] INFO  [cluster] Heartbeat tick seq=0575 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T12:13:00Z] INFO  [cluster] Heartbeat tick seq=0576 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T12:14:00Z] INFO  [cluster] Heartbeat tick seq=0577 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T12:15:00Z] INFO  [health] Readiness probe passed latency_ms=2.3 db_pool=9/32
+[2026-11-24T12:16:00Z] INFO  [cluster] Heartbeat tick seq=0578 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T12:17:00Z] INFO  [cluster] Heartbeat tick seq=0579 worker=ord-eu-02 rss_mb=145 queue_depth=2
+[2026-11-24T12:18:00Z] INFO  [cluster] Heartbeat tick seq=0580 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T12:19:00Z] INFO  [cluster] Heartbeat tick seq=0581 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T12:20:00Z] INFO  [health] Readiness probe passed latency_ms=1.9 db_pool=8/32
+[2026-11-24T12:21:00Z] INFO  [cluster] Heartbeat tick seq=0582 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T12:22:00Z] INFO  [cluster] Heartbeat tick seq=0583 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T12:23:00Z] INFO  [cluster] Heartbeat tick seq=0584 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T12:24:00Z] INFO  [cluster] Heartbeat tick seq=0585 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T12:25:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T12:26:00Z] INFO  [cluster] Heartbeat tick seq=0586 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T12:27:00Z] INFO  [cluster] Heartbeat tick seq=0587 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T12:28:00Z] INFO  [cluster] Heartbeat tick seq=0588 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T12:29:00Z] INFO  [cluster] Heartbeat tick seq=0589 worker=ord-eu-01 rss_mb=142 queue_depth=2
+[2026-11-24T12:30:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T12:31:00Z] INFO  [cluster] Heartbeat tick seq=0590 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T12:32:00Z] INFO  [cluster] Heartbeat tick seq=0591 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T12:33:00Z] INFO  [cluster] Heartbeat tick seq=0592 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T12:34:00Z] INFO  [cluster] Heartbeat tick seq=0593 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T12:35:00Z] INFO  [health] Readiness probe passed latency_ms=1.8 db_pool=7/32
+[2026-11-24T12:36:00Z] INFO  [cluster] Heartbeat tick seq=0594 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T12:37:00Z] INFO  [cluster] Heartbeat tick seq=0595 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T12:38:00Z] INFO  [cluster] Heartbeat tick seq=0596 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T12:39:00Z] INFO  [cluster] Heartbeat tick seq=0597 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T12:40:00Z] INFO  [health] Readiness probe passed latency_ms=2.2 db_pool=9/32
+[2026-11-24T12:41:00Z] INFO  [cluster] Heartbeat tick seq=0598 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T12:42:00Z] INFO  [cluster] Heartbeat tick seq=0599 worker=ord-eu-02 rss_mb=145 queue_depth=2
+[2026-11-24T12:43:00Z] INFO  [cluster] Heartbeat tick seq=0600 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T12:44:00Z] INFO  [cluster] Heartbeat tick seq=0601 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T12:45:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T12:46:00Z] INFO  [cluster] Heartbeat tick seq=0602 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T12:47:00Z] INFO  [cluster] Heartbeat tick seq=0603 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T12:48:00Z] INFO  [cluster] Heartbeat tick seq=0604 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T12:49:00Z] INFO  [cluster] Heartbeat tick seq=0605 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T12:50:00Z] INFO  [health] Readiness probe passed latency_ms=1.9 db_pool=8/32
+[2026-11-24T12:51:00Z] INFO  [cluster] Heartbeat tick seq=0606 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T12:52:00Z] INFO  [cluster] Heartbeat tick seq=0607 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T12:53:00Z] INFO  [cluster] Heartbeat tick seq=0608 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T12:54:00Z] INFO  [cluster] Heartbeat tick seq=0609 worker=ord-eu-01 rss_mb=142 queue_depth=2
+[2026-11-24T12:55:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T12:56:00Z] INFO  [cluster] Heartbeat tick seq=0610 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T12:57:00Z] INFO  [cluster] Heartbeat tick seq=0611 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T12:58:00Z] INFO  [cluster] Heartbeat tick seq=0612 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T12:59:00Z] INFO  [cluster] Heartbeat tick seq=0613 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T13:00:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=7/32
+[2026-11-24T13:01:00Z] INFO  [cluster] Heartbeat tick seq=0614 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T13:02:00Z] INFO  [cluster] Heartbeat tick seq=0615 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T13:03:00Z] INFO  [cluster] Heartbeat tick seq=0616 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T13:04:00Z] INFO  [cluster] Heartbeat tick seq=0617 worker=ord-eu-01 rss_mb=143 queue_depth=0
+[2026-11-24T13:05:00Z] INFO  [health] Readiness probe passed latency_ms=2.3 db_pool=9/32
+[2026-11-24T13:06:00Z] INFO  [cluster] Heartbeat tick seq=0618 worker=ord-us-01 rss_mb=140 queue_depth=0
+[2026-11-24T13:07:00Z] INFO  [cluster] Heartbeat tick seq=0619 worker=ord-eu-02 rss_mb=145 queue_depth=2
+[2026-11-24T13:08:00Z] INFO  [cluster] Heartbeat tick seq=0620 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T13:09:00Z] INFO  [cluster] Heartbeat tick seq=0621 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T13:10:00Z] INFO  [health] Readiness probe passed latency_ms=1.9 db_pool=8/32
+[2026-11-24T13:11:00Z] INFO  [cluster] Heartbeat tick seq=0622 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T13:12:00Z] INFO  [cluster] Heartbeat tick seq=0623 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T13:13:00Z] INFO  [cluster] Heartbeat tick seq=0624 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T13:14:00Z] INFO  [cluster] Heartbeat tick seq=0625 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T13:15:00Z] INFO  [health] Readiness probe passed latency_ms=2.1 db_pool=8/32
+[2026-11-24T13:16:00Z] INFO  [cluster] Heartbeat tick seq=0626 worker=ord-us-01 rss_mb=140 queue_depth=1
+[2026-11-24T13:17:00Z] INFO  [cluster] Heartbeat tick seq=0627 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T13:18:00Z] INFO  [cluster] Heartbeat tick seq=0628 worker=ord-us-02 rss_mb=141 queue_depth=0
+[2026-11-24T13:19:00Z] INFO  [cluster] Heartbeat tick seq=0629 worker=ord-eu-01 rss_mb=143 queue_depth=2
+[2026-11-24T13:20:00Z] INFO  [health] Readiness probe passed latency_ms=2.0 db_pool=8/32
+[2026-11-24T13:21:00Z] INFO  [cluster] Heartbeat tick seq=0630 worker=ord-us-01 rss_mb=141 queue_depth=0
+[2026-11-24T13:22:00Z] INFO  [cluster] Heartbeat tick seq=0631 worker=ord-eu-02 rss_mb=144 queue_depth=0
+[2026-11-24T13:23:00Z] INFO  [cluster] Heartbeat tick seq=0632 worker=ord-us-02 rss_mb=141 queue_depth=1
+[2026-11-24T13:24:00Z] INFO  [cluster] Heartbeat tick seq=0633 worker=ord-eu-01 rss_mb=142 queue_depth=0
+[2026-11-24T13:25:00Z] INFO  [audit] Starting canary reconciliation run batch=CANARY-2026-11-24
+[2026-11-24T13:25:02Z] ERROR [pricing] AssertionError in pricing.round_money: expected Decimal("10.01") via ROUND_HALF_UP, got Decimal("10.00") (ROUND_FLOOR drift)
+  File "/srv/order_engine/pricing.py", line 36, in round_money
+    return dec.quantize(CURRENCY_QUANT, rounding=ROUND_FLOOR)
+[2026-11-24T13:25:05Z] ERROR [pricing] Free shipping misapplied on discounted_subtotal=136.00 (raw_subtotal=160.00): pricing.calculate_shipping must check discounted_subtotal >= 150.00, not raw_subtotal
+  File "/srv/order_engine/pricing.py", line 95, in calculate_shipping
+    basis = Decimal(str(raw_subtotal)) if raw_subtotal is not None else discounted
+[2026-11-24T13:25:08Z] ERROR [pricing] Tax charged on exempt category="books" SKU=BOK-001 amount=45.00 tax=3.71; expected 0.00 (EXEMPT_CATEGORIES missing "books")
+  File "/srv/order_engine/pricing.py", line 30, in <module>
+    EXEMPT_CATEGORIES: frozenset[str] = frozenset({"giftcard"})
+[2026-11-24T13:25:12Z] ERROR [promotions] Excluded items (giftcard=100.00, clearance=15.00) counted toward min_spend=100.00 for BULK15; only eligible_subtotal=12.00 may satisfy min_spend
+  File "/srv/order_engine/promotions.py", line 181, in best_promo_combo
+    if is_promo_valid(rule, total_sub, now_iso):
+[2026-11-24T13:25:15Z] ERROR [promotions] Boundary timestamp rejected: now_iso="2026-12-31T23:59:59Z" == WELCOME10.expires treated as expired; expiration must be inclusive (now <= expires)
+  File "/srv/order_engine/promotions.py", line 117, in is_promo_valid
+    if now_dt >= exp_dt:
+[2026-11-24T13:25:18Z] ERROR [promotions] Suboptimal promo choice for codes=["WELCOME10", "VIP20", "FREESHIP"] on $100 cart: picked single code VIP20 ($20.00) instead of stackable sequential compounding 1 - (0.90 * 0.80) = 28% + FREESHIP
+  File "/srv/order_engine/promotions.py", line 185, in best_promo_combo
+    for rule in valid_rules:
+[2026-11-24T13:25:22Z] ERROR [inventory] Non-atomic stock corruption on ORD-8812: line 1 (ELC-001 qty=5) remained deducted from eu-central after line 2 (CLR-005 qty=99) raised OutOfStockError
+  File "/srv/order_engine/inventory.py", line 74, in reserve_order
+    self.stock_by_wh[wh][sku] = avail - take
+[2026-11-24T13:25:25Z] ERROR [inventory] Split-shipment violation on ORD-8813: allow_split=False still split ELC-001 qty=50 across eu-central (40) + us-east (10) instead of finding single warehouse >= qty or raising OutOfStockError
+  File "/srv/order_engine/inventory.py", line 73, in reserve_order
+    take = min(avail, remaining)
+[2026-11-24T13:25:28Z] ERROR [inventory] Backorder dispatch inversion for BOK-002: popped priority=1 before priority=9 (sorted ascending instead of -priority, created_seq)
+  File "/srv/order_engine/inventory.py", line 125, in pop_backorder_batch
+    candidates.sort(key=lambda b: (int(b["priority"]), int(b["created_seq"])))
+[2026-11-24T13:25:32Z] ERROR [ledger] Silent idempotency replay mismatch: key="pay-991" originally posted order_id="ORD-10" amount_cents=5000, replayed with amount_cents=7500 without raising IdempotencyConflictError
+  File "/srv/order_engine/ledger.py", line 73, in post_payment
+    if idempotency_key in self.idempotency_cache:
+[2026-11-24T13:25:35Z] ERROR [ledger] Partial refund tax wiped to 0 cents: post_refund("ORD-10", 2500, 5000, 413) computed 413 * (2500 // 5000) == 0 instead of ROUND_HALF_UP(206.5) == 207
+  File "/srv/order_engine/ledger.py", line 119, in post_refund
+    refund_tax_cents = int(orig_tax_cents * (refund_subtotal_cents // orig_subtotal_cents))
+[2026-11-24T13:25:40Z] WARN  [audit] Canary reconciliation failed with 11 invariant violations across pricing, promotions, inventory, ledger
