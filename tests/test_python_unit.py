@@ -584,7 +584,7 @@ class TestMcpAppModules(unittest.TestCase):
         # Build a realistic settled transcript with >105k context and >10m idle gap
         tx = self.tmp / "transcript.jsonl"
         old_ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 3600))
-        recs = [
+        recs: list[dict[str, object]] = [
             {"type": "USER_INPUT", "content": "<USER_REQUEST>implement auth</USER_REQUEST>", "created_at": old_ts},
         ]
         for i in range(16):
@@ -803,7 +803,7 @@ class TestMcpAppModules(unittest.TestCase):
         # 3. PreInvocation triggers: Path 1 vs Path 2 honest economics, heavy-phase swarm prep, and mid-run advisory
         tx = self.tmp / "tx_shields.jsonl"
         fresh_ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 10))
-        warm_recs = [
+        warm_recs: list[dict[str, object]] = [
             {"type": "USER_INPUT", "content": "<USER_REQUEST>refactor module</USER_REQUEST>", "created_at": fresh_ts},
         ]
         for i in range(6):

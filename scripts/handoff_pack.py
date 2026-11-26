@@ -382,8 +382,8 @@ def extract_transcript_context(
                         c = str(obj.get("content") or "")
                         if "Command exited with code 0" in c:
                             continue
-                        for el in c.splitlines():
-                            el_s = el.strip()
+                        for err_ln in c.splitlines():
+                            el_s = err_ln.strip()
                             # Skip source-code line-number echoes like `124: print("FAIL: ...")`
                             if re.match(r"^\d+:\s", el_s):
                                 continue

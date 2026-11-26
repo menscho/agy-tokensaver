@@ -158,15 +158,18 @@ def execute_handoff(
     if csrf and cid:
         try:
             meta_resp = _conv_rpc(ls_addr, csrf, "GetConversation", {"conversationId": cid}, timeout=6.0)
-            meta = meta_resp.get("metadata") if isinstance(meta_resp.get("metadata"), dict) else {}
+            meta_raw = meta_resp.get("metadata")
+            meta: dict[str, Any] = meta_raw if isinstance(meta_raw, dict) else {}
             if meta.get("parentConversationId"):
                 return {"ok": False, "error": "Skipping subagent/child conversation"}
             if meta.get("projectId"):
                 project_id = str(meta["projectId"])
             if meta.get("environmentId"):
                 env_id = str(meta["environmentId"])
-            ann = meta_resp.get("annotations") if isinstance(meta_resp.get("annotations"), dict) else {}
-            st_obj = meta_resp.get("state") if isinstance(meta_resp.get("state"), dict) else {}
+            ann_raw = meta_resp.get("annotations")
+            ann: dict[str, Any] = ann_raw if isinstance(ann_raw, dict) else {}
+            st_raw = meta_resp.get("state")
+            st_obj: dict[str, Any] = st_raw if isinstance(st_raw, dict) else {}
             old_title = str(ann.get("title") or st_obj.get("summary") or "")
             group_id = str(ann.get("conversationGroupId") or "")
         except Exception:
@@ -190,7 +193,8 @@ def execute_handoff(
             body["model"] = target_model
         try:
             created = _conv_rpc(ls_addr, csrf, "CreateConversation", body, timeout=12.0)
-            conv_obj = created.get("conversation") if isinstance(created.get("conversation"), dict) else {}
+            conv_raw = created.get("conversation")
+            conv_obj: dict[str, Any] = conv_raw if isinstance(conv_raw, dict) else {}
             new_id = str(conv_obj.get("id") or "")
         except Exception as exc:
             rpc_err = str(exc)

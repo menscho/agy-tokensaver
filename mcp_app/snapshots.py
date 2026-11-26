@@ -121,7 +121,8 @@ def perform_rollover(
             if target_cid:
                 try:
                     meta_resp = _conv_rpc(ls_addr, csrf, "GetConversation", {"conversationId": target_cid}, timeout=5.0)
-                    meta = meta_resp.get("metadata") if isinstance(meta_resp.get("metadata"), dict) else {}
+                    meta_raw = meta_resp.get("metadata")
+                    meta: dict[str, Any] = meta_raw if isinstance(meta_raw, dict) else {}
                     if meta.get("projectId"):
                         proj_id = str(meta["projectId"])
                     if proj_id and meta.get("environmentId"):
@@ -134,7 +135,8 @@ def perform_rollover(
                 body["model"] = model
             try:
                 created = _conv_rpc(ls_addr, csrf, "CreateConversation", body, timeout=12.0)
-                conv_obj = created.get("conversation") if isinstance(created.get("conversation"), dict) else {}
+                conv_raw = created.get("conversation")
+                conv_obj: dict[str, Any] = conv_raw if isinstance(conv_raw, dict) else {}
                 to_conv = str(conv_obj.get("id") or "")
                 raw_out = json.dumps(created)
                 if to_conv and target_cid:
