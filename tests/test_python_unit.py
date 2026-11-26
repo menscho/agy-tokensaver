@@ -23,10 +23,24 @@ class TestMcpAppModules(unittest.TestCase):
     def setUp(self) -> None:
         self._td = tempfile.TemporaryDirectory(prefix="agy-pyunit-")
         self.tmp = Path(self._td.name)
-        self._old_env = {k: os.environ.get(k) for k in ("PLUGIN_DATA", "AGY_TS_GEMINI_HOME", "AGY_TS_SYNC_RULES", "AGY_TS_SPILL_DIR")}
+        self._old_env = {
+            k: os.environ.get(k)
+            for k in (
+                "PLUGIN_DATA",
+                "AGY_TS_GEMINI_HOME",
+                "AGY_TS_SYNC_RULES",
+                "AGY_TS_SPILL_DIR",
+                "ANTIGRAVITY_LS_ADDRESS",
+                "ANTIGRAVITY_CSRF_TOKEN",
+                "ANTIGRAVITY_PROJECT_ID",
+                "ANTIGRAVITY_CONVERSATION_ID",
+            )
+        }
         os.environ["PLUGIN_DATA"] = str(self.tmp / "pdata")
         os.environ["AGY_TS_GEMINI_HOME"] = str(self.tmp / "gemini")
         os.environ["AGY_TS_SPILL_DIR"] = str(self.tmp / "spills")
+        for k in ("ANTIGRAVITY_LS_ADDRESS", "ANTIGRAVITY_CSRF_TOKEN", "ANTIGRAVITY_PROJECT_ID", "ANTIGRAVITY_CONVERSATION_ID"):
+            os.environ.pop(k, None)
         # Reload config-bound modules against sandbox dirs
         import importlib
         for modname in ("config", "rules_sync", "rollover", "transcript_io", "telemetry", "updater", "snapshots", "core", "server"):
@@ -558,6 +572,327 @@ class TestMcpAppModules(unittest.TestCase):
         self.assertTrue(res["ok"], res)
         self.assertEqual(res["to_conv"], "new-conv-uuid-123")
         self.assertEqual(res["entry"]["to_conv"], "new-conv")
+
+    def test_pre_invocation_handoff_and_exec(self) -> None:
+        import handoff_exec
+        import pre_invocation_handoff as pih
+
+        ws = self.tmp / "ws_ho"
+        ws.mkdir()
+        (ws / "app.py").write_text("def run():\n    return 1\n", encoding="utf-8")
+
+        # Build a realistic settled transcript with >105k context and >10m idle gap
+        tx = self.tmp / "transcript.jsonl"
+        old_ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 3600))
+        recs = [
+            {"type": "USER_INPUT", "content": "<USER_REQUEST>implement auth</USER_REQUEST>", "created_at": old_ts},
+        ]
+        for i in range(16):
+            recs.append({
+                "type": "PLANNER_RESPONSE",
+                "created_at": old_ts,
+                "model": "gemini-4-hydrogen-high",
+                "input_tokens": 18000 if i == 0 else 5000,
+                "cache_read_tokens": 0 if i == 0 else 30000 + i * 5000,
+                "output_tokens": 400,
+                "tool_calls": "None" if i == 15 else "[{\"name\": \"read_file\", \"args\": {}}]",
+                "content": "Finished auth refactor.",
+            })
+        tx.write_text("\n".join(json.dumps(r) for r in recs) + "\n", encoding="utf-8")
+
+        def run_pih(payload: dict, extra_env: dict | None = None) -> dict:
+            raw = json.dumps(payload).encode("utf-8")
+            out_buf = io.BytesIO()
+            fake_in = mock.Mock(buffer=io.BytesIO(raw))
+            fake_out = mock.Mock(buffer=out_buf)
+            env_patch = {
+                "PLUGIN_DATA": str(self.tmp / "pdata"),
+                "ANTIGRAVITY_LS_ADDRESS": "",
+                "ANTIGRAVITY_CSRF_TOKEN": "",
+                **(extra_env or {}),
+            }
+            with mock.patch("sys.stdin", fake_in), mock.patch("sys.stdout", fake_out), \
+                 mock.patch.dict(os.environ, env_patch, clear=False):
+                rc = pih.main()
+            self.assertEqual(rc, 0)
+            return json.loads(out_buf.getvalue().decode("utf-8"))
+
+        base_payload = {
+            "conversationId": "conv-cold-1234",
+            "transcriptPath": str(tx),
+            "lastUserInput": "Now add dark mode",
+            "invocationNum": 0,
+            "workspacePaths": [str(ws)],
+            "cwd": str(ws),
+            "modelName": "gemini-4-hydrogen-high",
+        }
+
+        # Guardrails: mid-turn (invocationNum > 0), slash command, [stay] opt-out, and trivial replies <180k return {}
+        self.assertEqual(run_pih({**base_payload, "invocationNum": 1}), {})
+        self.assertEqual(run_pih({**base_payload, "lastUserInput": "/handoff"}), {})
+        self.assertEqual(run_pih({**base_payload, "lastUserInput": "fix bug [stay]"}), {})
+        self.assertEqual(run_pih({**base_payload, "lastUserInput": "yes"}), {})
+        self.assertEqual(run_pih({**base_payload, "lastUserInput": "are you sure?"}), {})
+
+        # Delegated mode (no LS env in hook): writes pending JSON + injects 1-step handoff_exec directive
+        delegated = run_pih(base_payload)
+        self.assertIn("injectSteps", delegated)
+        sys_msg = delegated["injectSteps"][0]["systemMessage"]["systemMessage"]
+        self.assertIn("AUTO-HANDOFF TRIGGERED", sys_msg)
+        self.assertIn("handoff_exec.py", sys_msg)
+        pending_file = self.tmp / "pdata" / "pending" / "conv-cold-1234.json"
+        self.assertTrue(pending_file.is_file())
+        self.assertTrue(json.loads(pending_file.read_text(encoding="utf-8")).get("delegated"))
+        # Second invocation while pending does NOT double-trigger
+        self.assertEqual(run_pih(base_payload), {})
+
+        # Execute pending handoff via handoff_exec with mocked ConversationService
+        rpc_calls: list[tuple[str, dict]] = []
+
+        def fake_rpc(ls_addr: str, csrf: str, method: str, body: dict, timeout: float = 12.0) -> dict:
+            rpc_calls.append((method, body))
+            if method == "GetConversation":
+                return {
+                    "id": body["conversationId"],
+                    "metadata": {"projectId": "proj-1", "environmentId": "env-1"},
+                    "annotations": {"title": "Auth Refactor", "conversationGroupId": "grp-7"},
+                }
+            if method == "CreateConversation":
+                return {"conversation": {"id": "new-conv-8888"}}
+            return {}
+
+        with mock.patch.object(handoff_exec, "_conv_rpc", side_effect=fake_rpc), \
+             mock.patch.dict(os.environ, {"ANTIGRAVITY_LS_ADDRESS": "localhost:9999", "ANTIGRAVITY_CSRF_TOKEN": "tok"}, clear=False):
+            out_s = io.StringIO()
+            with mock.patch("sys.stdout", out_s), mock.patch("sys.argv", ["handoff_exec.py", "--pending", str(pending_file)]):
+                rc = handoff_exec.main()
+        self.assertEqual(rc, 0)
+        self.assertIn("AUTO_HANDOFF_OK:", out_s.getvalue())
+        self.assertIn("conversation://new-conv-8888", out_s.getvalue())
+        self.assertFalse(pending_file.exists())
+        methods = [m for m, _ in rpc_calls]
+        self.assertEqual(methods, ["GetConversation", "CreateConversation", "UpdateConversation", "UpdateConversation"])
+        create_body = rpc_calls[1][1]
+        self.assertEqual(create_body["projectId"], "proj-1")
+        self.assertEqual(create_body["environmentId"], "env-1")
+        self.assertEqual(create_body["title"], "Auth Refactor (cont. 2)")
+        self.assertIn("Now add dark mode", create_body["prompt"][0]["text"])
+        self.assertTrue(rpc_calls[3][1]["annotations"]["archived"])
+
+        # Turn-2 termination: right after delegated handoff_exec succeeds, invocationNum == 1 terminates
+        # immediately with clickable user_markdown (0 LLM tokens spent on Turn 2), and only once.
+        term2 = run_pih({**base_payload, "invocationNum": 1})
+        self.assertEqual(term2.get("terminationBehavior"), "terminate")
+        md2 = term2["injectSteps"][0]["systemMessage"]["metadata"]["user_markdown"]
+        self.assertIn("conversation://new-conv-8888", md2)
+        self.assertEqual(run_pih({**base_payload, "invocationNum": 2}), {})
+
+        # Direct 0-token mode (LS env present in hook) terminates immediately with clickable user_markdown
+        # Backdate last_rollover_ts past the 60s anti-burst guard
+        rs = self.config._load_rollover_state()
+        rs["last_rollover_ts"] = int(time.time()) - 120
+        self.config._save_rollover_state(rs)
+        direct_payload = {**base_payload, "conversationId": "conv-direct-5678"}
+        with mock.patch.object(handoff_exec, "_conv_rpc", side_effect=fake_rpc):
+            direct = run_pih(
+                direct_payload,
+                extra_env={"ANTIGRAVITY_LS_ADDRESS": "localhost:9999", "ANTIGRAVITY_CSRF_TOKEN": "tok"},
+            )
+        self.assertEqual(direct.get("terminationBehavior"), "terminate")
+        md = direct["injectSteps"][0]["systemMessage"]["metadata"]["user_markdown"]
+        self.assertIn("conversation://new-conv-8888", md)
+
+        # Failed tick does NOT poison rolled_convs
+        self.config.save_config({"profile": "small_loss"})
+        fail_act = {
+            "conversation_id": "conv-fail-retry",
+            "app": "antigravity",
+            "last_settled": True,
+            "is_cold": True,
+            "cur_tot": 95_000,
+            "turns": 18,
+            "idle_sec": 300,
+            "recent_turns_10m": 5,
+            "rollover_features": {"turns": 18, "ctx": 95_000, "drops": 2, "warm_turns": 15},
+        }
+        fail_st = {"active": fail_act, "adaptive": {"cap_k": 90, "roll": True}, "workspace": str(ws), "can_new_chat": True}
+        with mock.patch.object(self.snapshots, "build_state", return_value=fail_st), \
+             mock.patch.object(self.snapshots, "perform_rollover", return_value={"ok": False, "error": "boom"}):
+            self.snapshots.run_smart_rollover_tick()
+        self.assertNotIn("conv-fail-retry", self.config._load_rollover_state()["rolled_convs"])
+
+        # ConversationService path inside snapshots.perform_rollover
+        with mock.patch.object(self.snapshots, "_conv_rpc", side_effect=fake_rpc), \
+             mock.patch.object(self.snapshots, "build_handoff_packet", return_value={"packet": "# Handoff", "est_tokens": 20}), \
+             mock.patch.dict(os.environ, {"ANTIGRAVITY_LS_ADDRESS": "localhost:9999", "ANTIGRAVITY_CSRF_TOKEN": "tok"}, clear=False):
+            cs_res = self.snapshots.perform_rollover(str(ws), fail_act, kind="manual", spawn_chat=True, cap_k=90)
+        self.assertTrue(cs_res["ok"], cs_res)
+        self.assertEqual(cs_res["to_conv"], "new-conv-8888")
+
+    def test_smarter_handoff_pack_and_cache_drop_shields(self) -> None:
+        import subprocess
+        import handoff_pack as hp
+        import pre_invocation_handoff as pih
+        import rollover as ro
+
+        # 1. Smarter handoff pack: auto-detects git root, recovers full assistant text, extracts artifacts & read ranges,
+        #    deduplicates exclude_prompt, and ignores source-code FAIL lines from non-command outputs.
+        repo = self.tmp / "myrepo"
+        repo.mkdir()
+        def g(*a: str) -> None:
+            subprocess.run(["git", "-C", str(repo), *a], check=True, capture_output=True, text=True)
+        g("init", "-q")
+        g("config", "user.email", "t@t")
+        g("config", "user.name", "t")
+        (repo / "mod.py").write_text("def alpha():\n    return 1\n", encoding="utf-8")
+        g("add", ".")
+        g("commit", "-qm", "init")
+        (repo / "mod.py").write_text("def alpha():\n    return 2\n\ndef beta():\n    return 3\n", encoding="utf-8")
+
+        sid = "abcd1234-5678-9012-3456-abcdef123456"
+        conv_dir = self.tmp / "gemini" / "antigravity" / "brain" / sid
+        logs = conv_dir / ".system_generated" / "logs"
+        logs.mkdir(parents=True)
+        (conv_dir / "task.md").write_text("# Plan\n- [x] Fix bug\n- [ ] Add tests\n", encoding="utf-8")
+
+        long_reply = (
+            "### Summary\n1. Fixed `alpha()`.\n2. Next step: wire cache-drop shields.\n"
+            + ("Detail line.\n" * 240)
+            + "### Final Conclusion\nAll 42 checks passed with 0 regressions.\n"
+        )
+        tc_edit = [{"name": "edit_file", "args": {"Path": str(repo / "mod.py")}}]
+        tc_read = [{"name": "read_file", "args": {"Path": str(repo / "README.md"), "StartLine": 10, "EndLine": 45}}]
+        tc_steps = [{"name": "update_steps", "args": {"steps": [{"description": "Run unit tests", "status": "in_progress"}]}}]
+        compact_recs = [
+            {"type": "USER_INPUT", "content": "<USER_REQUEST>Build cache shields</USER_REQUEST>"},
+            {"type": "PLANNER_RESPONSE", "tool_calls": tc_edit + tc_read + tc_steps, "content": ""},
+            {"type": "GENERIC", "content": '124: print("FAIL: fake source snippet")'},
+            {"type": "GENERIC", "content": "Command exited with code 1\nAssertionError: boom expected 2"},
+            {"type": "PLANNER_RESPONSE", "tool_calls": None, "content": long_reply[:120], "truncated_fields": ["content"]},
+            {"type": "USER_INPUT", "content": "<USER_REQUEST>Now do step 2</USER_REQUEST>"},
+        ]
+        full_recs = list(compact_recs)
+        full_recs[4] = {"type": "PLANNER_RESPONSE", "tool_calls": None, "content": long_reply}
+        (logs / "transcript.jsonl").write_text("\n".join(json.dumps(r) for r in compact_recs) + "\n", encoding="utf-8")
+        (logs / "transcript_full.jsonl").write_text("\n".join(json.dumps(r) for r in full_recs) + "\n", encoding="utf-8")
+
+        non_git_ws = self.tmp / "plain_home"
+        non_git_ws.mkdir()
+        with mock.patch.object(hp, "APP_DIRS", (self.tmp / "gemini" / "antigravity",)):
+            pkt = hp.build_packet(non_git_ws, sid, exclude_prompt="Now do step 2")
+        self.assertIn("Goal: Build cache shields", pkt)
+        self.assertNotIn("Goal: Now do step 2", pkt)
+        self.assertIn("Next step: wire cache-drop shields.", pkt)
+        self.assertIn("All 42 checks passed with 0 regressions.", pkt)
+        self.assertIn("## Active Plan Steps", pkt)
+        self.assertIn("Run unit tests", pkt)
+        self.assertIn("## Active Artifacts", pkt)
+        self.assertIn("task.md", pkt)
+        self.assertIn("AssertionError: boom expected 2", pkt)
+        self.assertNotIn("fake source snippet", pkt)
+        self.assertIn("M mod.py", pkt)
+        self.assertIn("(L10-L45)", pkt)
+
+        # 2. Hydrogen 90s TTL yields tighter adaptive cap than 150s TTL
+        feat = {"ctx": 85_000, "turns": 15, "drops": 0, "warm_turns": 11, "warm_miss": [0.0, 0.0, 0.0]}
+        pol_150 = ro.rollover_policy({**feat, "ttl_cliff_sec": 150}, {"threshold_mode": "auto", "min_turns": 10})
+        pol_90 = ro.rollover_policy({**feat, "ttl_cliff_sec": 90}, {"threshold_mode": "auto", "min_turns": 10})
+        self.assertLessEqual(pol_90["cap"], pol_150["cap"])
+        self.assertGreater(pol_90["p_drop"], pol_150["p_drop"])
+
+        # 3. PreInvocation triggers: Path 1 vs Path 2 honest economics, heavy-phase swarm prep, and mid-run advisory
+        tx = self.tmp / "tx_shields.jsonl"
+        fresh_ts = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - 10))
+        warm_recs = [
+            {"type": "USER_INPUT", "content": "<USER_REQUEST>refactor module</USER_REQUEST>", "created_at": fresh_ts},
+        ]
+        for i in range(6):
+            warm_recs.append({
+                "type": "PLANNER_RESPONSE",
+                "created_at": fresh_ts,
+                "model": "gemini-4-neon-high",
+                "input_tokens": 18000 if i == 0 else 4000,
+                "cache_read_tokens": 0 if i == 0 else 74000,
+                "output_tokens": 300,
+                "tool_calls": "None" if i == 5 else "[{\"name\": \"read_file\"}]",
+                "content": "Ready for next step.",
+            })
+        tx.write_text("\n".join(json.dumps(r) for r in warm_recs) + "\n", encoding="utf-8")
+
+        def run_pih(payload: dict, extra_env: dict | None = None) -> dict:
+            raw = json.dumps(payload).encode("utf-8")
+            out_buf = io.BytesIO()
+            fake_in = mock.Mock(buffer=io.BytesIO(raw))
+            fake_out = mock.Mock(buffer=out_buf)
+            env_patch = {
+                "PLUGIN_DATA": str(self.tmp / "pdata"),
+                "ANTIGRAVITY_LS_ADDRESS": "",
+                "ANTIGRAVITY_CSRF_TOKEN": "",
+                **(extra_env or {}),
+            }
+            with mock.patch("sys.stdin", fake_in), mock.patch("sys.stdout", fake_out), \
+                 mock.patch.dict(os.environ, env_patch, clear=False):
+                rc = pih.main()
+            self.assertEqual(rc, 0)
+            return json.loads(out_buf.getvalue().decode("utf-8"))
+
+        # Normal warm 78k chat with same model does NOT trigger
+        base = {
+            "conversationId": "conv-shield-1",
+            "transcriptPath": str(tx),
+            "lastUserInput": "tweak one line",
+            "invocationNum": 0,
+            "workspacePaths": [str(repo)],
+            "cwd": str(repo),
+            "modelName": "gemini-4-neon-high",
+        }
+        self.assertEqual(run_pih(base), {})
+
+        # Model switch on 78k chat in Delegated mode (Path 2) does NOT fire (cannot avoid Turn-0 rebuild!)
+        self.assertEqual(run_pih({**base, "conversationId": "conv-shield-ms-p2", "modelName": "gemini-4-hydrogen-high"}), {})
+
+        # Model switch on 78k chat in Direct mode (Path 1, LS env present) DOES terminate with 0 tokens!
+        import handoff_exec
+        with mock.patch.object(handoff_exec, "execute_handoff", return_value={"ok": True, "new_id": "new-ms-1", "archived_old": True}):
+            ms = run_pih(
+                {**base, "conversationId": "conv-shield-ms-p1", "modelName": "gemini-4-hydrogen-high"},
+                extra_env={"ANTIGRAVITY_LS_ADDRESS": "localhost:9999", "ANTIGRAVITY_CSRF_TOKEN": "tok"},
+            )
+        self.assertEqual(ms.get("terminationBehavior"), "terminate")
+        self.assertIn("model switch", ms["injectSteps"][0]["systemMessage"]["metadata"]["user_markdown"])
+
+        # Heavy-phase swarm prompt on warm >=75k chat DOES trigger pre-swarm handoff even in Path 2
+        rs_s = self.config._load_rollover_state()
+        rs_s["last_rollover_ts"] = 0
+        self.config._save_rollover_state(rs_s)
+        sw = run_pih({**base, "conversationId": "conv-shield-sw", "lastUserInput": "launch a swarm to audit all modules"})
+        self.assertIn("heavy phase/swarm prep", sw["injectSteps"][0]["systemMessage"]["systemMessage"])
+
+        # Path 2 delegated simulator accounts for delegated overhead (higher sim_in than direct Path 1)
+        long_turns = [(18000, 0, 300)] + [(5000, 20000 + i * 5000, 300) for i in range(25)]
+        elig = [False] * 14 + [True] + [False] * 11
+        p1_in, p1_cr, p1_r = ro._simulate_rollover_session(long_turns, None, settled=elig, on_user_turn=True, delegated=False)
+        p2_in, p2_cr, p2_r = ro._simulate_rollover_session(long_turns, None, settled=elig, on_user_turn=True, delegated=True)
+        self.assertGreaterEqual(p1_r, 1)
+        self.assertGreaterEqual(p2_r, 1)
+        self.assertGreater(p2_in + p2_cr * 0.05, p1_in + p1_cr * 0.05)
+
+        # Mid-run (invocationNum == 3) emits 1-line advisory ONCE right after a >=75k cache drop
+        drop_recs = [
+            {"type": "PLANNER_RESPONSE", "created_at": fresh_ts, "model": "gemini-4-hydrogen-high",
+             "input_tokens": 3000, "cache_read_tokens": 92000, "output_tokens": 200, "tool_calls": "[{\"name\": \"swarm_wait\"}]"},
+            {"type": "PLANNER_RESPONSE", "created_at": fresh_ts, "model": "gemini-4-hydrogen-high",
+             "input_tokens": 96000, "cache_read_tokens": 0, "output_tokens": 200, "tool_calls": "[{\"name\": \"read_file\"}]"},
+        ]
+        tx_drop = self.tmp / "tx_drop.jsonl"
+        tx_drop.write_text("\n".join(json.dumps(r) for r in drop_recs) + "\n", encoding="utf-8")
+        adv1 = run_pih({**base, "conversationId": "conv-midrun-1", "transcriptPath": str(tx_drop), "invocationNum": 3})
+        self.assertIn("Mid-run KV cache drop", adv1["injectSteps"][0]["systemMessage"]["systemMessage"])
+        # Second mid-run invocation within 10m is silent (no spam)
+        self.assertEqual(
+            run_pih({**base, "conversationId": "conv-midrun-1", "transcriptPath": str(tx_drop), "invocationNum": 4}),
+            {},
+        )
 
 
 if __name__ == "__main__":

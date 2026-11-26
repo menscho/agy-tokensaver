@@ -32,16 +32,21 @@ def _should_defer_concise_sync() -> bool:
 
 
 def flush_pending_concise_sync(force: bool = False) -> bool:
-    """Apply deferred Concise Output rule once active warm cache cools or before spawning a fresh chat."""
+    """Apply deferred or drifted Concise Output rule once active warm cache cools or before rollover."""
     with _cfg_lock:
         cfg = load_config()
-        if not cfg.get("pending_concise_sync"):
+        desired = bool(cfg.get("concise_output", False))
+        agents_md = PLUGIN_ROOT / "rules" / "AGENTS.md"
+        can_touch_repo = not _is_sandbox_data_dir() or os.environ.get("AGY_TS_SYNC_RULES") == "1"
+        drifted = can_touch_repo and (desired != agents_md.is_file())
+        if not cfg.get("pending_concise_sync") and not drifted:
             return False
         if not force and _should_defer_concise_sync():
             return False
-        _sync_concise_rule(bool(cfg.get("concise_output", False)))
-        cfg["pending_concise_sync"] = False
-        _atomic_write_json(CFG_FILE, cfg)
+        _sync_concise_rule(desired)
+        if cfg.get("pending_concise_sync"):
+            cfg["pending_concise_sync"] = False
+            _atomic_write_json(CFG_FILE, cfg)
         return True
 
 

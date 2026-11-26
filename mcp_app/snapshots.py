@@ -8,13 +8,14 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.request
 from pathlib import Path
 from typing import Any
 
 from config import (
-    APP_DIRS, COLD_START_TOK, PLUGIN_ROOT,
+    APP_DIRS, COLD_MIN_CTX, COLD_START_TOK, DATA_DIR, PLUGIN_ROOT,
     _load_rollover_state, _save_rollover_state, _state_lock, append_rollover_history,
-    load_config, load_rollover_history,
+    has_direct_handoff_cap, load_config, load_rollover_history,
 )
 from rollover import compute_adaptive_threshold, continuation_probability
 from rules_sync import flush_pending_concise_sync
@@ -24,6 +25,24 @@ from updater import get_update_snapshot
 
 _last_auto_event: dict[str, Any] = {}
 
+
+def _conv_rpc(ls_addr: str, csrf: str, method: str, body: dict[str, Any], timeout: float = 12.0) -> dict[str, Any]:
+    req = urllib.request.Request(
+        f"http://{ls_addr}/product.v1.ConversationService/{method}",
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "Connect-Protocol-Version": "1",
+            "x-antigravity-csrf-token": csrf,
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        raw = resp.read().decode("utf-8", errors="replace")
+    parsed = json.loads(raw) if raw else {}
+    return parsed if isinstance(parsed, dict) else {}
+
+
 def _find_agentapi_cmd() -> list[str] | None:
     exe = os.environ.get("ANTIGRAVITY_AGENTAPI_EXE")
     if exe and Path(exe).is_file():
@@ -32,6 +51,26 @@ def _find_agentapi_cmd() -> list[str] | None:
     if shim.is_file():
         return [str(shim)]
     return None
+
+
+def _can_spawn_chat() -> bool:
+    ls_addr = os.environ.get("ANTIGRAVITY_LS_ADDRESS", "").strip()
+    if not ls_addr:
+        return False
+    return bool(os.environ.get("ANTIGRAVITY_CSRF_TOKEN", "").strip()) or bool(_find_agentapi_cmd())
+
+
+def _read_last_auto_event() -> dict[str, Any]:
+    ev = dict(_last_auto_event)
+    ev_file = DATA_DIR / "last_auto_event.json"
+    if ev_file.is_file():
+        try:
+            disk = json.loads(ev_file.read_text(encoding="utf-8", errors="replace"))
+            if isinstance(disk, dict) and int(disk.get("ts") or 0) >= int(ev.get("ts") or 0):
+                ev = disk
+        except Exception:
+            pass
+    return ev
 
 
 def build_handoff_packet(ws: str, conv_id: str = "") -> dict[str, Any]:
@@ -74,30 +113,71 @@ def perform_rollover(
     raw_out = ""
     if spawn_chat:
         flush_pending_concise_sync(force=True)
-        base_cmd = _find_agentapi_cmd()
-        if not base_cmd:
-            return {"ok": False, "error": "agentapi binary unavailable; handoff saved to archive instead."}
-        cmd = [*base_cmd, "new-conversation"]
-        if model and model != "inherit":
-            cmd.extend(["--model", model])
-        cmd.append(msg)
-        p = subprocess.run(cmd, text=True, capture_output=True, timeout=18)
-        if p.returncode != 0:
-            return {"ok": False, "error": p.stderr.strip() or f"agentapi exit {p.returncode}"}
-        raw_out = p.stdout.strip()
-        try:
-            parsed = json.loads(raw_out) if raw_out else {}
-            resp_conv = (parsed.get("response") or {}).get("newConversation") or {}
-            to_conv = str(
-                resp_conv.get("conversationId")
-                or resp_conv.get("conversation_id")
-                or parsed.get("conversationId")
-                or parsed.get("conversation_id")
-                or parsed.get("id")
-                or ""
-            )
-        except Exception:
-            pass
+        ls_addr = os.environ.get("ANTIGRAVITY_LS_ADDRESS", "").strip()
+        csrf = os.environ.get("ANTIGRAVITY_CSRF_TOKEN", "").strip()
+        if ls_addr and csrf:
+            body: dict[str, Any] = {"prompt": [{"text": msg}], "tags": ["token-saver-handoff"]}
+            proj_id = os.environ.get("ANTIGRAVITY_PROJECT_ID", "").strip()
+            if target_cid:
+                try:
+                    meta_resp = _conv_rpc(ls_addr, csrf, "GetConversation", {"conversationId": target_cid}, timeout=5.0)
+                    meta = meta_resp.get("metadata") if isinstance(meta_resp.get("metadata"), dict) else {}
+                    if meta.get("projectId"):
+                        proj_id = str(meta["projectId"])
+                    if proj_id and meta.get("environmentId"):
+                        body["environmentId"] = str(meta["environmentId"])
+                except Exception:
+                    pass
+            if proj_id:
+                body["projectId"] = proj_id
+            if model and model != "inherit":
+                body["model"] = model
+            try:
+                created = _conv_rpc(ls_addr, csrf, "CreateConversation", body, timeout=12.0)
+                conv_obj = created.get("conversation") if isinstance(created.get("conversation"), dict) else {}
+                to_conv = str(conv_obj.get("id") or "")
+                raw_out = json.dumps(created)
+                if to_conv and target_cid:
+                    try:
+                        _conv_rpc(
+                            ls_addr,
+                            csrf,
+                            "UpdateConversation",
+                            {"conversationId": target_cid, "annotations": {"archived": True}},
+                            timeout=4.0,
+                        )
+                    except Exception:
+                        pass
+            except Exception as exc:
+                return {"ok": False, "error": f"ConversationService error: {exc}"}
+        else:
+            base_cmd = _find_agentapi_cmd()
+            if not base_cmd:
+                return {"ok": False, "error": "Direct chat spawn unavailable from global sidebar; use side pane (+) or Copy Handoff."}
+            cmd = [*base_cmd, "new-conversation"]
+            if model and model != "inherit":
+                cmd.append(f"--model={model}")
+            cmd.append(msg)
+            p = subprocess.run(cmd, text=True, capture_output=True, timeout=18)
+            if p.returncode != 0:
+                err_txt = (p.stderr or p.stdout or "").strip()
+                if "ANTIGRAVITY_LS_ADDRESS" in err_txt:
+                    err_txt = "Global sidebar has no LS session address; open agy-tokensaver in a chat side pane (+) or let Auto-Handoff run on your next message."
+                return {"ok": False, "error": err_txt or f"agentapi exit {p.returncode}"}
+            raw_out = p.stdout.strip()
+            try:
+                parsed = json.loads(raw_out) if raw_out else {}
+                resp_conv = (parsed.get("response") or {}).get("newConversation") or {}
+                to_conv = str(
+                    resp_conv.get("conversationId")
+                    or resp_conv.get("conversation_id")
+                    or parsed.get("conversationId")
+                    or parsed.get("conversation_id")
+                    or parsed.get("id")
+                    or ""
+                )
+            except Exception:
+                pass
 
     now_ts = int(time.time())
     peak = int(active["cur_tot"]) if active else 0
@@ -186,8 +266,10 @@ def build_state(conv_id: str = "") -> dict[str, Any]:
         "savings": savings,
         "history": history[:20],
         "config": cfg,
-        "last_auto_event": _last_auto_event,
-        "can_new_chat": bool(_find_agentapi_cmd()),
+        "last_auto_event": _read_last_auto_event(),
+        "can_new_chat": _can_spawn_chat(),
+        "auto_handoff_hook": True,
+        "direct_handoff_hook": has_direct_handoff_cap(),
         "workspace": os.environ.get("ANTIGRAVITY_WORKSPACE_PATH", str(Path.cwd())),
         "updates": get_update_snapshot(),
     }
@@ -220,13 +302,13 @@ def run_smart_rollover_tick() -> None:
     if not act.get("last_settled"):
         return
 
-    # Cold-cache trigger (Persistent Context Graphs arXiv:2609.40118 / arXiv:2607.19214): once a >=75k chat's KV cache has
+    # Cold-cache trigger (Persistent Context Graphs arXiv:2609.40118 / arXiv:2607.19214): once a >=55k chat's KV cache has
     # ALREADY expired (idle >= ttl_cliff, up to 30m), resuming it pays cur_tot uncached vs 17k fresh handoff
     # (instant Turn-1 payback, zero warm cache wasted).
     is_cold_payback = bool(
         act.get("is_cold")
-        and act.get("cur_tot", 0) >= 75_000
-        and act.get("turns", 0) >= 6
+        and act.get("cur_tot", 0) >= COLD_MIN_CTX
+        and act.get("turns", 0) >= 4
         and act.get("idle_sec", 0) <= 1800
     )
 
@@ -250,10 +332,6 @@ def run_smart_rollover_tick() -> None:
         cooldown_sec = cfg.get("cooldown_min", 20) * 60
         if spawn and now - rstate.get("last_rollover_ts", 0) < cooldown_sec:
             return
-        rstate[bucket_key][cid] = now
-        if spawn:
-            rstate["last_rollover_ts"] = now
-        _save_rollover_state(rstate)
 
     kind = "auto" if spawn else "snapshot"
     res = perform_rollover(
@@ -264,6 +342,13 @@ def run_smart_rollover_tick() -> None:
         spawn_chat=spawn,
         cap_k=cap_k,
     )
+    if res.get("ok"):
+        with _state_lock:
+            rstate = _load_rollover_state()
+            rstate[bucket_key][cid] = now
+            if spawn:
+                rstate["last_rollover_ts"] = now
+            _save_rollover_state(rstate)
     _last_auto_event = {
         "ts": now,
         "from_conv": cid[:8],

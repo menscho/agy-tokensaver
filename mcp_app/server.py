@@ -86,6 +86,7 @@ TOOLS: list[dict[str, Any]] = [
             "com.google.antigravity/ui": {
                 "entrypoints": [
                     {"type": "global", "title": "agy-tokensaver"},
+                    {"type": "aux_pane", "title": "agy-tokensaver"},
                 ]
             },
         },

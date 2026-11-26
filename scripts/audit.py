@@ -150,7 +150,7 @@ def inspect_hooks(hook_paths: list[Path]) -> list[str]:
         for name, spec in data.items():
             if not isinstance(spec, dict) or spec.get("enabled") is False:
                 continue
-            if spec.get("PreInvocation"):
+            if spec.get("PreInvocation") and not ("token-saver" in str(p) and name == "token-saver-handoff"):
                 warnings.append(f"PreInvocation hook '{name}' in {p}: runs synchronously before EVERY turn; avoid dynamic text injection.")
             if spec.get("PostInvocation") and "token-saver" not in str(p):
                 warnings.append(f"PostInvocation hook '{name}' in {p}: ensure it emits empty systemMessage (metadata.user_markdown only) to avoid per-turn bloat.")

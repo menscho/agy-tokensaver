@@ -74,7 +74,7 @@ def load_config() -> dict[str, Any]:
         "threshold_mode": "auto",      # "auto" | "75" | "90" | "110" | "140" | "180"
         "threshold_k": 110,
         "model": "inherit",
-        "min_turns": 14,
+        "min_turns": 10,
         "cooldown_min": 20,
         "compact_reads": False,
         "concise_output": False,
@@ -266,9 +266,10 @@ def parse_iso_ts(ts_str: str) -> float | None:
 #    1-3 generations (cr=0 at turn 1/2 in 17 of 30 sessions). The counterfactual replays THIS
 #    session's own measured warm-up miss pattern for the new conversation (charged, not assumed 0).
 FRESH_CTX_TOK = 15_400
-HANDOFF_PACKET_TOK = 400
+HANDOFF_PACKET_TOK = 1_200
 COLD_START_TOK = 17_000
-REDISCOVERY_TAX_TOK = 8_000
+REDISCOVERY_TAX_TOK = 6_000
+DELEGATED_EXTRA_TOK = 2_300     # Path 2 1-turn delegated handoff overhead (Turn 2 terminated)
 PACKET_REPLY_OUT_TOK = 150      # output of the new chat's first reply to the packet (6x weighted)
 WARMUP_TURNS = 3
 SETTLE_GAP_SEC = 25             # live tick fires 20..90 s after the last generation (10 s period)
@@ -279,8 +280,23 @@ MOMENTUM_MIN_TURNS = 3
 POLICY_HORIZON_TURNS = 12       # assumed remaining turns once a chat is past min_turns (was the oracle)
 POLICY_MARGIN = 1.5             # required gain / cost ratio over that horizon
 POLICY_DROP_PRIOR = (0.5, 20)   # Beta-ish prior: 0.5 TTL drops per 20 warm turns (~2.5%/turn)
-AUTO_CAP_MIN = 90_000
+POLICY_DROP_PRIOR_SHORT_TTL = (1.2, 16)  # Hydrogen 60-90s TTL cliff suffers higher mid-run drop rate (~7.5%/turn)
+AUTO_CAP_MIN = 75_000
 AUTO_CAP_MAX = 220_000
+COLD_MIN_CTX = 55_000
+DELEGATED_POST_DROP_MIN_CTX = 90_000
+
+
+def has_direct_handoff_cap() -> bool:
+    """True when hook_caps.json confirms PreInvocation hooks receive ANTIGRAVITY_LS_ADDRESS (Path 1)."""
+    caps_file = DATA_DIR / "hook_caps.json"
+    if not caps_file.is_file():
+        return False
+    try:
+        d = json.loads(caps_file.read_text(encoding="utf-8", errors="replace"))
+        return bool(isinstance(d, dict) and d.get("has_ls_addr"))
+    except Exception:
+        return False
 # Live rollovers can only fire when an agent run has settled. Whether the user then continues in the
 # new chat is unknown at decision time, so the auto policy scales its horizon by p_continue: the
 # Laplace-smoothed share of this user's PAST settled points (ctx >= AUTO_CAP_MIN) that were followed

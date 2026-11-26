@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from config import APP_DIRS, AUTO_CAP_MIN, MOMENTUM_MIN_TURNS, MOMENTUM_WINDOW_SEC, SETTLE_GAP_SEC, W_CR, W_IN, W_OUT, _SIM_CFG, parse_iso_ts
+from config import APP_DIRS, AUTO_CAP_MIN, MOMENTUM_MIN_TURNS, MOMENTUM_WINDOW_SEC, SETTLE_GAP_SEC, W_CR, W_IN, W_OUT, _SIM_CFG, has_direct_handoff_cap, parse_iso_ts
 from rollover import RolloverTracker, _p_continue, _simulate_rollover_session
 
 _tx_cache: dict[str, tuple[Any, dict[str, Any]]] = {}
@@ -304,9 +304,20 @@ def _build_session_record(sid: str, app_name: str, tx: Path | None, db: Path | N
         t0 = m0.get("ts") if isinstance(m0, dict) else None
         t1 = m1.get("ts") if isinstance(m1, dict) else None
         gaps.append(max(0.0, t1 - t0) if (t0 and t1 and t1 >= t0) else None)
-    sim_cfg = {**_SIM_CFG, "p_continue": _p_continue(0, 0)}     # no cross-session history: prior
+    # PreInvocation Auto-Handoff fires at user turn start (any final reply followed by a next user turn,
+    # p_continue=1.0, never spawning a wasted chat on the final turn). Use realistic Path 2 delegated
+    # economics whenever hook_caps.json shows hooks lack ANTIGRAVITY_LS_ADDRESS.
+    preinv_elig = [bool(has_user and m and m.get("final")) for m in meta]
+    sim_cfg = {**_SIM_CFG, "min_turns": 10, "p_continue": 1.0}
     sim_in, sim_cr, sim_rollovers = _simulate_rollover_session(
-        turn_tuples, None, settled=settled, cfg=sim_cfg, gaps=gaps, ttl_cliff=ttl_cliff,
+        turn_tuples,
+        None,
+        settled=preinv_elig,
+        cfg=sim_cfg,
+        gaps=gaps,
+        ttl_cliff=ttl_cliff,
+        on_user_turn=True,
+        delegated=not has_direct_handoff_cap(),
     )
     ub_in, ub_cr, ub_rollovers = _simulate_rollover_session(turn_tuples, None, gaps=gaps, ttl_cliff=ttl_cliff)
 

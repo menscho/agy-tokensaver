@@ -38,6 +38,7 @@ MAX_SCAN_BYTES = 2 * 1024 * 1024
 OVERWRITE_NOTICE = 94
 NEAR_STEPS = 16
 TRIM_MIN_BYTES = 1536
+DEDUPE_MIN_BYTES = 1536
 HIST_MAX = 300
 
 MEDIA_EXT_RE = re.compile(
@@ -254,7 +255,7 @@ class ReadGuard:
         self.dup_cid = get_str(doc, "conversationId") or ""
         self.scid = safe_cid(self.dup_cid)
         self.pk = path_key(path)
-        self.dedupe_on = bool(self.size > 4096 and self.dup_step is not None and self.dup_cid and not re.search(r"[\t\r\n]", path))
+        self.dedupe_on = bool(self.size > DEDUPE_MIN_BYTES and self.dup_step is not None and self.dup_cid and not re.search(r"[\t\r\n]", path))
         self.compact_reads = read_compact_reads(plugin_root)
         self.is_prose = bool(PROSE_RE.search(self.base))
         self.is_spillback = bool(SPILLBACK_RE.search(check_path.replace("\\", "/")))

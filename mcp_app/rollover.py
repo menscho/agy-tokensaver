@@ -4,9 +4,10 @@ from __future__ import annotations
 from typing import Any
 
 from config import (
-    AUTO_CAP_MAX, AUTO_CAP_MIN, COLD_START_TOK, FRESH_CTX_TOK, PACKET_REPLY_OUT_TOK,
-    POLICY_CONTINUE_PRIOR, POLICY_DROP_PRIOR, POLICY_HORIZON_TURNS, POLICY_MARGIN,
-    REDISCOVERY_TAX_TOK, W_CR, W_IN, W_OUT, WARMUP_TURNS, _SIM_CFG,
+    AUTO_CAP_MAX, AUTO_CAP_MIN, COLD_MIN_CTX, COLD_START_TOK, DELEGATED_EXTRA_TOK,
+    DELEGATED_POST_DROP_MIN_CTX, FRESH_CTX_TOK, PACKET_REPLY_OUT_TOK,
+    POLICY_CONTINUE_PRIOR, POLICY_DROP_PRIOR, POLICY_DROP_PRIOR_SHORT_TTL, POLICY_HORIZON_TURNS,
+    POLICY_MARGIN, REDISCOVERY_TAX_TOK, W_CR, W_IN, W_OUT, WARMUP_TURNS, _SIM_CFG,
 )
 
 class RolloverTracker:
@@ -100,7 +101,8 @@ def rollover_policy(feat: dict[str, Any] | None, cfg: dict[str, Any] | None = No
     tmode = str(cfg.get("threshold_mode", "auto"))
     drops = int(f.get("drops", 0))
     warm_turns = int(f.get("warm_turns", 0))
-    a, b = POLICY_DROP_PRIOR
+    ttl_cliff = int(f.get("ttl_cliff_sec") or 150)
+    a, b = POLICY_DROP_PRIOR_SHORT_TTL if ttl_cliff <= 90 else POLICY_DROP_PRIOR
     p_drop = (drops + a) / (warm_turns + b)
     w = W_CR + min(0.5, p_drop) * (W_IN - W_CR)
     p_cont = min(1.0, max(0.0, float(f.get("p_continue", cfg.get("p_continue", 1.0)))))
@@ -150,6 +152,9 @@ def _simulate_rollover_session(
     detail: bool = False,
     gaps: list[float | None] | None = None,
     ttl_cliff: int = 150,
+    on_user_turn: bool = False,
+    cold_min_ctx: int = COLD_MIN_CTX,
+    delegated: bool = False,
 ) -> Any:
     """
     Causal counterfactual: replays the session generation by generation and lets `rollover_policy`
@@ -222,19 +227,35 @@ def _simulate_rollover_session(
         sim_in += ti
         sim_cr += tc
         conv.push(int(ti), int(tc), out)
-        pol = rollover_policy(conv.features(), pcfg, cold_start, rediscovery_tax)
+        c_feat = conv.features()
+        if ttl_cliff <= 90:
+            c_feat["ttl_cliff_sec"] = ttl_cliff
+        pol_cold = cold_start + (DELEGATED_EXTRA_TOK if delegated else 0)
+        pol = rollover_policy(c_feat, pcfg, pol_cold, rediscovery_tax)
         is_settled_now = (settled is None) or (idx < len(settled) and settled[idx])
-        # Causal Cold-Cache Auto-Handoff (Persistent Context Graphs arXiv:2609.40118 + arXiv:2607.19214): if a settled >=75k chat sits
-        # idle past ttl_cliff (<=1800s / 30m), its KV cache already expired before the next user turn.
+        # PreInvocation hooks only fire when the user actually sends a next turn (never after the final turn).
+        if on_user_turn and idx == n - 1:
+            is_settled_now = False
+        # Causal Cold-Cache Auto-Handoff: only yields Turn-0 payback in Direct mode (not delegated Path 2).
         g_after = gaps[idx] if (gaps is not None and idx < len(gaps)) else None
+        cold_ttl = ttl_cliff if ttl_cliff <= 90 else 240
         cold_roll = bool(
-            is_settled_now
+            not delegated
+            and is_settled_now
             and g_after is not None
-            and ttl_cliff <= g_after <= 1800
-            and conv.ctx >= 75_000
+            and g_after >= cold_ttl
+            and conv.ctx >= cold_min_ctx
+            and conv.turns >= (4 if on_user_turn else 6)
+        )
+        post_drop_floor = DELEGATED_POST_DROP_MIN_CTX if delegated else AUTO_CAP_MIN
+        post_drop_roll = bool(
+            on_user_turn
+            and is_settled_now
+            and conv.drops >= 1
+            and conv.ctx >= post_drop_floor
             and conv.turns >= 6
         )
-        if (pol["roll"] and is_settled_now) or cold_roll:
+        if (pol["roll"] and is_settled_now) or cold_roll or post_drop_roll:
             rollovers += 1
             rolled = True
             if detail:
@@ -243,6 +264,14 @@ def _simulate_rollover_session(
             if idx == n - 1:
                 sim_in += base + PACKET_REPLY_OUT_TOK * W_OUT / W_IN   # spawned chat nobody used
             else:
+                if delegated:
+                    # Path 2 executes 1 delegated LLM turn in the old chat (Turn 2 is terminated by hook).
+                    next_cold = g_after is not None and g_after >= ttl_cliff
+                    if next_cold:
+                        sim_in += sim_ctx + DELEGATED_EXTRA_TOK
+                    else:
+                        sim_cr += sim_ctx
+                        sim_in += DELEGATED_EXTRA_TOK
                 pending = True
             conv = RolloverTracker(warm_miss=real.warm_miss)
     if detail:
@@ -291,6 +320,8 @@ def compute_adaptive_threshold(active: dict[str, Any] | None, cfg: dict[str, Any
         }
     if "p_continue" in active:
         feat = {**feat, "p_continue": active["p_continue"]}
+    if active.get("ttl_cliff_sec"):
+        feat = {**feat, "ttl_cliff_sec": active["ttl_cliff_sec"]}
     return rollover_policy(feat, cfg)
 
 

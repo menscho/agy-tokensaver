@@ -69,6 +69,15 @@
       }
     ]
   },
+  "token-saver-handoff": {
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "python3 -S ./scripts/pre_invocation_handoff.py",
+        "timeout": 15
+      }
+    ]
+  },
   "token-saver-alerts": {
     "PostInvocation": [
       {

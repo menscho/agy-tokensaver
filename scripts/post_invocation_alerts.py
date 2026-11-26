@@ -31,6 +31,7 @@ class _Turn(NamedTuple):
     model: str
     ts: str
     cp: bool
+    has_tools: bool
 
 
 def _iso_sec(t: str) -> int | None:
@@ -39,6 +40,18 @@ def _iso_sec(t: str) -> int | None:
         return None
     d, h, mn, s = int(m.group(3)), int(m.group(4)), int(m.group(5)), int(m.group(6))
     return d * 86400 + h * 3600 + mn * 60 + s
+
+
+def _has_direct_handoff(dd: str) -> bool:
+    caps_file = os.path.join(dd, "hook_caps.json")
+    if not os.path.isfile(caps_file):
+        return False
+    try:
+        with open(caps_file, "r", encoding="utf-8", errors="replace") as fh:
+            d = decode_line(fh.read(2048).encode("utf-8", errors="replace"))
+        return bool(d and d.get("has_ls_addr"))
+    except Exception:
+        return False
 
 
 def _silent() -> int:
@@ -91,6 +104,8 @@ def main() -> int:
         out_t = get_int(rec, "output_tokens") or 0
         if in_t == 0 and cr_t == 0 and out_t == 0:
             continue
+        tc = rec.get("tool_calls")
+        has_tc = bool(tc and str(tc).strip() not in ("[]", "None", "null", ""))
         turns.append(
             _Turn(
                 in_tok=in_t,
@@ -99,6 +114,7 @@ def main() -> int:
                 model=get_str(rec, "model") or "",
                 ts=get_str(rec, "created_at") or "",
                 cp=saw_checkpoint,
+                has_tools=has_tc,
             )
         )
         saw_checkpoint = False
@@ -147,12 +163,18 @@ def main() -> int:
             new_tier = cur_tier
             k_tot = tot // 1000
             k_cr_cost = f"{(tot * 0.05) / 1000:.1f}"
-            ttl_hint = " (`hydrogen` cache drops sharply after ~90s idle!)" if "hydrogen" in cur.model.lower() else ""
-            extra = (
-                f" A >2m idle pause will rebuild ~{k_tot}k uncached tokens — run `/handoff` before stepping away to cut long-session quota sharply."
-                if cur_tier >= 150
-                else f" A >2m idle pause will rebuild ~{k_tot}k uncached tokens — run `/compact` or `/handoff` at the next phase switch."
-            )
+            ttl_hint = " (`hydrogen` ~60-90s TTL cliff — avoid >60s swarms/waits here!)" if "hydrogen" in cur.model.lower() else ""
+            direct_ok = _has_direct_handoff(data_dir(plugin_root))
+            if cur_tier >= 110:
+                extra = (
+                    " Auto-Handoff will rotate to a fresh ~17k chat on your next message (avoid launching new swarms/long builds before rotating)."
+                    if direct_ok
+                    else f" Auto-Handoff will rotate on your next warm turn; if you pause >2-4m, use **Archive & New Chat** in agy-tokensaver first to avoid a ~{k_tot}k cold rebuild."
+                )
+            else:
+                extra = (
+                    f" A >2-4m idle or slow tool wait rebuilds ~{k_tot}k uncached — Auto-Handoff is armed for heavy phases or >110k."
+                )
             notes.append(f"**Token Saver:** Context reached **~{k_tot}k tokens** (~{k_cr_cost}k uncached-equiv/turn in cache reads){ttl_hint}.{extra}")
 
     new_drop_ts = last_drop_ts
@@ -161,13 +183,22 @@ def main() -> int:
             is_compaction = cur.cp or tot < prev.tot * 0.80
             if not is_compaction:
                 new_drop_ts = cur.ts
+                ttl_s = 90 if "hydrogen" in cur.model.lower() else 150
                 cause = "prefix change or backend cache eviction"
                 if prev.model and cur.model and prev.model != cur.model:
                     cause = f"model switch (`{prev.model}` -> `{cur.model}`)"
                 else:
                     t1, t2 = _iso_sec(prev.ts), _iso_sec(cur.ts)
-                    if t1 is not None and t2 is not None and (t2 - t1) >= 90:
-                        cause = f"idle TTL eviction (~{t2 - t1}s pause exceeded hot cache window)"
+                    if t1 is not None and t2 is not None:
+                        dt = t2 - t1
+                        if dt >= ttl_s:
+                            cause = (
+                                f"mid-run tool/swarm wait (~{dt}s > {ttl_s}s TTL)"
+                                if prev.has_tools
+                                else f"idle TTL eviction (~{dt}s pause exceeded {ttl_s}s hot cache window)"
+                            )
+                        elif prev.tot >= 180_000:
+                            cause = f"large-context backend eviction (~{prev.tot // 1000}k ctx)"
                 notes.append(
                     f"**Token Saver:** Prompt cache dropped (**{prev.cr_tok // 1000}k -> {cur.cr_tok // 1000}k**, "
                     f"rebuilt **{cur.in_tok // 1000}k** uncached) — likely {cause}."

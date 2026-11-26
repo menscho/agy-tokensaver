@@ -599,7 +599,7 @@
       <div class="box">
         <div class="row">
           <div class="row-info">
-            <div class="row-title" id="upd-headline">agy-tokensaver v1.3.1</div>
+            <div class="row-title" id="upd-headline">agy-tokensaver v1.4.0</div>
             <div class="row-desc" id="upd-sub">Up to date · all statistics and archive entries are preserved across updates</div>
           </div>
           <div class="actions">
@@ -640,7 +640,7 @@
 
     <section class="section">
       <div class="section-head">
-        <span class="section-title" id="chg-title">Release Notes (v1.3.1)</span>
+        <span class="section-title" id="chg-title">Release Notes (v1.4.0)</span>
         <span class="section-note" id="chg-date">Latest changes</span>
       </div>
       <div class="box">
@@ -811,9 +811,13 @@
         dot.className = 'dot bad'; tt.textContent = `Cache COLD (idle ${a.idle_sec}s)`;
       }
       const cb = document.getElementById('cold-banner');
-      if (a.is_cold && a.cur_tot >= 60000) {
+      if (a.is_cold && a.cur_tot >= 55000) {
         cb.style.display = 'block';
-        cb.textContent = `Cache COLD (${a.idle_sec}s idle > ${a.ttl_cliff_sec || 150}s TTL) — next reply rebuilds ~${fmtK(a.cur_tot)} uncached. Click "Archive & New Chat" to pay ~17k instead (saves ~${fmtK(a.cold_rebuild_save_est || 0)} immediately).`;
+        if (cfg.mode === 'smart_auto' && s.direct_handoff_hook) {
+          cb.textContent = `Cache COLD (${a.idle_sec}s idle > ${a.ttl_cliff_sec || 150}s TTL) — Auto-Handoff is armed and will carry your next message to a fresh ~17k chat automatically (saves ~${fmtK(a.cold_rebuild_save_est || 0)}).`;
+        } else {
+          cb.textContent = `Cache COLD (${a.idle_sec}s idle > ${a.ttl_cliff_sec || 150}s TTL) — typing in the old chat rebuilds ~${fmtK(a.cur_tot)} uncached. Click "Archive & New Chat" here to pay ~17k instead (saves ~${fmtK(a.cold_rebuild_save_est || 0)} immediately).`;
+        }
       } else {
         cb.style.display = 'none';
       }
@@ -821,8 +825,16 @@
 
     if (s.last_auto_event && s.last_auto_event.from_conv) {
       const e = s.last_auto_event;
+      const trigMap = {
+        cold_cache: ' (cold cache)',
+        model_switch: ' (model switch)',
+        heavy_phase: ' (swarm/heavy prep)',
+        post_drop: ' (post-drop)',
+        adaptive_cap: ' (context cap)',
+      };
+      const trig = trigMap[e.trigger] || '';
       setStatus(e.ok
-        ? `Auto-rollover archived ${e.from_conv} at ${fmtK(e.at_tokens)}${e.to_conv ? ' → ' + e.to_conv : ''}.`
+        ? `Auto-handoff${trig}: ${e.from_conv} at ${fmtK(e.at_tokens)}${e.to_conv ? ' → ' + e.to_conv : ''}.`
         : `Auto-rollover notice: ${e.error}`);
     }
 
@@ -1024,11 +1036,34 @@
   };
   document.getElementById('btn-rollover').onclick = async () => {
     setStatus('Archiving session and opening fresh chat…');
-    const res = await callTool('ts_rollover_now', { workspace: lastState?.workspace, spawn_chat: true });
-    if (res && res.state) render(res.state);
-    setStatus(res && res.ok
-      ? `Archived and opened fresh chat${res.to_conv ? ' (' + res.to_conv.slice(0,8) + ')' : ''}.`
-      : ('Notice: ' + (res?.error || 'Could not start a new chat.')));
+    if (lastState && lastState.can_new_chat) {
+      const res = await callTool('ts_rollover_now', { workspace: lastState?.workspace, spawn_chat: true });
+      if (res && res.state) render(res.state);
+      setStatus(res && res.ok
+        ? `Archived and opened fresh chat${res.to_conv ? ' (' + res.to_conv.slice(0,8) + ')' : ''}.`
+        : ('Notice: ' + (res?.error || 'Could not start a new chat.')));
+      return;
+    }
+    const caps = (typeof app.getHostCapabilities === 'function' ? app.getHostCapabilities() : null) || {};
+    const snap = await callTool('ts_build_handoff', { workspace: lastState?.workspace, archive: true });
+    if (snap && snap.state) render(snap.state);
+    if (!snap || !snap.packet) {
+      setStatus('Notice: Could not build handoff packet.');
+      return;
+    }
+    if (caps.message && typeof app.sendMessage === 'function') {
+      try {
+        const sent = await app.sendMessage(
+          { role: 'user', content: [{ type: 'text', text: snap.packet }] },
+          { _meta: { 'com.google.antigravity/message': { target: 'new' } } }
+        );
+        const newId = sent?._meta?.['com.google.antigravity/message']?.conversationId || '';
+        setStatus(`Archived and opened fresh chat${newId ? ' (' + newId.slice(0,8) + ')' : ''} (~${snap.est_tokens || 0} tok).`);
+        return;
+      } catch (_) {}
+    }
+    await showOutput(snap.packet, `Archived handoff (~${snap.est_tokens || 0} tokens)`);
+    setStatus(`Archived & copied handoff (~${snap.est_tokens || 0} tok). Paste in New Chat, or open agy-tokensaver in a chat side pane (+) for 1-click New Chat — Auto-Handoff runs automatically on your next message.`);
   };
 
   function setUpdStatus(msg) {

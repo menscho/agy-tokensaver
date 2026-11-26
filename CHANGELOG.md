@@ -2,6 +2,21 @@
 
 All notable changes to **agy-tokensaver** (`menscho/agy-tokensaver`) are documented here.
 
+## [1.4.0] — 2026-11-27
+
+### Added
+- **PreInvocation Auto-Handoff & Turn-2 Termination (`hooks.json`, `scripts/pre_invocation_handoff.py`, `scripts/handoff_exec.py`):** runs at `invocationNum == 0` when the user sends a message — spawning the fresh continuation chat directly via `ConversationService` (`terminationBehavior: "terminate"`, 0 tokens spent) when `ANTIGRAVITY_LS_ADDRESS` is available (Path 1), or via a 1-step delegated `run_command` handoff (Path 2) that now **terminates Turn 2 immediately** via `user_markdown` right after `handoff_exec.py` completes (saving 100% of the old chat's second full-context reply turn).
+- **Mid-run cache-drop advisory & pre-swarm shield (`scripts/pre_invocation_handoff.py`):** warns once per 10m after a large (`>=75k`) mid-run KV drop to batch remaining calls and wrap up before the next TTL cliff, and rotates before heavy swarm/workflow/benchmark prompts (`>=55k` direct / `>=75k` delegated).
+- **Richer zero-re-read handoff packets (`scripts/handoff_pack.py`):** auto-detects the active git root from touched files, recovers full text from `transcript_full.jsonl` when truncated, preserves **both head and tail** (setup + final conclusions/metrics) on long assistant replies, and includes active plan steps, artifact checklists, key diff hunks, edited file symbol outlines, read line ranges, and cross-session verified repo commands.
+- **Side-pane (`aux_pane`) entrypoint (`mcp_app/server.py`, `mcp_app/dashboard.html`):** enables opening `agy-tokensaver` in a chat side pane alongside the global sidebar, with `app.sendMessage(..., {target: 'new'})` fallback when LS env vars are absent.
+
+### Changed & Fixed
+- **Honest Path 1 vs. Path 2 Auto-Handoff economics (`scripts/pre_invocation_handoff.py`, `scripts/handoff_exec.py`, `mcp_app/rollover.py`, `mcp_app/transcript_io.py`, `mcp_app/dashboard.html`, `scripts/post_invocation_alerts.py`):**
+  - Disables low-threshold `cold_cache` (`55k`) and `model_switch` (`45k`) triggers in Path 2 delegated mode (since Turn 0 still runs in the old chat and cannot avoid the cold rebuild), skips trivial short confirmations (`<=45` chars below `180k`), accounts for delegated overhead in `_compute_policy`, and aligns Neon's empirical cold-cache TTL cliff to `240s` (Hydrogen `60–90s`).
+  - Dashboard counterfactual replay and rollover telemetry automatically model Path 2 delegated cost whenever `hook_caps.json` shows `has_ls_addr: false`, and cold-cache alerts/banners advise using **Archive & New Chat** before resuming cold chats.
+- **Lowered unchanged-file dedup floor (`scripts/read_hook.py`):** lowered `DEDUPE_MIN_BYTES` from `4096` to `1536` bytes so repeated unchanged reads of `1.5–4 KB` files (`SKILL.md`, `hooks.json`, `pyproject.toml`, small hooks) are caught with zero quality loss.
+- **Deferred rule sync (`mcp_app/rules_sync.py`, `.gitignore`):** ignores runtime-generated `rules/AGENTS.md` in git and avoids unnecessary disk rewrites when state matches.
+
 ## [1.3.1] — 2026-11-25
 
 ### Fixed
