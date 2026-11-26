@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from config import APP_DIRS, AUTO_CAP_MIN, MOMENTUM_MIN_TURNS, MOMENTUM_WINDOW_SEC, SETTLE_GAP_SEC, W_CR, W_IN, W_OUT, _SIM_CFG, has_direct_handoff_cap, parse_iso_ts
-from rollover import RolloverTracker, _p_continue, _simulate_rollover_session
+from rollover import RolloverTracker, _simulate_rollover_session
 
 _tx_cache: dict[str, tuple[Any, dict[str, Any]]] = {}
 
