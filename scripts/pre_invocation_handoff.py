@@ -33,6 +33,7 @@ from hook_common import (
     get_int,
     get_str,
     hooks_disabled,
+    model_cache_profile,
     read_stdin_capped,
     safe_cid,
     script_plugin_root,
@@ -69,6 +70,7 @@ DELEGATED_HEAVY_MIN_CTX = 75_000
 DELEGATED_POST_DROP_MIN_CTX = 90_000
 DELEGATED_TRIVIAL_BYPASS_CTX = 180_000
 MIDRUN_ADVISORY_MIN_CTX = 75_000
+MODEL_ADVISORY_MIN_CTX = 40_000  # below this a cache miss is cheap; don't nag
 HIGH_CTX_FASTTRACK_CTX = 120_000
 HIGH_CTX_FASTTRACK_TURNS = 6
 COOLDOWN_BYPASS_CTX = 180_000
@@ -232,7 +234,8 @@ def _scan_transcript_state(tx_path: str) -> dict[str, Any] | None:
 
 
 def _compute_policy(
-    state: dict[str, Any], cfg: dict[str, Any], ttl_cliff: int = 150, delegated: bool = False
+    state: dict[str, Any], cfg: dict[str, Any], ttl_cliff: int = 150, delegated: bool = False,
+    ctx_cap: int | None = None,
 ) -> dict[str, Any]:
     base = COLD_START_TOK + REDISCOVERY_TAX_TOK + (DELEGATED_EXTRA_TOK if delegated else 0)
     wm = state.get("warm_miss") or []
@@ -241,7 +244,7 @@ def _compute_policy(
     tmode = str(cfg.get("threshold_mode", "auto"))
     drops = int(state.get("drops", 0))
     warm_turns = int(state.get("warm_turns", 0))
-    a, b = POLICY_DROP_PRIOR_SHORT_TTL if ttl_cliff <= 90 else POLICY_DROP_PRIOR
+    a, b = POLICY_DROP_PRIOR_SHORT_TTL if ttl_cliff <= 120 else POLICY_DROP_PRIOR
     p_drop = (drops + a) / (warm_turns + b)
     w = W_CR + min(0.5, p_drop) * (W_IN - W_CR)
 
@@ -252,6 +255,8 @@ def _compute_policy(
         h, m = float(POLICY_HORIZON_TURNS), POLICY_MARGIN
         cap_raw = (m * cost + h * w * cost) / (h * w + m * W_CR)
         cap = int(min(AUTO_CAP_MAX, max(AUTO_CAP_MIN, cap_raw)) // 1000 * 1000)
+        if ctx_cap and 0 < ctx_cap < cap:
+            cap = int(ctx_cap)  # Gemini 4: cache misses climb with context size
 
     ctx = int(state.get("ctx", 0))
     turns = int(state.get("turns", 0))
@@ -362,11 +367,11 @@ def _maybe_midrun_drop_advisory(dd: str, cid: str, tx: str, inv_num: int = 1) ->
     prev_tot = p_in + p_cr
     cur_tot = c_in + c_cr
     is_compaction = cur_tot < prev_tot * 0.80
-    is_hydro = "hydrogen" in c_m.lower()
-    ttl = 90 if is_hydro else 240
+    prof = model_cache_profile(c_m)
+    ttl = int(prof["ttl_sec"])
     is_real_drop = prev_tot >= MIDRUN_ADVISORY_MIN_CTX and c_in >= 40_000 and c_cr < prev_tot * 0.5 and not is_compaction
 
-    proactive_floor = 110_000 if is_hydro else 180_000
+    proactive_floor = int(prof["proactive_floor"])
     is_proactive = (
         not is_real_drop
         and not is_compaction
@@ -390,6 +395,38 @@ def _maybe_midrun_drop_advisory(dd: str, cid: str, tx: str, inv_num: int = 1) ->
     else:
         msg = f"[token-saver] High-context cache shield (~{cur_tot // 1000}k ctx; {ttl}s TTL). {advice}"
     emit_json({"injectSteps": [{"systemMessage": {"systemMessage": msg}}]})
+    return 0
+
+
+_MODEL_ADVICE = {
+    "orchestrator": "Orchestrator mode often misses the prompt cache between planner and worker turns. "
+                    "For long chats, picking Gemini 4 Neon directly has been reported to cut uncached input about 3x.",
+    "carbon": "Gemini 4 Carbon often misses the prompt cache, even on turns seconds apart. "
+              "For long chats, Gemini 4 Neon usually keeps the cache (~96-98% hits reported); High instead of XHigh also helps.",
+    "argon": "Gemini 4 Argon has shown 0% cache hits on long contexts in user reports. "
+             "For long chats, Gemini 4 Neon usually keeps the cache (~96-98% hits reported).",
+}
+
+
+def _maybe_model_advisory(dd: str, cid: str, prof: dict[str, Any], model: str, cur_ctx: int) -> int:
+    """Once per conversation, tell the USER (not the model: empty systemMessage = 0 prompt tokens)
+    that the selected model is known to drop its prompt cache, and which model keeps it."""
+    family = str(prof.get("family") or "")
+    advice = _MODEL_ADVICE.get(family)
+    if not advice or not cid or cur_ctx < MODEL_ADVISORY_MIN_CTX:
+        return _silent()
+    adv_dir = os.path.join(dd, "alerts")
+    marker = os.path.join(adv_dir, f"{safe_cid(cid)}.model_adv")
+    if os.path.isfile(marker):
+        return _silent()
+    try:
+        os.makedirs(adv_dir, exist_ok=True)
+        with open(marker, "w", encoding="utf-8") as fh:
+            fh.write(f"{int(time.time())}\t{family}\t{cur_ctx}\n")
+    except OSError:
+        return _silent()
+    md = f"**agy-tokensaver:** this chat is at ~{cur_ctx // 1000}k tokens on `{model or family}`. {advice}"
+    emit_json({"injectSteps": [{"systemMessage": {"systemMessage": "", "metadata": {"user_markdown": md}}}]})
     return 0
 
 
@@ -550,10 +587,11 @@ def main() -> int:
     hook_model = (get_str(doc, "modelName") or "").strip()
     last_ts = state.get("last_ts")
     idle_sec = max(0, int(now_ts - last_ts)) if isinstance(last_ts, (int, float)) else 0
-    is_hydrogen = "hydrogen" in (hook_model or last_model).lower()
-    ttl_cliff = 90 if is_hydrogen else 240
-    # Empirical cold cliff: Neon keeps ~90% warm hits through 150-240s; Hydrogen drops start ~60-90s.
-    cold_ttl = 90 if is_hydrogen else 240
+    cache_prof = model_cache_profile(hook_model or last_model)
+    # Empirical cold windows: Neon keeps ~90% warm hits through 150-240s; Hydrogen drops start ~60-90s;
+    # Carbon/Argon/Orchestrator lose the cache far sooner (docs/perf.md section 8).
+    ttl_cliff = int(cache_prof["ttl_sec"])
+    cold_ttl = ttl_cliff
     delegated = not bool(ls_addr)
 
     # In delegated mode (Path 2, no LS env), avoid interrupting trivial 1-turn confirmations/questions
@@ -597,7 +635,7 @@ def main() -> int:
         and _HEAVY_PHASE_RE.search(user_input)
     )
 
-    pol = _compute_policy(state, cfg, ttl_cliff=ttl_cliff, delegated=delegated)
+    pol = _compute_policy(state, cfg, ttl_cliff=ttl_cliff, delegated=delegated, ctx_cap=cache_prof["ctx_cap"])
     is_post_drop_trigger = bool(pol["post_drop_roll"])
     is_warm_trigger = bool(pol["warm_roll"])
 
@@ -608,7 +646,7 @@ def main() -> int:
         or is_post_drop_trigger
         or is_warm_trigger
     ):
-        return _silent()
+        return _maybe_model_advisory(dd, cid, cache_prof, hook_model or last_model, cur_ctx)
 
     # Instant-payback triggers (cold cache / model switch) and emergency/post-drop rotations
     # only enforce a 60s anti-burst guard; normal warm triggers respect cooldown_min.

@@ -102,7 +102,7 @@ def rollover_policy(feat: dict[str, Any] | None, cfg: dict[str, Any] | None = No
     drops = int(f.get("drops", 0))
     warm_turns = int(f.get("warm_turns", 0))
     ttl_cliff = int(f.get("ttl_cliff_sec") or 150)
-    a, b = POLICY_DROP_PRIOR_SHORT_TTL if ttl_cliff <= 90 else POLICY_DROP_PRIOR
+    a, b = POLICY_DROP_PRIOR_SHORT_TTL if ttl_cliff <= 120 else POLICY_DROP_PRIOR
     p_drop = (drops + a) / (warm_turns + b)
     w = W_CR + min(0.5, p_drop) * (W_IN - W_CR)
     p_cont = min(1.0, max(0.0, float(f.get("p_continue", cfg.get("p_continue", 1.0)))))
@@ -124,6 +124,13 @@ def rollover_policy(feat: dict[str, Any] | None, cfg: dict[str, Any] | None = No
             reason = (f"Auto {cap // 1000}k: rollover costs ~{cost // 1000}k uncached; with "
                       f"{drops} cache drop(s) in {warm_turns} warm turns (~{p_drop * 100:.1f}%/turn) it pays back "
                       f"{m:g}x within {h:.0f} expected turns above {cap // 1000}k.")
+        ctx_cap = f.get("ctx_cap")
+        # Gemini 4 misses climb with context size, which the per-turn drop prior does not model, so the
+        # cap also applies when the cost model alone would pause (the live hook does the same). It does
+        # not override a pause caused by this user rarely continuing long chats.
+        if isinstance(ctx_cap, int) and 0 < ctx_cap < cap and (not paused or p_cont >= 0.5):
+            cap, paused = ctx_cap, False
+            reason = f"Auto {cap // 1000}k: capped for Gemini 4, whose cache misses climb above {cap // 1000}k."
     ctx = int(f.get("ctx", 0))
     gain_turn = w * max(0, ctx - cost)
     be = (cost - W_CR * ctx) / gain_turn if gain_turn > 0 else None
@@ -155,6 +162,7 @@ def _simulate_rollover_session(
     on_user_turn: bool = False,
     cold_min_ctx: int = COLD_MIN_CTX,
     delegated: bool = False,
+    ctx_cap: int | None = None,
 ) -> Any:
     """
     Causal counterfactual: replays the session generation by generation and lets `rollover_policy`
@@ -228,8 +236,10 @@ def _simulate_rollover_session(
         sim_cr += tc
         conv.push(int(ti), int(tc), out)
         c_feat = conv.features()
-        if ttl_cliff <= 90:
+        if ttl_cliff <= 120:
             c_feat["ttl_cliff_sec"] = ttl_cliff
+        if ctx_cap:
+            c_feat["ctx_cap"] = int(ctx_cap)
         pol_cold = cold_start + (DELEGATED_EXTRA_TOK if delegated else 0)
         eff_pcfg = pcfg
         if on_user_turn and conv.ctx >= 120_000 and int(str(pcfg.get("min_turns", 10))) > 6:
@@ -241,7 +251,7 @@ def _simulate_rollover_session(
             is_settled_now = False
         # Causal Cold-Cache Auto-Handoff: only yields Turn-0 payback in Direct mode (not delegated Path 2).
         g_after = gaps[idx] if (gaps is not None and idx < len(gaps)) else None
-        cold_ttl = ttl_cliff if ttl_cliff <= 90 else 240
+        cold_ttl = ttl_cliff if ttl_cliff <= 120 else 240
         cold_roll = bool(
             not delegated
             and is_settled_now
@@ -333,6 +343,8 @@ def compute_adaptive_threshold(active: dict[str, Any] | None, cfg: dict[str, Any
         feat = {**feat, "p_continue": active["p_continue"]}
     if active.get("ttl_cliff_sec"):
         feat = {**feat, "ttl_cliff_sec": active["ttl_cliff_sec"]}
+    if active.get("ctx_cap"):
+        feat = {**feat, "ctx_cap": int(active["ctx_cap"])}
     return rollover_policy(feat, cfg)
 
 

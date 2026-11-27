@@ -590,6 +590,84 @@ class TestMcpAppModules(unittest.TestCase):
         self.assertFalse(inst.seed_fresh_install_config(pdir, ddir, log=logs.append))
         self.assertEqual(self.config.load_config()["profile"], "auto_handoff")
 
+    def test_model_cache_profiles_match_and_cap_gemini4(self) -> None:
+        import hook_common
+        import pre_invocation_handoff as pih
+
+        names = [
+            "gemini-4-neon-high", "Gemini 4 Neon (XHigh)", "gemini-4-hydrogen-low", "gemini-4-carbon-high",
+            "gemini-4-argon-medium", "gemini-pro-orchestrator-neon", "gemini-pro-orchestrator", "gemini-3.8-flash",
+            "claude-opus-5-5-medium", "",
+        ]
+        for n in names:
+            self.assertEqual(hook_common.model_cache_profile(n), self.config.model_cache_profile(n), n)
+        neon = hook_common.model_cache_profile("gemini-4-neon-high")
+        self.assertEqual((neon["ttl_sec"], neon["ctx_cap"], neon["volatile"]), (240, 180_000, False))
+        self.assertEqual(hook_common.model_cache_profile("gemini-4-hydrogen-high")["ttl_sec"], 90)
+        orch = hook_common.model_cache_profile("gemini-pro-orchestrator-neon")
+        self.assertEqual((orch["family"], orch["volatile"], orch["ttl_sec"]), ("orchestrator", True, 120))
+        self.assertIsNone(hook_common.model_cache_profile("claude-opus-5-5-medium")["ctx_cap"])
+
+        # Live hook policy: a chat whose warm-up turns miss the cache (typical on Carbon/Argon) makes a
+        # rollover look expensive, so the auto threshold drifts to AUTO_CAP_MAX; Gemini 4 caps at 180k.
+        state = {"ctx": 190_000, "turns": 30, "drops": 0, "warm_turns": 400, "warm_miss": [1.0, 1.0, 1.0]}
+        cfg = {"threshold_mode": "auto", "min_turns": 10}
+        free = pih._compute_policy(state, cfg, ttl_cliff=240, delegated=False)
+        capped = pih._compute_policy(state, cfg, ttl_cliff=240, delegated=False, ctx_cap=180_000)
+        self.assertGreater(free["cap"], 180_000)
+        self.assertFalse(free["warm_roll"])
+        self.assertEqual(capped["cap"], 180_000)
+        self.assertTrue(capped["warm_roll"])
+        manual = pih._compute_policy(state, {"threshold_mode": "200", "min_turns": 10}, ctx_cap=180_000)
+        self.assertEqual(manual["cap"], 200_000, "a manual threshold is the user's choice and is never capped")
+
+        # Dashboard / replay policy uses the same cap
+        feat = {"ctx": 190_000, "turns": 30, "drops": 0, "warm_turns": 400, "warm_miss": [1.0, 1.0, 1.0], "p_continue": 1.0}
+        pol_free = self.rollover.rollover_policy(feat, cfg)
+        pol_cap = self.rollover.rollover_policy({**feat, "ctx_cap": 180_000}, cfg)
+        self.assertGreater(pol_free["cap"], 180_000)
+        self.assertEqual(pol_cap["cap"], 180_000)
+        self.assertIn("Gemini 4", pol_cap["reason"])
+
+    def test_volatile_model_advisory_is_user_only_and_once(self) -> None:
+        import hook_common
+        import pre_invocation_handoff as pih
+
+        dd = str(self.tmp / "pdata")
+        emitted: list[dict[str, object]] = []
+        carbon = hook_common.model_cache_profile("gemini-4-carbon-high")
+        neon = hook_common.model_cache_profile("gemini-4-neon-high")
+        with mock.patch.object(pih, "emit_json", side_effect=emitted.append):
+            self.assertEqual(pih._maybe_model_advisory(dd, "c1", neon, "gemini-4-neon-high", 150_000), 0)
+            self.assertEqual(emitted, [], "Neon keeps its cache: no advisory")
+            pih._maybe_model_advisory(dd, "c1", carbon, "gemini-4-carbon-high", 20_000)
+            self.assertEqual(emitted, [], "small chats: a miss is cheap, no advisory")
+            pih._maybe_model_advisory(dd, "c1", carbon, "gemini-4-carbon-high", 150_000)
+            pih._maybe_model_advisory(dd, "c1", carbon, "gemini-4-carbon-high", 160_000)
+        self.assertEqual(len(emitted), 1, "once per conversation")
+        sm = emitted[0]["injectSteps"][0]["systemMessage"]  # type: ignore[index]
+        self.assertEqual(sm["systemMessage"], "", "0 prompt tokens: the note goes to the user only")
+        self.assertIn("Neon", sm["metadata"]["user_markdown"])
+
+    def test_run_checks_cache_safe_budget(self) -> None:
+        import fast_checks as fc
+        import fast_utils as fu
+
+        seen: list[int] = []
+
+        def fake_run(cmd: str, cwd: str, timeout_ms: int) -> object:
+            seen.append(timeout_ms)
+            return fu.ExecResult(exit_code=0, sig=None, timed_out=False, stdout="ok", stderr="", truncated=False, duration_ms=5, error=None)
+
+        with mock.patch.object(fc, "run_shell_command", side_effect=fake_run):
+            fc.run_checks({"cwd": str(self.tmp), "commands": ["a", "b"]})
+            fc.run_checks({"cwd": str(self.tmp), "commands": [{"command": "slow", "timeoutSec": 120}]})
+            fc.run_checks({"cwd": str(self.tmp), "commands": ["c"], "timeoutSec": 150, "budgetSec": 30})
+        self.assertEqual(fc.CACHE_SAFE_BUDGET_SEC, 90)
+        self.assertEqual(seen[:2], [60_000, 60_000])
+        self.assertGreater(seen[2], 110_000, "a command is never cut before its own timeoutSec")
+        self.assertGreater(seen[3], 140_000, "budget never undercuts the longest requested timeout")
+
     def test_rollover_parses_nested_agentapi_conversation_id(self) -> None:
         import snapshots as sn
 

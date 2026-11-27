@@ -2,6 +2,18 @@
 
 All notable changes to **agy-tokensaver** (`menscho/agy-tokensaver`) are documented here.
 
+## [1.6.0] — 2026-11-27
+
+Gemini 4 cache protection, based on user telemetry about Gemini 4 prompt-cache misses (sources in [docs/perf.md section 8](docs/perf.md#8-gemini-4-cache-behaviour-external-reports-and-how-the-plugin-uses-it)).
+
+### Added
+- **Per-model cache profiles (`scripts/hook_common.py`, `mcp_app/config.py`).** Hydrogen 90 s, Neon 240 s, Carbon / Argon / Orchestrator 120 s cold windows; the volatile models also use the higher drop prior. Previously every non-Hydrogen model was treated like Neon.
+- **180k Auto-Handoff cap for Gemini 4 (`scripts/pre_invocation_handoff.py`, `mcp_app/rollover.py`).** Reported zero-hit rates on Neon High climb from 10% at 50–100k to ~65% at 300–500k. The cap only applies to the automatic threshold, which otherwise drifts up to 220k on chats whose warm-up turns miss the cache.
+- **One-time model note for Carbon, Argon and Orchestrator.** Once per chat above 40k tokens, the user (not the model; 0 prompt tokens) is told that this model often loses its prompt cache and that Gemini 4 Neon usually keeps it.
+
+### Changed
+- **`run_checks` returns after 90 s by default (was 150 s).** Commands that could not start come back as NOT RUN for the next call; `budgetSec` raises the budget up to 150 s; no command is stopped before its own `timeoutSec`.
+
 ## [1.5.3] — 2026-11-27
 
 Fresh installs start in Max mode, the best measured setting, and the docs now separate measured results from estimates.

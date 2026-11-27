@@ -2,7 +2,7 @@
 
 Sections 1–6 come from running commands in this repository (`eval/runner.py` and `scripts/benchmark.py`). Live end-to-end runs measure actual completion and API token usage; transcript replay numbers are **counterfactual replay estimates** assuming unchanged post-handoff trajectories (`+6k` re-read tax per rollover). Section 7 is a **model, not a measurement**.
 
-Sections 1–3 were measured on v1.5.0, before the batched tools and the startup snapshot existed. The Max rules have since gained a batching rule. A live A/B of v1.5.3 (`python3 eval/runner.py --driver agentapi --modes off,default,max ...`, see [eval/README.md](../eval/README.md)) is the next measurement to run.
+Sections 1–3 were measured on v1.5.0, before the batched tools and the startup snapshot existed. The Max rules have since gained a batching rule. A live A/B of v1.6.0 (`python3 eval/runner.py --driver agentapi --modes off,default,max ...`, see [eval/README.md](../eval/README.md)) is the next measurement to run.
 
 ![Real-Session Replay Estimate Chart](assets/benchmark-chart.svg)
 
@@ -126,4 +126,21 @@ This section is a **model**. It was computed once by hand for v1.5.2 and no scri
 | Long 3-task session (one cache drop + Auto-Handoff) | 42 → 18 | 132.2k → 29.4k | −77.8% | 198.2 s → 89.6 s |
 
 These are far larger than anything measured live so far (best: −9.0% cost for Max on the hard suite). The gap is the turn-count assumption: if the agent batches less than modelled, the savings shrink toward the measured numbers.
+
+## 8. Gemini 4 Cache Behaviour (External Reports) and How the Plugin Uses It
+
+These numbers come from user telemetry posted in November 2026, not from this repository's measurements. Google has not published a cache TTL or confirmed a root cause. The plugin uses them as conservative defaults (`model_cache_profile` in `scripts/hook_common.py`, mirrored in `mcp_app/config.py`).
+
+| Finding (reported) | Source | What the plugin does |
+| :--- | :--- | :--- |
+| Neon High, after Google's Nov 21 fix: share of calls with zero cache read rises with context, 10% at 50–100k, ~29% at 100–250k, 43% at 250–300k, ~65% at 300–500k. Zero-hit calls were ~93% of uncached input. | [Forum, Nov 22](https://discuss.ai.google.dev/t/gemini-4-neon-high-cache-misses-on-unchanged-prefix-still-burn-quota-after-nov-21-fix-data-from-nov-22/203824) | Auto-Handoff threshold for every Gemini 4 model is capped at **180k**. A manual threshold is never capped. |
+| Carbon High hit rate by idle gap: 98% under 1 min, 83% at 1–3 min, 74% at 3–5 min, 39% at 5–8 min, 0% over 15 min. One 46-call turn cost ~5.5× the cached cost. | [Forum, Nov 19](https://discuss.ai.google.dev/t/telemetry-bug-report-why-antigravity-weekly-quotas-burn-so-fast-gemini-4-carbon-high-mid-turn-cache-collapse-5-5x-cost-5-min-implicit-cache-cliff/202768) | Carbon, Argon and Orchestrator get a 120 s cold window (Neon 240 s, Hydrogen 90 s) and the higher short-TTL drop prior. |
+| Carbon and Argon: 0% hits on an identical 120k prefix 21–22 s apart, while Neon got ~98%. | [Forum, Nov 20](https://discuss.ai.google.dev/t/ultra-feedback-telemetry-0-cache-hit-rate-on-carbon-argon-120k-tokens-21s-interval-vs-98-on-neon-unacceptable-quota-drain-for-long-context-workflows/203048) | Once per chat above 40k tokens, a note to the **user** (0 prompt tokens) suggests Gemini 4 Neon for long chats. |
+| Orchestrator (Carbon or Neon): 42% hits at 34–55 s gaps; pinning Neon directly was reported to cut uncached input ~3×. | [antigravity-cli #1638](https://github.com/google-antigravity/antigravity-cli/issues/1638) | Same one-time user note, worded for Orchestrator mode. |
+| Byte-identical prefixes still occasionally read 0 cache; reporters suspect server-side shard routing. XHigh → High helped one user. | [antigravity-cli #1533](https://github.com/google-antigravity/antigravity-cli/issues/1533) | Carbon note mentions High instead of XHigh. |
+| Each tool call passes a sequential remote safety check (1.3–1.8 s), stretching the gap between model requests. | [#1533](https://github.com/google-antigravity/antigravity-cli/issues/1533), [agy-fast analysis](https://github.com/INK-Q/agy-fast/blob/main/docs/ANALYSIS_REPORT.md) | `run_checks` now returns after **90 s** by default (was 150 s), so a long batch cannot leave the cache idle for 2.5 minutes. Commands that did not start come back as NOT RUN for the next call, `budgetSec` raises the budget up to 150 s, and no command is stopped before its own `timeoutSec`. |
+
+**When the 180k cap matters.** The automatic threshold usually sits near 75k. It drifts toward 220k when a chat's first turns miss the cache, because a handoff then looks expensive. That is the Carbon/Argon/Orchestrator pattern, and the cap stops it there.
+
+**What is not measured yet.** The local replays in sections 3 and 6 predate Gemini 4, so they do not change. A live A/B on Gemini 4 is needed to put numbers on these three changes.
 

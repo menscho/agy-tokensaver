@@ -2,7 +2,7 @@
 
 <p align="left">
   <a href="https://github.com/menscho/agy-tokensaver/actions/workflows/test.yml"><img src="https://github.com/menscho/agy-tokensaver/actions/workflows/test.yml/badge.svg" alt="CI"/></a>
-  <a href="https://github.com/menscho/agy-tokensaver/releases"><img src="https://img.shields.io/badge/release-v1.5.3-4ade80?style=flat-square&labelColor=0d0d11" alt="Release v1.5.3"/></a>
+  <a href="https://github.com/menscho/agy-tokensaver/releases"><img src="https://img.shields.io/badge/release-v1.6.0-4ade80?style=flat-square&labelColor=0d0d11" alt="Release v1.6.0"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-8e8e98?style=flat-square&labelColor=0d0d11" alt="MIT"/></a>
 </p>
 
@@ -12,14 +12,15 @@ It needs Python 3.9 or newer and nothing else: no packages, no Node, no Perl. [`
 
 ## How it saves
 
-The plugin works on four parts of the bill at once.
+The plugin works on five parts of the bill at once.
 
 | Lever | What it does | Mainly helps |
 | :--- | :--- | :--- |
 | **Fewer turns** | Five batched tools let the agent do in one call what normally takes several: search 20 patterns, outline 40 files, edit 50 files, or run 12 checks. A startup snapshot of the repo (git state, project files, folder layout, under 1.5 KB) saves the usual `ls` / `git status` turns. | Speed and cost in every chat |
 | **Smaller tool output** | Guards block reads of lockfiles, binaries and generated files, skip re-reads of files the agent already has, cap huge reads and logs, and fold long passing test output into a one-line summary. | Context size |
 | **Shorter replies** | In Max mode, four short rules ask the agent to batch calls, edit files instead of rewriting them, and skip filler. Output tokens are 30–45% of the bill on recorded sessions. | Cost |
-| **Fresh chats** | Auto-Handoff watches each chat's size and cache state. When a chat gets too long or its prompt cache has expired, it opens a new chat with a short handoff note (goal, current state, changed files, errors, test commands) and archives the old one. | Cost on long chats |
+| **Fresh chats** | Auto-Handoff watches each chat's size and cache state. When a chat gets too long or its prompt cache has expired, it opens a new chat with a short handoff note (goal, current state, changed files, errors, test commands) and archives the old one. On Gemini 4 it never lets a chat grow past 180k, where cache misses climb sharply. | Cost on long chats |
+| **Cache protection** | Knows how each Gemini 4 model keeps its prompt cache (Neon well, Carbon, Argon and Orchestrator poorly, per user reports) and tells you once when a long chat runs on a model that keeps losing it. `run_checks` returns within 90 s so long check batches don't let the cache go cold. | Cost and speed on Gemini 4 |
 
 Native `run_command` calls and their output are never changed.
 
@@ -47,7 +48,7 @@ Each guarded tool call adds one hook run: 50–90 ms in CI (Linux, macOS, Window
 
 ## Install and remove
 
-Download `agy-tokensaver-v1.5.3.zip` from [Releases](https://github.com/menscho/agy-tokensaver/releases), extract it, and run the installer:
+Download `agy-tokensaver-v1.6.0.zip` from [Releases](https://github.com/menscho/agy-tokensaver/releases), extract it, and run the installer:
 
 - **Windows:** double-click `Install-TokenSaver.bat`
 - **macOS:** double-click `Install-TokenSaver.command`

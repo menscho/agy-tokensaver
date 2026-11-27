@@ -80,7 +80,14 @@ def _format_cmd_header_prefix(hdr: str, cmd: str, char_share: int, byte_share: i
     return f"{hdr}\n$ {disp}\n"
 
 
-def run_checks(args: dict[str, Any], budget_ms: int = MCP_CALL_BUDGET_SEC * 1000) -> dict[str, Any]:
+# Default shared call budget. A call that blocks for 150 s leaves the next model request 150 s
+# after the last one, and Gemini 4 prompt-cache hit rates fall well before that (docs/perf.md
+# section 8). 90 s returns sooner; commands that did not start are reported as NOT RUN for the next
+# call, and no command is ever stopped before its own timeoutSec.
+CACHE_SAFE_BUDGET_SEC = 90
+
+
+def run_checks(args: dict[str, Any], budget_ms: int | None = None) -> dict[str, Any]:
     raw_cmds = args.get("commands")
     ok, kind, payload = parse_maybe_json_array(raw_cmds)
     if not ok:
@@ -166,6 +173,10 @@ def run_checks(args: dict[str, Any], budget_ms: int = MCP_CALL_BUDGET_SEC * 1000
         nm = str(spec.get("name") or "").strip() or f"check-{i + 1}"
         norm_cmds.append(_NormCmd(i, nm, cmd_str.strip(), cmd_cwd, t_sec * 1000))
 
+    if budget_ms is None:
+        budget_sec = clamp_int(args.get("budgetSec"), 1, MCP_CALL_BUDGET_SEC, CACHE_SAFE_BUDGET_SEC)
+        longest_sec = max((c.timeout_ms for c in norm_cmds), default=0) // 1000
+        budget_ms = min(MCP_CALL_BUDGET_SEC, max(budget_sec, longest_sec)) * 1000
     safe_budget_ms = max(100, int(budget_ms)) if budget_ms > 0 else MCP_CALL_BUDGET_SEC * 1000
     wall_start = time.monotonic()
     deadline = wall_start + safe_budget_ms / 1000.0

@@ -6,7 +6,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from config import APP_DIRS, AUTO_CAP_MIN, MOMENTUM_MIN_TURNS, MOMENTUM_WINDOW_SEC, SETTLE_GAP_SEC, W_CR, W_IN, W_OUT, _SIM_CFG, has_direct_handoff_cap, parse_iso_ts
+from config import APP_DIRS, AUTO_CAP_MIN, MOMENTUM_MIN_TURNS, MOMENTUM_WINDOW_SEC, SETTLE_GAP_SEC, W_CR, W_IN, W_OUT, _SIM_CFG, has_direct_handoff_cap, model_cache_profile, parse_iso_ts
 from rollover import RolloverTracker, _simulate_rollover_session
 
 _tx_cache: dict[str, tuple[Any, dict[str, Any]]] = {}
@@ -299,7 +299,9 @@ def _build_session_record(sid: str, app_name: str, tx: Path | None, db: Path | N
     hi_cont = sum(1 for k in hi_pts if k < turns - 1)
 
     feat = tracker.features()
-    ttl_cliff = 90 if "hydrogen" in last_model.lower() else 240
+    cache_prof = model_cache_profile(last_model)
+    ttl_cliff = int(cache_prof["ttl_sec"])
+    ctx_cap = cache_prof["ctx_cap"]
     gaps: list[float | None] = []
     for k in range(turns):
         m0 = meta[k] if k < len(meta) else None
@@ -320,6 +322,7 @@ def _build_session_record(sid: str, app_name: str, tx: Path | None, db: Path | N
         ttl_cliff=ttl_cliff,
         on_user_turn=True,
         delegated=not has_direct_handoff_cap(),
+        ctx_cap=ctx_cap,
     )
     ub_in, ub_cr, ub_rollovers = _simulate_rollover_session(turn_tuples, None, gaps=gaps, ttl_cliff=ttl_cliff)
 
@@ -353,6 +356,9 @@ def _build_session_record(sid: str, app_name: str, tx: Path | None, db: Path | N
         "last_ts": last_ts,
         "turn_timestamps": stamps[-30:],
         "ttl_cliff_sec": ttl_cliff,
+        "ctx_cap": ctx_cap,
+        "model_family": cache_prof["family"],
+        "model_volatile": bool(cache_prof["volatile"]),
         "cache_burn_per_turn": int((cur_in + cur_cr) * W_CR),
         "actual_quota": actual_quota,
         "uncached_baseline_quota": uncached_baseline_quota,

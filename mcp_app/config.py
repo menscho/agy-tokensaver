@@ -4,6 +4,7 @@ from __future__ import annotations
 import datetime
 import json
 import os
+import re
 import threading
 from pathlib import Path
 from typing import Any
@@ -288,6 +289,35 @@ POLICY_HORIZON_TURNS = 12       # assumed remaining turns once a chat is past mi
 POLICY_MARGIN = 1.5             # required gain / cost ratio over that horizon
 POLICY_DROP_PRIOR = (0.5, 20)   # Beta-ish prior: 0.5 TTL drops per 20 warm turns (~2.5%/turn)
 POLICY_DROP_PRIOR_SHORT_TTL = (1.2, 16)  # Hydrogen 60-90s TTL cliff suffers higher mid-run drop rate (~7.5%/turn)
+
+# Per-model prompt-cache behaviour (keep identical to scripts/hook_common.py; unit-tested).
+# Gemini 4 cache misses climb with context size, so long Gemini 4 chats are capped at 180k;
+# Carbon, Argon and the Orchestrator drop the cache far more often (docs/perf.md section 8).
+GEMINI4_CTX_CAP = 180_000
+_MODEL_FAMILY_RE = re.compile(r"(orchestrator|carbon|argon|neon|hydrogen)", re.I)
+
+
+def model_cache_profile(model: str) -> dict[str, Any]:
+    m = (model or "").lower()
+    hit = _MODEL_FAMILY_RE.search(m)
+    family = "orchestrator" if "orchestrator" in m else (hit.group(1) if hit else "other")
+    volatile = family in ("orchestrator", "carbon", "argon")
+    if family == "hydrogen":
+        ttl = 90
+    elif volatile:
+        ttl = 120
+    else:
+        ttl = 240
+    return {
+        "family": family,
+        "gemini4": family != "other",
+        "volatile": volatile,
+        "ttl_sec": ttl,
+        "short_ttl": ttl <= 120,
+        "ctx_cap": GEMINI4_CTX_CAP if family != "other" else None,
+        "proactive_floor": 110_000 if ttl <= 120 else 180_000,
+    }
+
 AUTO_CAP_MIN = 75_000
 AUTO_CAP_MAX = 220_000
 COLD_MIN_CTX = 55_000

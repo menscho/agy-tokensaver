@@ -263,7 +263,7 @@ FAST_TOOL_DEFS: dict[str, dict[str, Any]] = {
         "title": "Concurrent Checks Runner",
         "description": (
             f"Batch >=2 independent non-interactive shell commands concurrently (1-12 cmds; concurrency 1-8 default 4; "
-            f"shared {MCP_CALL_BUDGET_SEC}s budget). outputMode 'compact' (default) collapses PASS & folds failures; 'full' keeps stdout. <=8800B UTF-8 max."
+            f"shared 90s call budget, budgetSec up to {MCP_CALL_BUDGET_SEC}; unstarted cmds return NOT RUN). outputMode 'compact' (default) collapses PASS & folds failures; 'full' keeps stdout. <=8800B UTF-8 max."
         ),
         "inputSchema": {
             "type": "object",
@@ -286,6 +286,7 @@ FAST_TOOL_DEFS: dict[str, dict[str, Any]] = {
                 },
                 "concurrency": {"type": "integer", "minimum": 1, "maximum": 8},
                 "timeoutSec": {"type": "integer", "minimum": 1, "maximum": MCP_CALL_BUDGET_SEC},
+                "budgetSec": {"type": "integer", "minimum": 1, "maximum": MCP_CALL_BUDGET_SEC},
                 "outputMode": {"type": "string", "enum": ["compact", "full"]},
                 "maxChars": {"type": "integer", "minimum": 500, "maximum": 8800},
             },

@@ -19,6 +19,38 @@ _OFF_RE = re.compile(r"^(?:0|off|false|disabled)$", re.I)
 _MODE_OFF_RE = re.compile(r'"mode"\s*:\s*"off"', re.I)
 
 
+# Per-model prompt-cache behaviour (keep identical to mcp_app/config.py; unit-tested).
+# Sources: docs/perf.md section 8. Gemini 4 misses climb with context size (Neon High after the
+# Nov 21 fix: 10% zero-hit calls at 50-100k, ~29% at 100-250k, 43% at 250-300k, ~65% at 300-500k),
+# so long Gemini 4 chats are capped at 180k. Carbon, Argon and the Orchestrator drop the cache far
+# more often (0-42% hit rates reported at 21-55 s gaps), so they get a short cold window and a
+# higher drop prior.
+GEMINI4_CTX_CAP = 180_000
+_MODEL_FAMILY_RE = re.compile(r"(orchestrator|carbon|argon|neon|hydrogen)", re.I)
+
+
+def model_cache_profile(model: str) -> dict[str, Any]:
+    m = (model or "").lower()
+    hit = _MODEL_FAMILY_RE.search(m)
+    family = "orchestrator" if "orchestrator" in m else (hit.group(1) if hit else "other")
+    volatile = family in ("orchestrator", "carbon", "argon")
+    if family == "hydrogen":
+        ttl = 90
+    elif volatile:
+        ttl = 120
+    else:
+        ttl = 240
+    return {
+        "family": family,
+        "gemini4": family != "other",
+        "volatile": volatile,
+        "ttl_sec": ttl,
+        "short_ttl": ttl <= 120,
+        "ctx_cap": GEMINI4_CTX_CAP if family != "other" else None,
+        "proactive_floor": 110_000 if ttl <= 120 else 180_000,
+    }
+
+
 def script_plugin_root(script_file: str) -> str:
     pr = os.environ.get("PLUGIN_ROOT", "")
     if pr:
