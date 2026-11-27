@@ -486,12 +486,12 @@
         <div class="row">
           <div class="row-info">
             <div class="row-title">Optimization Mode</div>
-            <div class="row-desc" id="profile-desc">Auto-Handoff + Read Guards (Default): starts a fresh chat with a handoff packet above cap and blocks lockfile/duplicate reads (0 tok/turn prompt overhead).</div>
+            <div class="row-desc" id="profile-desc">Max (Recommended): Auto-Handoff, all guards, compact reads, and short rules that make the agent batch tool calls and reply concisely.</div>
           </div>
           <select id="sel-profile" aria-label="Optimization mode">
-            <option value="auto_handoff">Auto-Handoff + Read Guards (Default · Starts new chats)</option>
+            <option value="small_loss">Max (Recommended · Handoff + Compact Reads + Batching rules)</option>
+            <option value="auto_handoff">Auto-Handoff + Read Guards (Lossless · No prompt rules)</option>
             <option value="handoff_only">Auto-Handoff + Compact Reads (Tighter 120L/80L file caps)</option>
-            <option value="small_loss">Max (Auto-Handoff + Compact Reads + Concise Replies)</option>
             <option value="zero_loss">Guards Only (Same chat · Archive snapshots only)</option>
             <option value="compact_reads">Guards + Compact Reads (Same chat · 120L/80L caps)</option>
             <option value="off">Off (Pause hooks and auto-handoff)</option>
@@ -516,7 +516,7 @@
         <div class="row">
           <div class="row-info">
             <div class="row-title">Startup Snapshot (SessionStart)</div>
-            <div class="row-desc">Injects a &le;1.5 KB git, manifest, and 2-level layout snapshot once per session (&lt;50 ms) to skip cold-start exploration turns.</div>
+            <div class="row-desc">Injects a &le;1.5 KB git, manifest, and 2-level layout snapshot once per session (250 ms scan limit) to skip cold-start exploration turns.</div>
           </div>
           <select id="sel-snap" aria-label="Startup snapshot">
             <option value="on">On (Recommended)</option>
@@ -610,7 +610,7 @@
       <div class="box">
         <div class="row">
           <div class="row-info">
-            <div class="row-title" id="upd-headline">agy-tokensaver v1.5.2</div>
+            <div class="row-title" id="upd-headline">agy-tokensaver v1.5.3</div>
             <div class="row-desc" id="upd-sub">Up to date · all statistics and archive entries are preserved across updates</div>
           </div>
           <div class="actions">
@@ -651,7 +651,7 @@
 
     <section class="section">
       <div class="section-head">
-        <span class="section-title" id="chg-title">Release Notes (v1.5.2)</span>
+        <span class="section-title" id="chg-title">Release Notes (v1.5.3)</span>
         <span class="section-note" id="chg-date">Latest changes</span>
       </div>
       <div class="box">
@@ -729,9 +729,9 @@
 
     // Controls
     const PROFILE_DESCS = {
-      auto_handoff: 'Auto-Handoff + Read Guards (Default): starts a fresh chat with a handoff packet when long or cold, plus duplicate/lockfile/loop guards (0 tok/turn tax).',
+      auto_handoff: 'Auto-Handoff + Read Guards (Lossless): starts a fresh chat with a handoff packet when long or cold, plus duplicate/lockfile/loop guards. Adds no prompt rules.',
       handoff_only: 'Auto-Handoff + Compact Reads: adds tighter unbounded read caps (120L/80L) and oversized screenshot downscaling.',
-      small_loss: 'Max (Opt-in): Auto-Handoff + Compact Reads + concise-reply and targeted-edit rules in rules/AGENTS.md.',
+      small_loss: 'Max (Recommended): Auto-Handoff + Compact Reads + rules/AGENTS.md telling the agent to batch tool calls, edit instead of rewrite, and reply concisely. Best measured cost.',
       zero_loss: 'Guards Only (Same Chat): keeps the same chat, saves archive snapshots, and blocks lockfiles/duplicate reads.',
       compact_reads: 'Guards + Compact Reads (Same Chat): tighter file caps without automatic chat resets.',
       off: 'Off: hooks pass through untouched and automatic chat resets are paused.'

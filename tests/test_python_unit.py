@@ -563,6 +563,33 @@ class TestMcpAppModules(unittest.TestCase):
         self.assertEqual(rc_bad, 1)
         self.assertTrue(any("Fix:" in ln for ln in lines_bad))
 
+    def test_installer_seeds_max_profile_only_on_fresh_install(self) -> None:
+        sys.path.insert(0, str(ROOT))
+        import hook_common
+        import install as inst
+
+        pdir = self.tmp / "fresh_pdir"
+        (pdir / "mcp_app").mkdir(parents=True)
+        for name in ("rules_sync.py", "config.py"):
+            (pdir / "mcp_app" / name).write_bytes((ROOT / "mcp_app" / name).read_bytes())
+        ddir = self.tmp / "pdata"
+
+        logs: list[str] = []
+        self.assertTrue(inst.seed_fresh_install_config(pdir, ddir, log=logs.append))
+        cfg = self.config.load_config()
+        self.assertEqual(cfg["profile"], "small_loss")
+        self.assertTrue(cfg["compact_reads"] and cfg["concise_output"] and cfg["startup_snapshot"])
+        self.assertEqual(cfg["mode"], "smart_auto")
+        self.assertTrue(hook_common.read_compact_reads(str(pdir)), "hooks must see the same compact_reads setting")
+        agents_md = pdir / "rules" / "AGENTS.md"
+        self.assertEqual(agents_md.read_bytes().decode("utf-8"), self.rules_sync._RULES_TEXT)
+        self.assertTrue(any("Max mode" in ln for ln in logs))
+
+        # A saved choice is never overwritten
+        self.config.save_config({"profile": "auto_handoff"})
+        self.assertFalse(inst.seed_fresh_install_config(pdir, ddir, log=logs.append))
+        self.assertEqual(self.config.load_config()["profile"], "auto_handoff")
+
     def test_rollover_parses_nested_agentapi_conversation_id(self) -> None:
         import snapshots as sn
 

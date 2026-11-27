@@ -47,6 +47,61 @@ def read_version(root: Path) -> str | None:
         return None
 
 
+# Fresh installs start in Max: best measured cost and pass rate (docs/perf.md, live hard suite).
+# Existing hud_config.json files are never touched, so updates keep the user's chosen mode.
+FRESH_INSTALL_CONFIG = {
+    "profile": "small_loss",
+    "mode": "smart_auto",
+    "auto_rollover": True,
+    "compact_reads": True,
+    "concise_output": True,
+    "startup_snapshot": True,
+}
+
+
+def _max_rules_text(plugin_dir: Path) -> str | None:
+    """Load the Max-mode rules text from the installed plugin (single source: mcp_app/rules_sync.py)."""
+    import importlib.util
+
+    mod_dir = str(plugin_dir / "mcp_app")
+    sys.path.insert(0, mod_dir)
+    try:
+        spec = importlib.util.spec_from_file_location("_agy_ts_install_rules", plugin_dir / "mcp_app" / "rules_sync.py")
+        if spec is None or spec.loader is None:
+            return None
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        text = getattr(mod, "_RULES_TEXT", None)
+        return text if isinstance(text, str) and text else None
+    except Exception:
+        return None
+    finally:
+        try:
+            sys.path.remove(mod_dir)
+        except ValueError:
+            pass
+
+
+def seed_fresh_install_config(plugin_dir: Path, data_dir: Path, log: Callable[[str], None] = print) -> bool:
+    """Write the Max profile and its rules file on a first install. Returns True when seeded."""
+    cfg_path = data_dir / "hud_config.json"
+    if cfg_path.exists():
+        return False
+    try:
+        data_dir.mkdir(parents=True, exist_ok=True)
+        cfg_path.write_text(json.dumps(FRESH_INSTALL_CONFIG, indent=2) + "\n", encoding="utf-8")
+        rules = _max_rules_text(plugin_dir)
+        if rules:
+            agents_md = plugin_dir / "rules" / "AGENTS.md"
+            agents_md.parent.mkdir(parents=True, exist_ok=True)
+            agents_md.write_text(rules, encoding="utf-8", newline="\n")
+        log("Starting in Max mode (change it any time in the agy-tokensaver sidebar).")
+        return True
+    except OSError as exc:
+        log(f"Could not write default settings ({exc}); using built-in defaults.")
+        return False
+
+
 def local_bundle_root() -> Path | None:
     here = Path(__file__).resolve().parent
     if (here / "plugin.json").is_file() and (here / "mcp_app" / "server.py").is_file():
@@ -193,6 +248,9 @@ def install_or_update(remote: bool = False, log: Callable[[str], None] = print) 
         if saved_local_rules is not None:
             local_rules_path.parent.mkdir(parents=True, exist_ok=True)
             local_rules_path.write_bytes(saved_local_rules)
+
+        if not is_update:  # updates keep whatever mode the user runs today, saved or default
+            seed_fresh_install_config(PLUGIN_DIR, DATA_DIR, log)
 
         if os.name == "nt":
             # Avoid the Microsoft Store `python3` placeholder stub on native Windows

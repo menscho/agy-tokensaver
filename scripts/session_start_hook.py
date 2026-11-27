@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-open SessionStart hook injecting a sub-50ms <=1.5KB workspace snapshot.
+"""Fail-open SessionStart hook injecting a <=1.5KB workspace snapshot (250 ms scan limit).
 
 Runs once per Antigravity session under `python3 -S` (stdlib-only).
 Respects AGY_TS_HOOKS=off, AGY_TS_STARTUP_SNAPSHOT=off, and dashboard mode=off /

@@ -4,9 +4,10 @@ Reproducible benchmark suite for agy-tokensaver.
 
 Modes:
   python3 scripts/benchmark.py --demo
-      Runs deterministic checks against the active Python hooks (read_hook.py,
-      find_hook.py, write_hook.py) and prints exact Before vs. After byte/token
-      counts plus median PreToolUse hook latency in milliseconds.
+      Runs deterministic checks against the real hooks (read_hook.py, find_hook.py,
+      write_hook.py, session_start_hook.py) and accelerator tools (quick_outline,
+      run_checks) and prints Before vs. After byte/token counts plus median hook
+      latency. Rows marked * use an assumed baseline instead of a measured one.
 
   python3 scripts/benchmark.py --replay
       Replays every recorded tool call of ALL local Antigravity sessions (IDE + CLI)
@@ -20,7 +21,8 @@ Modes:
   python3 scripts/benchmark.py --transcripts
       Reproduces the counterfactual rollover table from local Antigravity
       transcripts (~/.gemini/antigravity/brain/*/transcript.jsonl), including
-      an explicit +8,000-token post-rollover re-discovery tax per rollover.
+      an explicit +6,000-token post-rollover re-discovery tax per rollover
+      (REDISCOVERY_TAX_TOK in mcp_app/config.py).
 """
 
 from __future__ import annotations
@@ -165,14 +167,16 @@ def run_demo() -> int:
         )
         latencies.append(ms)
         assert res.get("decision") == "deny", f"write_hook should block lazy truncation: {res}"
-        rows.append(("7. write_file lazy truncation guard", 1000, len(res.get("reason", "").encode("utf-8")), "blocked accidental wipeout"))
+        # Baseline is assumed: the real cost of a wiped file is a repair loop, not 1 KB of tokens.
+        rows.append(("7. write_file lazy truncation guard *", 1000, len(res.get("reason", "").encode("utf-8")), "blocked accidental wipeout"))
 
         # Step 8: SessionStart startup snapshot (<= 1.5 KB)
         ss_res, ss_ms = _run_hook("session_start_hook.py", {"cwd": str(proj)}, env)
         latencies.append(ss_ms)
         ss_msg = (ss_res.get("injectSteps") or [{}])[0].get("systemMessage", {}).get("systemMessage", "")
         assert ss_msg and len(ss_msg.encode("utf-8")) <= 1500, f"unexpected SessionStart snapshot: {ss_res}"
-        rows.append(("8. SessionStart snapshot (1-shot layout)", 4000, len(ss_msg.encode("utf-8")), f"<=1.5KB in {ss_ms:.0f}ms"))
+        # Baseline is assumed: ~4 KB for the list_dir + git status calls an agent usually makes first.
+        rows.append(("8. SessionStart snapshot (1-shot layout) *", 4000, len(ss_msg.encode("utf-8")), f"<=1.5KB in {ss_ms:.0f}ms"))
 
         # Step 9: quick_outline on 900L service.py vs full-file dump
         sys.path.insert(0, str(ROOT / "mcp_app"))
@@ -180,6 +184,26 @@ def run_demo() -> int:
         qo = run_quick_outline({"cwd": str(tmp), "paths": ["service.py"]})
         assert not qo["isError"] and len(qo["text"].encode("utf-8")) <= 8800
         rows.append(("9. quick_outline 900L service.py", min(py_file.stat().st_size, NATIVE_READ_CAP), len(qo["text"].encode("utf-8")), "symbol map <=8.8KB cap"))
+
+        # Step 10: run_checks on two noisy passing checks vs their raw combined output
+        suite = tmp / "suite.py"
+        suite_src = [
+            "import sys",
+            "name = sys.argv[1]",
+            "for i in range(1, 241):",
+            "    print(f'tests/test_{name}.py::test_case_{i:03d} PASSED' + ' ' * 20 + f'[{i * 100 // 240:3d}%]')",
+            "print(f'===== 240 passed in 3.21s ({name}) =====')",
+        ]
+        suite.write_text("".join(line + chr(10) for line in suite_src), encoding="utf-8")
+        from fast_checks import run_checks
+        cmds = [f'"{sys.executable}" "{suite}" {n}' for n in ("api", "worker")]
+        raw_b = 0
+        for c in cmds:
+            rp = subprocess.run(c, shell=True, capture_output=True, cwd=str(tmp))
+            raw_b += len(rp.stdout) + len(rp.stderr)
+        rc = run_checks({"cwd": str(tmp), "commands": cmds})
+        assert not rc.get("isError"), rc
+        rows.append(("10. run_checks 2 noisy passing suites", min(raw_b, 2 * NATIVE_READ_CAP), len(rc["text"].encode("utf-8")), "passes collapsed, summary kept"))
 
     tot_before = sum(r[1] for r in rows)
     tot_after = sum(r[2] for r in rows)
@@ -201,6 +225,7 @@ def run_demo() -> int:
         print(f"{name:44s} | {t0:6,d} tk | {t1:6,d} tk | -{p:5.1f}% | {note}")
     print("-" * 102)
     print(f"{'Total direct tool tokens added to context':44s} | {tok_before:6,d} tk | {tok_after:6,d} tk | -{pct_saved:5.1f}% | {tok_saved:,} tokens avoided")
+    print("* assumed baseline (no single native call to measure against). Synthetic fixtures: a worst case, not a typical session.")
     return 0
 
 

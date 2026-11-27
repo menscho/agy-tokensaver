@@ -1,14 +1,14 @@
 # Architecture
 
-`agy-tokensaver` is a dependency-free Python 3.9+ stdlib plugin for Google Antigravity combining Auto-Handoff for long chats, 5 eager-loaded batched local MCP accelerator tools, a sub-50 ms `SessionStart` workspace snapshot, and lightweight PreToolUse/PostInvocation guards.
+`agy-tokensaver` is a dependency-free Python 3.9+ stdlib plugin for Google Antigravity combining Auto-Handoff for long chats, 5 eager-loaded batched MCP tools, a `SessionStart` workspace snapshot (under 1.5 KB, 250 ms scan limit), PreToolUse/PostInvocation guards, and Max-mode rules. Fresh installs start in Max (`FRESH_INSTALL_CONFIG` in `install.py`); the runtime fallback when no settings file exists stays the lossless Auto-Handoff + Read Guards profile.
 
-> The batched MCP accelerator tools, `SessionStart` snapshot, water-filling/head-tail output compaction, and `--cli` Swarm runner adapt engineering patterns from [INK-Q/agy-fast](https://github.com/INK-Q/agy-fast) (MIT License), implemented natively in pure Python 3.9+ stdlib.
+> The batched MCP accelerator tools, `SessionStart` snapshot, water-filling/head-tail output compaction, and `--cli` Swarm runner are a Python port of designs from [INK-Q/agy-fast](https://github.com/INK-Q/agy-fast) (MIT License; notice in [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)).
 
 ## Lifecycle
 
 ```mermaid
 flowchart LR
-    S["SessionStart Hook"] --> SS["session_start_hook.py (<=1.5KB snapshot, <50ms)"]
+    S["SessionStart Hook"] --> SS["session_start_hook.py (<=1.5KB snapshot, 250ms scan limit)"]
     A["Antigravity Tool Call"] --> B["PreToolUse Hook (python3 -S + hook_common)"]
     B -->|off / small / safe| C["{\"decision\":\"allow\"} (fail-open)"]
     B -->|read_file / write / find / grep| D["Block lockfile/binary/dup, trim overlap, or cap range"]

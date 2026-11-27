@@ -1,6 +1,8 @@
 # Performance, Benchmarks and Latency
 
-Every figure below comes directly from running commands in this repository (`eval/runner.py` and `scripts/benchmark.py`). Live end-to-end runs measure actual completion and API token usage; transcript replay numbers are **counterfactual replay estimates** assuming unchanged post-handoff trajectories (`+6k` re-read tax per rollover).
+Sections 1–6 come from running commands in this repository (`eval/runner.py` and `scripts/benchmark.py`). Live end-to-end runs measure actual completion and API token usage; transcript replay numbers are **counterfactual replay estimates** assuming unchanged post-handoff trajectories (`+6k` re-read tax per rollover). Section 7 is a **model, not a measurement**.
+
+Sections 1–3 were measured on v1.5.0, before the batched tools and the startup snapshot existed. The Max rules have since gained a batching rule. A live A/B of v1.5.3 (`python3 eval/runner.py --driver agentapi --modes off,default,max ...`, see [eval/README.md](../eval/README.md)) is the next measurement to run.
 
 ![Real-Session Replay Estimate Chart](assets/benchmark-chart.svg)
 
@@ -53,9 +55,11 @@ By session length (`86` sessions, Path 2 Delegated / Path 1 Direct): `<75k` (`31
 | **Output-light (`1 / 0.05 / 3`)** | Lower output multiplier | `0.7%` | `1.0%` | `19.2%` | `24.6%` |
 | **Cache-heavy (`1 / 0.25 / 5`)** | Expensive cache reads | `0.8%` | `1.1%` | `23.5%` | `26.4%` |
 
-## 5. Synthetic Hook Fixture (`python3 scripts/benchmark.py --demo`)
+## 5. Synthetic Hook and Tool Fixture (`python3 scripts/benchmark.py --demo`)
 
-The 7-step deterministic hook benchmark tests blocked lockfiles, large source/JSON/log auto-caps, duplicate slice blocks, `node_modules` excludes, and lazy-truncation write blocks using `python3 -S`: direct tool tokens drop **77.6%** (`45,413` -> `10,181` tokens, median PreToolUse latency **30.0 ms**). Do not extrapolate this synthetic worst-case fixture to normal editing sessions.
+Ten deterministic steps through the real hooks and tools (`python3 -S`): blocked lockfile, capped large source/JSON/log reads, a blocked duplicate slice, `node_modules` excluded from `find_by_name`, a blocked lazy-placeholder overwrite, the startup snapshot, `quick_outline` on a 900-line file, and `run_checks` folding two 240-line passing test runs.
+
+Direct tool tokens drop **about 81%** (`66,261` → `12,470`). Two rows (the overwrite guard and the startup snapshot) use an assumed baseline, because no single native call matches them; the script marks them with `*`. Median hook latency in CI: `51 ms` Linux, `85 ms` macOS, `62 ms` Windows; `121 ms` on a Windows 11 desktop. Do not extrapolate this synthetic worst case to normal sessions.
 
 ## 6. Second-Machine Replay: v1.5.0 vs v1.5.1 and Post-Patch Caching (2026-11-27)
 
@@ -105,3 +109,21 @@ Ceiling if a whole tool's output were deleted outright (impossible without losin
 | Search (`grep_search` / `find_by_name` / `list_dir`) | `66` | `5,995` | `0.7%` | `0.1%` |
 
 The read guards cut 13% of file-read tokens (the provably redundant or junk part) for 0.74% of cost, against a 6.7% ceiling for deleting every file read. The largest slice, output, is only addressed by the opt-in Max mode. In the live hard suite (section 2), Max mode cut cost 9.0% at 18/18, against 1.6% at 17/18 for Default.
+
+## 7. Modelled Estimate for the Batched Tools (Not Measured)
+
+This section is a **model**. It was computed once by hand for v1.5.2 and no script in this repository reproduces it yet. Treat it as a hypothesis for the live A/B to confirm or reject, not as a result.
+
+**Inputs measured on this repository:** startup snapshot 342 tokens in 12 ms (against 1,039 tokens for the usual first `ls` + `git status`); `batch_search` 5 queries in 35 ms; `quick_outline` plus targeted slices on 3 large files 2,069 tokens against 30,023 for full reads (−93%); `apply_edits` plus `verify` across 3 files 76 tokens in 28 ms; `run_checks` running `ruff`, `mypy` and `unittest` in parallel 91 tokens against 1,193 for raw output (−92%).
+
+**Assumptions:** cost weights `1×` uncached input, `0.05×` cached input, `6×` output; a 16k system prompt plus 850 tokens of tool schemas; every new turn and tool result billed uncached on entry; 92% warm cache hits; 4.5 s per model round trip. The turn counts for each workflow with and without the batched tools are assumptions about how the agent behaves, which is exactly what the model cannot know.
+
+| Modelled workflow | Model turns | Peak context | Est. cost change | Est. wall-clock |
+| :--- | :---: | :---: | :---: | :---: |
+| Quick bugfix (warm cache) | 8 → 4 | 32.2k → 20.6k | −46.5% | 39.0 s → 20.8 s |
+| Cross-module feature (baseline already parallel) | 9 → 6 | 53.2k → 22.9k | −54.7% | 43.5 s → 29.9 s |
+| Cross-module feature (sequential baseline) | 14 → 6 | 54.5k → 22.9k | −64.4% | 66.0 s → 29.9 s |
+| Long 3-task session (one cache drop + Auto-Handoff) | 42 → 18 | 132.2k → 29.4k | −77.8% | 198.2 s → 89.6 s |
+
+These are far larger than anything measured live so far (best: −9.0% cost for Max on the hard suite). The gap is the turn-count assumption: if the agent batches less than modelled, the savings shrink toward the measured numbers.
+

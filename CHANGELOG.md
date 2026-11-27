@@ -2,6 +2,21 @@
 
 All notable changes to **agy-tokensaver** (`menscho/agy-tokensaver`) are documented here.
 
+## [1.5.3] — 2026-11-27
+
+Fresh installs start in Max mode, the best measured setting, and the docs now separate measured results from estimates.
+
+### Changed
+- **Fresh installs start in Max mode (`install.py`).** Max had the best measured result (18/18 passed, −9.0% cost, −24% tokens on the hard suite) and is the only mode that reduces output tokens. The installer now writes the Max profile and its `rules/AGENTS.md` on a first install. Updates never change the mode you already use, and the runtime fallback without a settings file is still the lossless Auto-Handoff + Read Guards profile.
+- **Dashboard lists Max first as Recommended** and labels Auto-Handoff + Read Guards as the lossless option.
+- **README rewritten around measured results.** The modelled quota and speed table moved to [docs/perf.md section 7](docs/perf.md#7-modelled-estimate-for-the-batched-tools-not-measured), marked as a model. The README now says where savings come from, what short vs long chats can expect, that the batched tools have not had a live A/B yet, and how much latency each hook adds.
+- **`scripts/benchmark.py --demo` adds a `run_checks` step** (two noisy 240-line passing test runs) and marks the two rows whose baseline is assumed rather than measured.
+- **Removed "sub-50 ms" startup claims** from `plugin.json`, the dashboard and the docs. The snapshot has a 250 ms scan limit; the full hook measured 68–84 ms in CI.
+
+### Added
+- **`THIRD_PARTY_NOTICES.md`** with the MIT license notice for the code ported from INK-Q/agy-fast, as that license requires.
+- A unit test that a fresh install starts in Max and that an existing saved mode is never overwritten.
+
 ## [1.5.2] — 2026-11-27
 
 Integrates the full batched local MCP accelerator suite, sub-50 ms `SessionStart` workspace snapshot, `≤ 8.8 KB` zero-spill output folding, and direct `--cli` Swarm mode—adapted from engineering pioneered by **[INK-Q/agy-fast](https://github.com/INK-Q/agy-fast)** (MIT License) and natively implemented in pure zero-dependency Python 3.9+ stdlib.
