@@ -59,7 +59,7 @@ def render_two_mode(m: dict) -> str:
     a(f'  <text x="452" y="96" class="m" font-size="11" fill="{GREEN}" text-anchor="end">replay estimate</text>')
     a(f'  <text x="48" y="130" class="m" font-size="21" font-weight="500" fill="{TXT}">{ho_tot:.1f}% saved · med {ho_med:.1f}%</text>')
     a(f'  <text x="452" y="128" class="m" font-size="12" fill="{SUB}" text-anchor="end">p90 {ho_p90:.1f}%</text>')
-    a(f'  <text x="48" y="152" class="t" font-size="11.5" fill="{SUB}">Starts a fresh chat above cap or on cold cache (+8k re-read tax charged)</text>')
+    a(f'  <text x="48" y="152" class="t" font-size="11.5" fill="{SUB}">Starts a fresh chat above cap or on cold cache (+6k re-read tax charged)</text>')
     a(f'  <text x="48" y="168" class="t" font-size="11.5" fill="{DIM}">With Compact Reads: {hc_tot:.1f}% saved · ~0% change on short chats</text>')
 
     a(f'  <rect x="492" y="74" width="436" height="106" rx="10" fill="{CARD}" stroke="{BORDER}"/>')
@@ -135,7 +135,7 @@ def render_two_mode(m: dict) -> str:
             py += 32
 
     a(f'  <line x1="32" y1="{H - 44}" x2="{W - 32}" y2="{H - 44}" stroke="{BORDER}"/>')
-    a(f'  <text x="32" y="{H - 27}" class="t" font-size="10.5" fill="{DIM}">Measured via local transcript replay (retries + {m["overhead_tok_per_turn"]} tok/turn overhead + 8k/rollover tax charged).</text>')
+    a(f'  <text x="32" y="{H - 27}" class="t" font-size="10.5" fill="{DIM}">Measured via local transcript replay (retries + {m["overhead_tok_per_turn"]} tok/turn overhead + 6k/rollover tax charged).</text>')
     a(f'  <text x="32" y="{H - 12}" class="t" font-size="10.5" fill="{DIM}">Cost weights ({w[0]:g}× input, {w[1]:g}× cache read, {w[2]:g}× output) are a configurable proxy (--weights), not Antigravity billing weights.</text>')
     a("</svg>")
     return "\n".join(p) + "\n"

@@ -481,13 +481,14 @@ def _update_microskills(ws: Path, last_verify: str) -> list[str]:
     return [cmd for cmd, cnt in sorted(repo_cmds.items(), key=lambda kv: -kv[1]) if cnt >= 2][:3]
 
 
-def _edited_symbols(edited: list[str], ws: Path, budget: int = 2200) -> list[str]:
-    """Layer A deterministic artifact map (Factory.ai + Aider): compact L<start>-L<end> outlines for top edited files."""
+def _edited_symbols(edited: list[str], ws: Path, budget: int = 2200) -> dict[str, str]:
+    """Layer A deterministic artifact map (Factory.ai + Aider): compact L<start>-L<end> outlines for top edited files.
+    Returns {edited path: "sym; sym; ..."} so each file is listed once in the packet."""
     insp = Path(__file__).resolve().parent / "ts_inspect.py"
     if not insp.is_file():
-        return []
+        return {}
     code_exts = {".py", ".ts", ".tsx", ".js", ".mjs", ".rs", ".go", ".pl", ".sh", ".java", ".kt", ".cs", ".cpp", ".c"}
-    out: list[str] = []
+    out: dict[str, str] = {}
     used = 0
     for p in reversed(edited):
         fp = Path(p)
@@ -500,10 +501,10 @@ def _edited_symbols(edited: list[str], ws: Path, budget: int = 2200) -> list[str
             syms = [ln.strip() for ln in r.stdout.splitlines()[1:10] if ln.strip()]
             if not syms:
                 continue
-            entry = f"- `{_short(p, ws)}`: " + "; ".join(syms[:7])
+            entry = "; ".join(syms[:7])
             if used + len(entry) > budget:
                 break
-            out.append(entry)
+            out[p] = entry
             used += len(entry)
             if len(out) >= 6:
                 break
@@ -596,12 +597,10 @@ def build_packet(ws: Path, conv_id: str = "", exclude_prompt: str = "", max_toke
                 lines.append("\n## Key Uncommitted Diff Hunks")
                 lines.extend(hunk_lines)
     if edited:
+        # One line per edited file; code files carry their symbol outline inline instead of a second section.
+        syms = _edited_symbols(edited, display_ws)
         lines.append("\n## Edited in that conversation")
-        lines.extend(f"- {_short(p, display_ws)}" for p in edited)
-        sym_lines = _edited_symbols(edited, display_ws)
-        if sym_lines:
-            lines.append("\n## Edited File Symbols")
-            lines.extend(sym_lines)
+        lines.extend(f"- {_short(p, display_ws)}" + (f": {syms[p]}" if p in syms else "") for p in edited)
     if read:
         lines.append("\n## Also consulted (re-read only if needed)")
         lines.append(", ".join(_format_read_entry(p, display_ws, read_ranges) for p in read))

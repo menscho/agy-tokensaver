@@ -38,6 +38,14 @@ from hook_common import (
     script_plugin_root,
 )
 
+# Opt-in Max-mode rules; must match mcp_app/rules_sync.py _RULES_TEXT byte-for-byte (unit-tested) so the two
+# writers never flip-flop rules/AGENTS.md and invalidate the prompt cache.
+RULES_TEXT = (
+    "# Token Saver\n"
+    "1. Concise replies: skip pleasantries, preambles, and post-tool narration; keep code, diffs, paths, and errors verbatim.\n"
+    "2. Change existing files with targeted edits, not full-file rewrites.\n"
+)
+
 # Shared causal rollover constants (kept in sync with mcp_app/config.py & rollover.py)
 COLD_START_TOK = 17_000
 REDISCOVERY_TAX_TOK = 6_000
@@ -374,18 +382,11 @@ def _maybe_midrun_drop_advisory(dd: str, cid: str, tx: str, inv_num: int = 1) ->
     except OSError:
         pass
 
+    advice = f"Batch independent tool calls in parallel, avoid >{ttl}s blocking waits, and finish this phase cleanly (Auto-Handoff rotates on the next user turn)."
     if is_real_drop:
-        msg = (
-            f"[token-saver] Mid-run KV cache drop (~{c_in // 1000}k rebuilt; {ttl}s TTL). "
-            f"Batch remaining tool calls in parallel, avoid >{ttl}s synchronous waits/swarms in this chat, "
-            f"and wrap up this phase cleanly so Auto-Handoff rotates on the next user turn."
-        )
+        msg = f"[token-saver] Mid-run KV cache drop (~{c_in // 1000}k rebuilt; {ttl}s TTL). {advice}"
     else:
-        msg = (
-            f"[token-saver] High-context cache shield (~{cur_tot // 1000}k ctx; {ttl}s KV cache TTL). "
-            f"Batch independent tool calls in parallel, avoid >{ttl}s blocking waits/swarms here, "
-            f"and wrap up cleanly so Auto-Handoff rotates to a fresh ~17k chat on the next user turn."
-        )
+        msg = f"[token-saver] High-context cache shield (~{cur_tot // 1000}k ctx; {ttl}s TTL). {advice}"
     emit_json({"injectSteps": [{"systemMessage": {"systemMessage": msg}}]})
     return 0
 
@@ -428,15 +429,16 @@ def _flush_concise_rule_if_needed(plugin_root: str, dd: str, cfg: dict[str, Any]
         rules_dir = os.path.join(plugin_root, "rules")
         agents_md = os.path.join(rules_dir, "AGENTS.md")
         enabled = bool(cfg.get("concise_output", False))
-        if enabled and not os.path.isfile(agents_md):
-            os.makedirs(rules_dir, exist_ok=True)
-            with open(agents_md, "w", encoding="utf-8") as fh:
-                fh.write(
-                    "# Token Saver\n"
-                    "1. Concise replies: skip pleasantries, preambles, and post-tool narration; "
-                    "keep code, diffs, paths, and errors verbatim.\n"
-                )
-        elif not enabled and os.path.isfile(agents_md):
+        if enabled:
+            cur = ""
+            if os.path.isfile(agents_md):
+                with open(agents_md, "rb") as rfh:
+                    cur = rfh.read().decode("utf-8", errors="replace")
+            if cur != RULES_TEXT:  # missing or written by an older version; a fresh chat has no warm cache to break
+                os.makedirs(rules_dir, exist_ok=True)
+                with open(agents_md, "wb") as fh:
+                    fh.write(RULES_TEXT.encode("utf-8"))
+        elif os.path.isfile(agents_md):
             os.unlink(agents_md)
         if cfg.get("pending_concise_sync"):
             cfg["pending_concise_sync"] = False
@@ -730,12 +732,10 @@ def main() -> int:
     py_exe = sys.executable or "python3"
     cmd_str = f'"{py_exe}" "{exec_script}" --pending "{pending_file}"'
     directive = (
-        f"[token-saver] AUTO-HANDOFF TRIGGERED ({why}). "
-        f"Do NOT perform the user's request in this bloated chat. "
-        f"Immediately call `run_command` ONCE with CommandLine: `{cmd_str}` (WaitMsBeforeAsync: 10000). "
-        f"That command creates a fresh continuation chat with compact context + the user's exact request already running, "
-        f"and archives this chat. After it prints `AUTO_HANDOFF_OK:`, reply to the user with ONLY that clickable "
-        f"markdown link and nothing else. If the command fails, proceed with the user's request normally."
+        f"[token-saver] AUTO-HANDOFF TRIGGERED ({why}). Do NOT do the user's request in this chat. "
+        f"Call `run_command` once with CommandLine: `{cmd_str}` (WaitMsBeforeAsync: 10000). "
+        f"It opens a fresh chat with a compact handoff and the user's exact request, and archives this one. "
+        f"On `AUTO_HANDOFF_OK:`, reply with ONLY that markdown link. If it fails, do the request normally."
     )
     emit_json(
         {

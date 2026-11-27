@@ -177,10 +177,12 @@ g = lambda *a: subprocess.run(["git", "-C", str(ws), *a], capture_output=True, t
 g("init", "-q"); g("config", "user.email", "t@t"); g("config", "user.name", "t")
 (ws / "a.py").write_text("x = 1\n" * 10); g("add", "."); g("commit", "-qm", "init")
 (ws / "a.py").write_text("x = 2\n" * 12); (ws / "new.txt").write_text("n\n")
+(ws / "m.py").write_text("def alpha():\n    return 1\n\n\ndef beta():\n    return 2\n")
 app = T / "gemini" / "antigravity"; sid = "99999999-2222-3333-4444-555555555555"
 logs = app / "brain" / sid / ".system_generated" / "logs"; logs.mkdir(parents=True)
 fp = str(ws / "a.py")
 tc = repr([{"name": "replace_file_content", "args": {"TargetFile": json.dumps(fp), "Instruction": "\"x\""}},
+           {"name": "write_to_file", "args": {"TargetFile": json.dumps(str(ws / "m.py"))}},
            {"name": "view_file", "args": {"AbsolutePath": json.dumps(str(ws / "b.py"))}}])
 (logs / "transcript.jsonl").write_text("\n".join(json.dumps(r) for r in [
   {"type": "USER_INPUT", "content": "<USER_REQUEST>make x two</USER_REQUEST>"},
@@ -195,6 +197,8 @@ assert p.returncode == 0, p.stderr
 assert "Goal: make x two" in out and "Last state: Done, see a.py" in out, out
 assert "- M a.py (+12/-10)" in out and "?? new.txt" in out, out
 assert "## Edited in that conversation\n- a.py" in out and "b.py" in out, out
+# each edited code file is listed once, with its symbol outline inline (no second "Edited File Symbols" section)
+assert "## Edited File Symbols" not in out and "- m.py: " in out and "alpha" in out and out.count("m.py") == 2, out
 assert "[Saved" not in out and len(out) // 4 < 400, len(out)
 assert (ws / ".git" / "index").stat().st_mtime_ns == idx_before, "git index was rewritten"
 '

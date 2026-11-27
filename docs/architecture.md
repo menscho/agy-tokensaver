@@ -20,7 +20,7 @@ Notice that `run_command` and shell execution are not wrapped or modified.
 ## Modules
 
 - **Auto-Handoff & MCP App dashboard (`mcp_app/` + `scripts/handoff_pack.py`):**
-  - `scripts/handoff_pack.py`: extracts user/assistant state, git changes, recent errors, verified test commands, and edited symbols into a compact (~300–550 token) handoff packet.
+  - `scripts/handoff_pack.py`: extracts user/assistant state, git changes, recent errors, verified test commands, and edited symbols into a compact (typically 300–550 token) handoff packet; each edited code file is listed once with its symbol outline inline.
   - `mcp_app/server.py`: JSON-RPC stdio server rendering `dashboard.html` with vendored `@modelcontextprotocol/ext-apps`.
   - `mcp_app/`: `config.py`, `rules_sync.py`, `rollover.py`, `transcript_io.py`, `telemetry.py`, `snapshots.py`, `updater.py`, and facade `core.py`.
 - **Python 3.9+ stdlib hooks (`scripts/`, invoked with `python3 -S`):**
@@ -32,11 +32,11 @@ Notice that `run_command` and shell execution are not wrapped or modified.
 
 ## On-Disk State
 
-All hook state stays local (only user-triggered updates and localhost `RefreshMcpServers` use HTTP; see [SECURITY.md](../SECURITY.md)):
+All hook state stays local. The only HTTP calls are user-triggered updates and localhost calls to the Antigravity language server (`RefreshMcpServers`, and `ConversationService` when a handoff opens a new chat); see [SECURITY.md](../SECURITY.md):
 
 | Path | Contents |
 | :--- | :--- |
-| `~/.gemini/antigravity/plugin_data/token-saver/hud_config.json` | Active `profile` (`auto_handoff` default, `handoff_only`, `small_loss`, `zero_loss`, `compact_reads`), `mode` (`smart_auto`, `prepare_only`, `off`), and threshold. |
+| `~/.gemini/antigravity/plugin_data/token-saver/hud_config.json` | Active `profile` (`auto_handoff` default, `handoff_only` = Auto-Handoff + Compact Reads, `small_loss` = Max, `zero_loss` = Guards Only, `compact_reads` = Guards + Compact Reads, `concise_no_handoff`), `mode` (`smart_auto`, `prepare_only`, `off`), and threshold. |
 | `.../plugin_data/token-saver/events.jsonl` | Hook event log (`ts`, `source`, `category`, `action`, `raw_bytes`, `kept_bytes`, `est_tokens_saved`). |
 | `.../plugin_data/token-saver/reads/<cid>.tsv` | Compaction-verified seen line ranges (`path`, `mtime`, `size`, `md5`, `start`, `end`, `step`, `epoch`). |
 | `.../plugin_data/token-saver/rollover_state.json` & `rollover_history.json` | Tracked auto-handoffs, archive snapshots, and compact packets. |

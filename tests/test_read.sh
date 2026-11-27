@@ -36,7 +36,8 @@ mktx c2 antigravity "$(pl 9 view_file)" "$(gen 10)" "$(pl 11 run_command)" "$(ge
 hook "$(rd "$T/a.py" c2 10 ',"StartLine":1,"EndLine":200')"  "$ALLOW" "verified: first read allowed"
 hook "$(rd "$T/a.py" c2 60 ',"StartLine":50,"EndLine":120')" "$DENY"  "verified: covered slice 50 steps later denied"
 o=$(printf '%s' "$(rd "$T/a.py" c2 60 ',"StartLine":50,"EndLine":120')" | "$PY" -S "$S/read_hook.py")
-[[ "$o" == *unchanged*"in context"* && ${#o} -lt 260 ]] && ok || bad "dedupe reason short and recognisable" "$o"
+[[ "$o" == *unchanged*"in context"* && ${#o} -lt 160 ]] && ok || bad "dedupe reason short and recognisable" "$o"
+[[ "$o" == *"from step 10, lines 1-200."* && "$o" != *"your read of"* ]] && ok || bad "dedupe reason names covering step+range once" "$o"
 
 # CHECKPOINT between the reads -> allowed (content was truncated from context)
 mktx c3 antigravity "$(pl 9 view_file)" "$(gen 10)" "$(cp_ 30)" "$(pl 31 run_command)" "$(gen 32)" "$(pl 59 view_file)"
@@ -85,12 +86,17 @@ hook "$(rd "$T/big.py" c11 10)" '"StartLine":1,"EndLine":250' "big unbounded rea
 hook "$(rd "$T/big.py" c11 12)" '"StartLine":251,"EndLine":500' "repeat unbounded read serves 251-500"
 hook "$(rd "$T/big.py" c11 14 ',"StartLine":100,"EndLine":400')" "$DENY" "1-500 now covered"
 
-# --- 6. full-file read then unbounded re-read -> deny; <=1KB never deduped; 1.5KB-4KB deduped
+# --- 6. full-file read then unbounded re-read -> deny; <=512B never deduped; 0.5KB-4KB deduped
 hook "$(rd "$T/a.py" c12 10)" "$ALLOW" "full read allowed"
 hook "$(rd "$T/a.py" c12 12)" "$DENY"  "unchanged full re-read denied"
+o=$(printf '%s' "$(rd "$T/a.py" c12 12)" | "$PY" -S "$S/read_hook.py")
+[[ "$o" == *"'a.py' is unchanged and still in context from step 10.\""* ]] && ok || bad "full re-read reason has no redundant range" "$o"
+printf 'x = 1\n%.0s' $(seq 1 60) > "$T/tiny.py"
+hook "$(rd "$T/tiny.py" c12 13)" "$ALLOW" "tiny file (<=512B) first read"
+hook "$(rd "$T/tiny.py" c12 14)" "$ALLOW" "tiny (<=512B) re-read never denied"
 printf 'x = 1\n%.0s' $(seq 1 100) > "$T/small.py"
-hook "$(rd "$T/small.py" c12 13)" "$ALLOW" "small file (<=1KB) first read"
-hook "$(rd "$T/small.py" c12 14)" "$ALLOW" "small (<=1KB) re-read never denied"
+hook "$(rd "$T/small.py" c12 13)" "$ALLOW" "small file (600B) first read"
+hook "$(rd "$T/small.py" c12 14)" "$DENY"  "small (600B) unchanged re-read denied"
 seq 1 60 | sed 's/^/def small_mod_fn(): return 12345  # 2.5KB file/' > "$T/mid2k.py"
 hook "$(rd "$T/mid2k.py" c12 15)" "$ALLOW" "mid (2.5KB) first read allowed"
 hook "$(rd "$T/mid2k.py" c12 16)" "$DENY"  "mid (1KB-4KB) unchanged re-read denied"

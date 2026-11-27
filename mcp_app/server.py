@@ -74,7 +74,7 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "open_token_saver",
         "title": "agy-tokensaver",
-        "description": "Open the agy-tokensaver full-page dashboard showing exact Input/Cache/Output/Quota savings, Smart Adaptive Auto-Rollover, readable session history, and updates.",
+        "description": "Open the agy-tokensaver dashboard (savings, Auto-Handoff settings, session archive, updates).",
         "inputSchema": {
             "type": "object",
             "properties": {},
@@ -94,7 +94,7 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "ts_get_state",
         "title": "Get Token Saver State",
-        "description": "App-only live state snapshot for Token Saver dashboard.",
+        "description": "App-only: dashboard state.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -107,7 +107,7 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "ts_save_settings",
         "title": "Save Token Saver Settings",
-        "description": "App-only settings persistence for Smart Auto-Rollover.",
+        "description": "App-only: save settings.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -129,7 +129,7 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "ts_build_handoff",
         "title": "Build Handoff Packet",
-        "description": "App-only lossless /handoff generator and optional archive snapshot.",
+        "description": "App-only: build handoff packet.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -143,7 +143,7 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "ts_build_digest",
         "title": "Build Repo Digest",
-        "description": "App-only compact repository digest generator.",
+        "description": "App-only: build repo digest.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -156,7 +156,7 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "ts_rollover_now",
         "title": "Rollover Session Now",
-        "description": "App-only manual rollover: archives current session and starts a clean fresh chat.",
+        "description": "App-only: archive chat and start a fresh one.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -171,7 +171,7 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "ts_clear_history",
         "title": "Remove Archive Entry",
-        "description": "App-only helper to delete one archive entry or clear all.",
+        "description": "App-only: delete archive entries.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -184,7 +184,7 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "ts_check_updates",
         "title": "Check GitHub Updates",
-        "description": "App-only check against GitHub Releases for Token Saver updates.",
+        "description": "App-only: check for updates.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -197,7 +197,7 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "ts_apply_update",
         "title": "Install Update Now",
-        "description": "App-only stats-preserving updater from GitHub Releases.",
+        "description": "App-only: install update.",
         "inputSchema": {
             "type": "object",
             "properties": {},

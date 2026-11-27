@@ -9,7 +9,7 @@
   <text x="452" y="96" class="m" font-size="11" fill="#4ade80" text-anchor="end">replay estimate</text>
   <text x="48" y="130" class="m" font-size="21" font-weight="500" fill="#ececef">16.3% saved · med 0.0%</text>
   <text x="452" y="128" class="m" font-size="12" fill="#8e8e98" text-anchor="end">p90 19.9%</text>
-  <text x="48" y="152" class="t" font-size="11.5" fill="#8e8e98">Starts a fresh chat above cap or on cold cache (+8k re-read tax charged)</text>
+  <text x="48" y="152" class="t" font-size="11.5" fill="#8e8e98">Starts a fresh chat above cap or on cold cache (+6k re-read tax charged)</text>
   <text x="48" y="168" class="t" font-size="11.5" fill="#5e5e68">With Compact Reads: 16.5% saved · ~0% change on short chats</text>
   <rect x="492" y="74" width="436" height="106" rx="10" fill="#0d0d11" stroke="#222227"/>
   <text x="508" y="96" class="t" font-size="12" font-weight="500" fill="#8e8e98">GUARDS ONLY (SAME CHAT)</text>
@@ -424,6 +424,6 @@
   <polygon points="504.7,529 509.2,534 504.7,539 500.2,534" fill="#4ade80"/>
   <text x="732.0" y="538" class="m" font-size="10.5" fill="#8e8e98">med 0.0% · p90 21.8% · &gt;5%: 16%</text>
   <line x1="32" y1="556" x2="928" y2="556" stroke="#222227"/>
-  <text x="32" y="573" class="t" font-size="10.5" fill="#5e5e68">Measured via local transcript replay (retries + 0 tok/turn overhead + 8k/rollover tax charged).</text>
+  <text x="32" y="573" class="t" font-size="10.5" fill="#5e5e68">Measured via local transcript replay (retries + 0 tok/turn overhead + 6k/rollover tax charged).</text>
   <text x="32" y="588" class="t" font-size="10.5" fill="#5e5e68">Cost weights (1× input, 0.05× cache read, 6× output) are a configurable proxy (--weights), not Antigravity billing weights.</text>
 </svg>

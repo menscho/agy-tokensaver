@@ -6,7 +6,7 @@ Please report security issues privately through GitHub Security Advisories on `m
 
 ## Outbound and Local Network Calls
 
-Hooks and local telemetry never open network connections or phone home. The only HTTP or CLI network calls in this repository are:
+Hooks and local telemetry never contact the internet or phone home. The only HTTP or CLI network calls in this repository are:
 
 | Endpoint / Protocol | File | When It Fires |
 | :--- | :--- | :--- |
@@ -14,6 +14,7 @@ Hooks and local telemetry never open network connections or phone home. The only
 | `GET` release `SHA256SUMS.txt` and `agy-tokensaver-v*.zip` | `mcp_app/updater.py`, `install.py` | Only when you trigger Install Update or `install.py --remote`. |
 | `gh attestation verify` (GitHub build provenance) | `mcp_app/updater.py`, `install.py` | Optional during update/remote install if `gh` CLI is installed. |
 | `POST http://${ANTIGRAVITY_LS_ADDRESS}/exa.language_server_pb.LanguageServerService/RefreshMcpServers` | `mcp_app/updater.py`, `install.py` | Localhost loopback only; fires once after install or update completes. |
+| `POST http://${ANTIGRAVITY_LS_ADDRESS}/product.v1.ConversationService/*` | `scripts/handoff_exec.py` (also imported by `scripts/pre_invocation_handoff.py`), `mcp_app/snapshots.py` | Localhost loopback only; fires when Auto-Handoff, `/handoff`, or the dashboard's rollover button opens a continuation chat or archives the old one. |
 
 ## What Gets Written Where
 

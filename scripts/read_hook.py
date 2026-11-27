@@ -38,7 +38,7 @@ MAX_SCAN_BYTES = 2 * 1024 * 1024
 OVERWRITE_NOTICE = 94
 NEAR_STEPS = 16
 TRIM_MIN_BYTES = 1536
-DEDUPE_MIN_BYTES = 1024
+DEDUPE_MIN_BYTES = 512
 HIST_MAX = 300
 
 MEDIA_EXT_RE = re.compile(
@@ -166,7 +166,7 @@ def _handle_media(doc: dict[str, Any], ti: dict[str, Any], path: str, check_path
                     pass
             if dup_step is not None:
                 ib = re.sub(r"^.*[/\\]", "", check_path)
-                emit_deny(f"[token-saver] Image '{ib}' is unchanged and still in context from step {dup_step} (~1.5k vision tok/turn saved).")
+                emit_deny(f"[token-saver] Image '{ib}' is unchanged and still in context from step {dup_step}.")
                 return
             try:
                 os.makedirs(idir, exist_ok=True)
@@ -533,10 +533,10 @@ class ReadGuard:
             covering = [c for c in cand if c[0] <= S and c[1] >= E]
             if covering:
                 best = min(covering, key=lambda x: x[3])
-                rng = "" if best[1] >= 10**12 else f":{best[0]}-{best[1]}"
-                return ("dup", f"your read of '{self.base}{rng}' at step {best[2]}")
+                rng = "" if best[1] >= 10**12 or (best[0] == S and best[1] == E) else f", lines {best[0]}-{best[1]}"
+                return ("dup", f"step {best[2]}{rng}")
             last = min(cand, key=lambda x: x[3])
-            return ("dup", f"your earlier reads of '{self.base}' (last at step {last[2]})")
+            return ("dup", f"earlier reads (last at step {last[2]})")
         if len(gaps) > 1:
             return ("none",)
         ga, gb = gaps[0]
@@ -676,7 +676,7 @@ class ReadGuard:
                 mok, sb, _, _ = self.measure_line_range(self.start, self.end)
                 self.deny(
                     "duplicate_read",
-                    f"[token-saver] '{self.base}{req}' is unchanged and still in context from {p[1]}. Reuse that; no re-read needed.",
+                    f"[token-saver] '{self.base}{req}' is unchanged and still in context from {p[1]}.",
                     sb if mok else None,
                 )
                 return
