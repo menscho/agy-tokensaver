@@ -610,7 +610,7 @@
       <div class="box">
         <div class="row">
           <div class="row-info">
-            <div class="row-title" id="upd-headline">agy-tokensaver v1.6.0</div>
+            <div class="row-title" id="upd-headline">agy-tokensaver v1.6.1</div>
             <div class="row-desc" id="upd-sub">Up to date · all statistics and archive entries are preserved across updates</div>
           </div>
           <div class="actions">
@@ -651,7 +651,7 @@
 
     <section class="section">
       <div class="section-head">
-        <span class="section-title" id="chg-title">Release Notes (v1.6.0)</span>
+        <span class="section-title" id="chg-title">Release Notes (v1.6.1)</span>
         <span class="section-note" id="chg-date">Latest changes</span>
       </div>
       <div class="box">
@@ -813,22 +813,25 @@
       bar.style.width = ratio + '%';
       bar.style.background = a.cur_tot >= cap ? 'var(--bad)' : (a.cur_tot >= cap * 0.75 ? 'var(--warn)' : 'var(--ok)');
 
+      const fmtDur = (sec) => sec >= 120 ? `${Math.round(sec / 60)}m` : `${sec}s`;
       const dot = document.getElementById('ttl-dot');
       const tt = document.getElementById('ttl-text');
       if (a.ttl_remaining_sec > 30) {
-        dot.className = 'dot'; tt.textContent = `Cache warm (${a.ttl_remaining_sec}s)`;
+        dot.className = 'dot'; tt.textContent = `Cache warm (${fmtDur(a.ttl_remaining_sec)})`;
       } else if (a.ttl_remaining_sec > 0) {
         dot.className = 'dot warn'; tt.textContent = `Cache cooling (${a.ttl_remaining_sec}s)`;
       } else {
-        dot.className = 'dot bad'; tt.textContent = `Cache COLD (idle ${a.idle_sec}s)`;
+        dot.className = 'dot bad'; tt.textContent = `Cache COLD (idle ${fmtDur(a.idle_sec)})`;
       }
       const cb = document.getElementById('cold-banner');
       if (a.is_cold && a.cur_tot >= 55000) {
         cb.style.display = 'block';
+        const ttlLbl = fmtDur(a.ttl_cliff_sec || 150);
+        const idleLbl = fmtDur(a.idle_sec);
         if (cfg.mode === 'smart_auto' && s.direct_handoff_hook) {
-          cb.textContent = `Cache COLD (${a.idle_sec}s idle > ${a.ttl_cliff_sec || 150}s TTL) — Auto-Handoff is armed and will carry your next message to a fresh ~17k chat automatically (saves ~${fmtK(a.cold_rebuild_save_est || 0)}).`;
+          cb.textContent = `Cache COLD (${idleLbl} idle > ${ttlLbl} TTL) — Auto-Handoff is armed and will carry your next message to a fresh ~17k chat automatically (saves ~${fmtK(a.cold_rebuild_save_est || 0)}).`;
         } else {
-          cb.textContent = `Cache COLD (${a.idle_sec}s idle > ${a.ttl_cliff_sec || 150}s TTL) — typing in the old chat rebuilds ~${fmtK(a.cur_tot)} uncached. Click "Archive & New Chat" here to pay ~17k instead (saves ~${fmtK(a.cold_rebuild_save_est || 0)} immediately).`;
+          cb.textContent = `Cache COLD (${idleLbl} idle > ${ttlLbl} TTL) — typing in the old chat rebuilds ~${fmtK(a.cur_tot)} uncached. Click "Archive & New Chat" here to pay ~17k instead (saves ~${fmtK(a.cold_rebuild_save_est || 0)} immediately).`;
         }
       } else {
         cb.style.display = 'none';

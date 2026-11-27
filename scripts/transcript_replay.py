@@ -276,7 +276,10 @@ def settled_flags_and_gaps(sess: dict) -> tuple[list[bool] | None, list[float | 
     n = len(sess["turns"])
     meta = (meta + [None] * n)[:n]
     last_model = next((p["model"] for p in reversed(planners) if p.get("model")), "")
-    ttl_cliff = 90 if "hydrogen" in last_model.lower() else 240
+    if hasattr(core, "model_cache_profile"):
+        ttl_cliff = int(core.model_cache_profile(last_model)["ttl_sec"])
+    else:
+        ttl_cliff = 90 if "hydrogen" in last_model.lower() else 240
     gaps: list[float | None] = []
     for k in range(n):
         t0 = meta[k].get("ts") if meta[k] else None

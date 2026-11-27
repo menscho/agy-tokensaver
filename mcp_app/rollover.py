@@ -251,7 +251,7 @@ def _simulate_rollover_session(
             is_settled_now = False
         # Causal Cold-Cache Auto-Handoff: only yields Turn-0 payback in Direct mode (not delegated Path 2).
         g_after = gaps[idx] if (gaps is not None and idx < len(gaps)) else None
-        cold_ttl = ttl_cliff if ttl_cliff <= 120 else 240
+        cold_ttl = max(60, int(ttl_cliff))
         cold_roll = bool(
             not delegated
             and is_settled_now

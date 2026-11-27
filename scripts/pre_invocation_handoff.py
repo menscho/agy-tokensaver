@@ -93,6 +93,10 @@ def _silent() -> int:
     return 0
 
 
+def _fmt_ttl(sec: int) -> str:
+    return f"{sec // 60}m" if sec >= 600 and sec % 60 == 0 else f"{sec}s"
+
+
 def _parse_iso_ts(ts_str: str) -> float | None:
     if not ts_str:
         return None
@@ -389,11 +393,12 @@ def _maybe_midrun_drop_advisory(dd: str, cid: str, tx: str, inv_num: int = 1) ->
     except OSError:
         pass
 
-    advice = f"Batch independent tool calls in parallel, avoid >{ttl}s blocking waits, and finish this phase cleanly (Auto-Handoff rotates on the next user turn)."
+    ttl_lbl = _fmt_ttl(ttl)
+    advice = f"Batch independent tool calls in parallel, avoid >{ttl_lbl} blocking waits, and finish this phase cleanly (Auto-Handoff rotates on the next user turn)."
     if is_real_drop:
-        msg = f"[token-saver] Mid-run KV cache drop (~{c_in // 1000}k rebuilt; {ttl}s TTL). {advice}"
+        msg = f"[token-saver] Mid-run KV cache drop (~{c_in // 1000}k rebuilt; {ttl_lbl} TTL). {advice}"
     else:
-        msg = f"[token-saver] High-context cache shield (~{cur_tot // 1000}k ctx; {ttl}s TTL). {advice}"
+        msg = f"[token-saver] High-context cache shield (~{cur_tot // 1000}k ctx; {ttl_lbl} TTL). {advice}"
     emit_json({"injectSteps": [{"systemMessage": {"systemMessage": msg}}]})
     return 0
 
@@ -588,8 +593,8 @@ def main() -> int:
     last_ts = state.get("last_ts")
     idle_sec = max(0, int(now_ts - last_ts)) if isinstance(last_ts, (int, float)) else 0
     cache_prof = model_cache_profile(hook_model or last_model)
-    # Empirical cold windows: Neon keeps ~90% warm hits through 150-240s; Hydrogen drops start ~60-90s;
-    # Carbon/Argon/Orchestrator lose the cache far sooner (docs/perf.md section 8).
+    # Empirical cold windows: Neon 1800s (30m, post-Nov 25 cache-pool/routing upgrade); Hydrogen 90s;
+    # Carbon/Argon/Orchestrator 120s; Claude/other 240s (docs/perf.md section 8).
     ttl_cliff = int(cache_prof["ttl_sec"])
     cold_ttl = ttl_cliff
     delegated = not bool(ls_addr)
@@ -688,7 +693,8 @@ def main() -> int:
     cur_k = cur_ctx / 1000.0
     est_save_k = max(0, cur_ctx - COLD_START_TOK) / 1000.0
     if is_cold_trigger:
-        why = f"cold cache ({idle_sec}s idle > {ttl_cliff}s TTL; ~{cur_k:.1f}k context -> ~17k fresh, est. ~{est_save_k:.1f}k saved)"
+        idle_lbl = f"{idle_sec // 60}m" if idle_sec >= 600 else f"{idle_sec}s"
+        why = f"cold cache ({idle_lbl} idle > {_fmt_ttl(ttl_cliff)} TTL; ~{cur_k:.1f}k context -> ~17k fresh, est. ~{est_save_k:.1f}k saved)"
     elif is_model_switch_trigger:
         why = f"model switch ({last_model} -> {hook_model}; avoids 100% cache-miss rebuild of ~{cur_k:.1f}k)"
     elif is_heavy_phase_trigger:

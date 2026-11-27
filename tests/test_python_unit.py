@@ -602,18 +602,31 @@ class TestMcpAppModules(unittest.TestCase):
         for n in names:
             self.assertEqual(hook_common.model_cache_profile(n), self.config.model_cache_profile(n), n)
         neon = hook_common.model_cache_profile("gemini-4-neon-high")
-        self.assertEqual((neon["ttl_sec"], neon["ctx_cap"], neon["volatile"]), (240, 180_000, False))
+        self.assertEqual((neon["ttl_sec"], neon["ctx_cap"], neon["volatile"]), (1800, 180_000, False))
         self.assertEqual(hook_common.model_cache_profile("gemini-4-hydrogen-high")["ttl_sec"], 90)
         orch = hook_common.model_cache_profile("gemini-pro-orchestrator-neon")
         self.assertEqual((orch["family"], orch["volatile"], orch["ttl_sec"]), ("orchestrator", True, 120))
-        self.assertIsNone(hook_common.model_cache_profile("claude-opus-5-5-medium")["ctx_cap"])
+        claude = hook_common.model_cache_profile("claude-opus-5-5-medium")
+        self.assertEqual((claude["ttl_sec"], claude["ctx_cap"]), (240, None))
+
+        # Simulator respects Neon's 1800s (30m) cold window: a 10m idle gap does NOT cold-roll, a 35m gap DOES
+        short_turns = [(18_000, 0, 200)] + [(3_000, 55_000 + i * 2_000, 200) for i in range(6)]
+        elig = [False] * 5 + [True, False]
+        _, _, rolls_10m = self.rollover._simulate_rollover_session(
+            short_turns, None, settled=elig, gaps=[10.0] * 5 + [600.0, None], ttl_cliff=1800, on_user_turn=True, delegated=False
+        )
+        _, _, rolls_35m = self.rollover._simulate_rollover_session(
+            short_turns, None, settled=elig, gaps=[10.0] * 5 + [2100.0, None], ttl_cliff=1800, on_user_turn=True, delegated=False
+        )
+        self.assertEqual(rolls_10m, 0, "10m pause on Neon stays warm under 30m cold window")
+        self.assertEqual(rolls_35m, 1, "35m pause on Neon triggers cold-cache rollover")
 
         # Live hook policy: a chat whose warm-up turns miss the cache (typical on Carbon/Argon) makes a
         # rollover look expensive, so the auto threshold drifts to AUTO_CAP_MAX; Gemini 4 caps at 180k.
         state = {"ctx": 190_000, "turns": 30, "drops": 0, "warm_turns": 400, "warm_miss": [1.0, 1.0, 1.0]}
         cfg = {"threshold_mode": "auto", "min_turns": 10}
-        free = pih._compute_policy(state, cfg, ttl_cliff=240, delegated=False)
-        capped = pih._compute_policy(state, cfg, ttl_cliff=240, delegated=False, ctx_cap=180_000)
+        free = pih._compute_policy(state, cfg, ttl_cliff=1800, delegated=False)
+        capped = pih._compute_policy(state, cfg, ttl_cliff=1800, delegated=False, ctx_cap=180_000)
         self.assertGreater(free["cap"], 180_000)
         self.assertFalse(free["warm_roll"])
         self.assertEqual(capped["cap"], 180_000)
@@ -1068,8 +1081,8 @@ class TestMcpAppModules(unittest.TestCase):
         self.assertIn("use edit_file", sm_hw["systemMessage"])
         self.assertIn("6x output cost", sm_hw["metadata"]["user_markdown"])
 
-        # Neon 240s warm-cache deferral in rules_sync (idle=200s still protected on Neon!)
-        neon_warm = {"cur_tot": 25_000, "last_ts": time.time() - 200, "ttl_cliff_sec": 240}
+        # Neon 1800s warm-cache deferral in rules_sync (idle=200s still protected within 300s deferral cap!)
+        neon_warm = {"cur_tot": 25_000, "last_ts": time.time() - 200, "ttl_cliff_sec": 1800}
         with mock.patch.object(self.rules_sync, "_is_sandbox_data_dir", return_value=False), \
              mock.patch("transcript_io.discover_session_sources", return_value=[(time.time() - 200, "cid-n", self.tmp / "tx", None)]), \
              mock.patch("transcript_io.parse_session_cached", return_value=neon_warm):

@@ -22,7 +22,7 @@ _RULES_TEXT = (
 
 def _should_defer_concise_sync() -> bool:
     """Protect active warm KV caches (>20k tokens, within hot TTL window) from mid-session system-prompt edits (arXiv:2601.06007).
-    Empirical cliffs: Neon retains ~90% cache hits up to 240s (protect 300s); Hydrogen drops at 60-90s (protect 150s)."""
+    Deferral is capped at 300s (150s for <=90s Hydrogen) so sidebar toggles still flush promptly when idle."""
     if _is_sandbox_data_dir() or os.environ.get("AGY_TS_SYNC_RULES") == "1":
         return False
     try:

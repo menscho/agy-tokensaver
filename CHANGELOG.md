@@ -2,6 +2,14 @@
 
 All notable changes to **agy-tokensaver** (`menscho/agy-tokensaver`) are documented here.
 
+## [1.6.1] — 2026-11-27
+
+Adjust Gemini 4 Neon's cold-cache window after Google's Nov 25 Neon cache-pool and routing expansion.
+
+### Changed
+- **Gemini 4 Neon cold-cache window raised to 30 min (`1800 s`, was `240 s`).** Following Google's Nov 20 and Nov 25 Neon cache-pool/routing upgrades, user traces show Neon caches surviving 15–60 min under normal load (shared-pool LRU, no guaranteed fixed TTL). Raising Neon's cold window in `scripts/hook_common.py` and `mcp_app/config.py` stops Direct-mode Auto-Handoff from rotating warm 5–25 min pauses while keeping Hydrogen (`90 s`), Carbon / Argon / Orchestrator (`120 s`), other models (`240 s`), and the `180k` Gemini 4 cap unchanged.
+- **Consistent per-model TTL handling across simulator, alerts, replay, and HUD.** `mcp_app/rollover.py` respects `ttl_cliff > 120 s` instead of clamping to `240 s`, `mcp_app/snapshots.py` extends the background cold-payback window to 30 min past `ttl_cliff`, `scripts/post_invocation_alerts.py` and `scripts/transcript_replay.py` use `model_cache_profile`, and hook advisories / `mcp_app/dashboard.html` format longer TTLs in minutes.
+
 ## [1.6.0] — 2026-11-27
 
 Gemini 4 cache protection, based on user telemetry about Gemini 4 prompt-cache misses (sources in [docs/perf.md section 8](docs/perf.md#8-gemini-4-cache-behaviour-external-reports-and-how-the-plugin-uses-it)).

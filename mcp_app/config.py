@@ -293,6 +293,8 @@ POLICY_DROP_PRIOR_SHORT_TTL = (1.2, 16)  # Hydrogen 60-90s TTL cliff suffers hig
 # Per-model prompt-cache behaviour (keep identical to scripts/hook_common.py; unit-tested).
 # Gemini 4 cache misses climb with context size, so long Gemini 4 chats are capped at 180k;
 # Carbon, Argon and the Orchestrator drop the cache far more often (docs/perf.md section 8).
+# After Google's Nov 20 & Nov 25 Neon cache-pool/routing expansions, Neon caches survive 15-60m
+# under normal load (shared-pool LRU, no guaranteed fixed TTL), so Neon uses a 30m (1800s) cold window.
 GEMINI4_CTX_CAP = 180_000
 _MODEL_FAMILY_RE = re.compile(r"(orchestrator|carbon|argon|neon|hydrogen)", re.I)
 
@@ -306,6 +308,8 @@ def model_cache_profile(model: str) -> dict[str, Any]:
         ttl = 90
     elif volatile:
         ttl = 120
+    elif family == "neon":
+        ttl = 1800
     else:
         ttl = 240
     return {

@@ -2,7 +2,7 @@
 
 <p align="left">
   <a href="https://github.com/menscho/agy-tokensaver/actions/workflows/test.yml"><img src="https://github.com/menscho/agy-tokensaver/actions/workflows/test.yml/badge.svg" alt="CI"/></a>
-  <a href="https://github.com/menscho/agy-tokensaver/releases"><img src="https://img.shields.io/badge/release-v1.6.0-4ade80?style=flat-square&labelColor=0d0d11" alt="Release v1.6.0"/></a>
+  <a href="https://github.com/menscho/agy-tokensaver/releases"><img src="https://img.shields.io/badge/release-v1.6.1-4ade80?style=flat-square&labelColor=0d0d11" alt="Release v1.6.1"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-8e8e98?style=flat-square&labelColor=0d0d11" alt="MIT"/></a>
 </p>
 
@@ -48,7 +48,7 @@ Each guarded tool call adds one hook run: 50–90 ms in CI (Linux, macOS, Window
 
 ## Install and remove
 
-Download `agy-tokensaver-v1.6.0.zip` from [Releases](https://github.com/menscho/agy-tokensaver/releases), extract it, and run the installer:
+Download `agy-tokensaver-v1.6.1.zip` from [Releases](https://github.com/menscho/agy-tokensaver/releases), extract it, and run the installer:
 
 - **Windows:** double-click `Install-TokenSaver.bat`
 - **macOS:** double-click `Install-TokenSaver.command`

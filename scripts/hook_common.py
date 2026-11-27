@@ -22,9 +22,9 @@ _MODE_OFF_RE = re.compile(r'"mode"\s*:\s*"off"', re.I)
 # Per-model prompt-cache behaviour (keep identical to mcp_app/config.py; unit-tested).
 # Sources: docs/perf.md section 8. Gemini 4 misses climb with context size (Neon High after the
 # Nov 21 fix: 10% zero-hit calls at 50-100k, ~29% at 100-250k, 43% at 250-300k, ~65% at 300-500k),
-# so long Gemini 4 chats are capped at 180k. Carbon, Argon and the Orchestrator drop the cache far
-# more often (0-42% hit rates reported at 21-55 s gaps), so they get a short cold window and a
-# higher drop prior.
+# so long Gemini 4 chats are capped at 180k. After Google's Nov 25 Neon cache-pool/routing expansion,
+# Neon caches survive 15-60m under normal load (shared-pool LRU, no fixed TTL), so Neon uses a 30m
+# (1800s) cold window. Carbon, Argon and the Orchestrator drop far sooner (120s), Hydrogen 90s.
 GEMINI4_CTX_CAP = 180_000
 _MODEL_FAMILY_RE = re.compile(r"(orchestrator|carbon|argon|neon|hydrogen)", re.I)
 
@@ -38,6 +38,8 @@ def model_cache_profile(model: str) -> dict[str, Any]:
         ttl = 90
     elif volatile:
         ttl = 120
+    elif family == "neon":
+        ttl = 1800
     else:
         ttl = 240
     return {

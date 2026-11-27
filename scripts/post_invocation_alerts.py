@@ -18,6 +18,7 @@ from hook_common import (
     get_int,
     get_str,
     hooks_disabled,
+    model_cache_profile,
     read_stdin_capped,
     safe_cid,
     script_plugin_root,
@@ -227,17 +228,20 @@ def main() -> int:
             new_tier = cur_tier
             k_tot = tot // 1000
             k_cr_cost = f"{(tot * 0.05) / 1000:.1f}"
-            ttl_hint = " (`hydrogen` ~60-90s TTL cliff — avoid >60s swarms/waits here!)" if "hydrogen" in cur.model.lower() else ""
+            cur_prof = model_cache_profile(cur.model)
+            cur_ttl = int(cur_prof["ttl_sec"])
+            pause_lbl = f">{cur_ttl // 60}m" if cur_ttl >= 600 else ">2-4m"
+            ttl_hint = " (`hydrogen` ~60-90s TTL cliff — avoid >60s swarms/waits here!)" if cur_prof["family"] == "hydrogen" else ""
             direct_ok = _has_direct_handoff(data_dir(plugin_root))
             if cur_tier >= 110:
                 extra = (
                     " Auto-Handoff will rotate to a fresh ~17k chat on your next message (avoid launching new swarms/long builds before rotating)."
                     if direct_ok
-                    else f" Auto-Handoff will rotate on your next warm turn; if you pause >2-4m, use **Archive & New Chat** in agy-tokensaver first to avoid a ~{k_tot}k cold rebuild."
+                    else f" Auto-Handoff will rotate on your next warm turn; if you pause {pause_lbl}, use **Archive & New Chat** in agy-tokensaver first to avoid a ~{k_tot}k cold rebuild."
                 )
             else:
                 extra = (
-                    f" A >2-4m idle or slow tool wait rebuilds ~{k_tot}k uncached — Auto-Handoff is armed for heavy phases or >110k."
+                    f" A {pause_lbl} idle or slow tool wait rebuilds ~{k_tot}k uncached — Auto-Handoff is armed for heavy phases or >110k."
                 )
             notes.append(f"**Token Saver:** Context reached **~{k_tot}k tokens** (~{k_cr_cost}k uncached-equiv/turn in cache reads){ttl_hint}.{extra}")
 
@@ -247,7 +251,8 @@ def main() -> int:
             is_compaction = cur.cp or tot < prev.tot * 0.80
             if not is_compaction:
                 new_drop_ts = cur.ts
-                ttl_s = 90 if "hydrogen" in cur.model.lower() else 240
+                ttl_s = int(model_cache_profile(cur.model)["ttl_sec"])
+                ttl_lbl = f"{ttl_s // 60}m" if ttl_s >= 600 and ttl_s % 60 == 0 else f"{ttl_s}s"
                 cause = "prefix change or backend cache eviction"
                 if prev.model and cur.model and prev.model != cur.model:
                     cause = f"model switch (`{prev.model}` -> `{cur.model}`)"
@@ -256,10 +261,11 @@ def main() -> int:
                     if t1 is not None and t2 is not None:
                         dt = t2 - t1
                         if dt >= ttl_s:
+                            dt_lbl = f"{dt // 60}m" if dt >= 600 else f"{dt}s"
                             cause = (
-                                f"mid-run tool/swarm wait (~{dt}s > {ttl_s}s TTL)"
+                                f"mid-run tool/swarm wait (~{dt_lbl} > {ttl_lbl} TTL)"
                                 if prev.has_tools
-                                else f"idle TTL eviction (~{dt}s pause exceeded {ttl_s}s hot cache window)"
+                                else f"idle TTL eviction (~{dt_lbl} pause exceeded {ttl_lbl} hot cache window)"
                             )
                         elif prev.tot >= 180_000:
                             cause = f"large-context backend eviction (~{prev.tot // 1000}k ctx)"

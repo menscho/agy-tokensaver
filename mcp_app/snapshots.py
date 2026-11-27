@@ -305,13 +305,14 @@ def run_smart_rollover_tick() -> None:
         return
 
     # Cold-cache trigger (Persistent Context Graphs arXiv:2609.40118 / arXiv:2607.19214): once a >=55k chat's KV cache has
-    # ALREADY expired (idle >= ttl_cliff, up to 30m), resuming it pays cur_tot uncached vs 17k fresh handoff
+    # ALREADY expired (idle >= ttl_cliff, within 30m after the cliff), resuming it pays cur_tot uncached vs 17k fresh handoff
     # (instant Turn-1 payback, zero warm cache wasted).
+    cold_max_idle = max(1800, int(act.get("ttl_cliff_sec") or 240) + 1800)
     is_cold_payback = bool(
         act.get("is_cold")
         and act.get("cur_tot", 0) >= COLD_MIN_CTX
         and act.get("turns", 0) >= 4
-        and act.get("idle_sec", 0) <= 1800
+        and act.get("idle_sec", 0) <= cold_max_idle
     )
 
     if not is_cold_payback:
