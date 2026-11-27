@@ -144,7 +144,7 @@ import json, sys
 recs = [json.loads(l) for l in open(sys.argv[1]) if l.strip()]
 ev = [r for r in recs if r.get("session_id") == "trunc1" and r.get("category") == "duplicate_read"][-1]
 assert 290 <= ev["raw_bytes"] <= 310, f"expected ~300B slice raw_bytes, got {ev}"
-assert ev["kept_bytes"] >= 100, f"expected denial message bytes counted, got {ev}"
+assert 60 <= ev["kept_bytes"] <= 140, f"expected (short) denial message bytes counted, got {ev}"
 assert 0 <= ev["est_tokens_saved"] < 100, f"inflated token savings on 1-line block: {ev}"
 PYEOF
 

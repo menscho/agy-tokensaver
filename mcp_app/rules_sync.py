@@ -3,10 +3,13 @@ from __future__ import annotations
 
 import os
 import time
+from pathlib import Path
 
 from config import CFG_FILE, PLUGIN_ROOT, _atomic_write_json, _cfg_lock, _is_sandbox_data_dir, load_config
 
 _CONCISE_RULE_LINE = "1. Concise replies: skip pleasantries, preambles, and post-tool narration; keep code, diffs, paths, and errors verbatim."
+_EDIT_RULE_LINE = "2. Change existing files with targeted edits, not full-file rewrites."
+_RULES_TEXT = "# Token Saver\n" + _CONCISE_RULE_LINE + "\n" + _EDIT_RULE_LINE + "\n"
 
 
 def _should_defer_concise_sync() -> bool:
@@ -41,7 +44,7 @@ def flush_pending_concise_sync(force: bool = False) -> bool:
         desired = bool(cfg.get("concise_output", False))
         agents_md = PLUGIN_ROOT / "rules" / "AGENTS.md"
         can_touch_repo = not _is_sandbox_data_dir() or os.environ.get("AGY_TS_SYNC_RULES") == "1"
-        drifted = can_touch_repo and (desired != agents_md.is_file())
+        drifted = can_touch_repo and (desired != agents_md.is_file() or (desired and _rules_text_stale(agents_md)))
         if not cfg.get("pending_concise_sync") and not drifted:
             return False
         if not force and _should_defer_concise_sync():
@@ -51,6 +54,14 @@ def flush_pending_concise_sync(force: bool = False) -> bool:
             cfg["pending_concise_sync"] = False
             _atomic_write_json(CFG_FILE, cfg)
         return True
+
+
+def _rules_text_stale(agents_md: Path) -> bool:
+    """True when an existing rules/AGENTS.md was written by an older version (re-synced via the same cache-safe deferral)."""
+    try:
+        return agents_md.read_text(encoding="utf-8") != _RULES_TEXT
+    except OSError:
+        return False
 
 
 def _sync_concise_rule(enabled: bool) -> None:
@@ -66,7 +77,7 @@ def _sync_concise_rule(enabled: bool) -> None:
                 agents_md.unlink()
             return
         rules_dir.mkdir(parents=True, exist_ok=True)
-        agents_md.write_text("# Token Saver\n" + _CONCISE_RULE_LINE + "\n", encoding="utf-8")
+        agents_md.write_bytes(_RULES_TEXT.encode("utf-8"))
     except OSError:
         pass
 

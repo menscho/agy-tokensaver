@@ -2,6 +2,23 @@
 
 All notable changes to **agy-tokensaver** (`menscho/agy-tokensaver`) are documented here.
 
+## [1.5.1] — 2026-11-27
+
+Lossless token cuts: the changes remove text the model already has, or shorten text that stays in context. The only behaviour changes are the lower dedup floor and one extra rule in the opt-in Max mode.
+
+### Changed
+- **Duplicate-read dedup floor lowered from 1 KB to 512 B (`scripts/read_hook.py`):** unchanged re-reads of 0.5–1 KB files (small configs, manifests, `__init__.py`) that are still in context are now blocked. The deny message is ~20 tokens against ~150–300 for the re-read. The same mtime, size, MD5 and compaction checks apply as for larger files.
+- **Shorter messages that stay in context (`scripts/read_hook.py`, `scripts/pre_invocation_handoff.py`, `scripts/post_invocation_alerts.py`):** every deny reason and advisory is replayed on each later turn, so each was cut to the facts the model acts on. Duplicate-read reason 134–147 → 74–94 chars (it no longer repeats the file name), image duplicate reason drops the savings estimate, cache-shield advisories −14%, huge-write nudge −14%, delegated handoff directive −20% (~35 tokens).
+- **Smaller MCP tool definitions (`mcp_app/server.py`):** shorter descriptions for the model-visible `open_token_saver` tool (308 → 241 chars of schema) and the eight app-only tools (whole list 2,568 → 2,264 chars). Tool definitions are sent with every prompt by hosts that list them.
+- **Handoff packet lists each edited file once (`scripts/handoff_pack.py`):** code files now carry their symbol outline inline in "Edited in that conversation" instead of being repeated under a separate "Edited File Symbols" section. Same information, one fewer header and one fewer line per edited code file.
+- **Max mode adds a targeted-edit rule (`mcp_app/rules_sync.py`, `scripts/pre_invocation_handoff.py`):** `rules/AGENTS.md` now also says "Change existing files with targeted edits, not full-file rewrites" (output tokens cost ~6× input; diff-style edits match full rewrites on accuracy, arXiv:2604.27296). An existing rules file from an older version is rewritten through the same warm-cache deferral, and both writers now share byte-identical text (unit-tested) so they can never flip-flop the file and invalidate the prompt cache.
+
+### Fixed
+- **Re-read tax labels:** `scripts/benchmark.py`, the benchmark chart and `docs/perf.md` said "+8k re-read tax per rollover" while the code charges 6k (`REDISCOVERY_TAX_TOK`). They now match the code.
+- **README rewritten:** plain-language description, a results table that defines the cost proxy and explains direct vs delegated handoffs, all five dashboard modes (Guards + Compact Reads was missing), installer flags explained, accurate threshold range (75k–220k adaptive), and no more conflicting figures (packet size, re-read tax, `255k` vs `254,916`).
+- **SECURITY.md and docs/architecture.md:** now list the localhost `ConversationService` calls that open continuation chats (previously documented as "hooks never open network connections").
+- **docs/research.md:** paper titles and descriptions corrected (IAL-Scan, AdaEdit and LogDx-CI were described as something the papers are not), plus a section on why the guards stay lossless (arXiv:2607.12161).
+
 ## [1.5.0] — 2026-11-27
 
 ### Added & Cachemaxxing

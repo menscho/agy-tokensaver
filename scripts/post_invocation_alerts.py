@@ -282,8 +282,8 @@ def main() -> int:
                     f"**{m_hw.group(2)}/{m_hw.group(3)} unchanged lines** (6x output cost) — prefer `edit_file` for surgical hunks."
                 )
                 model_nudge = (
-                    f"[token-saver] Your last write_file on '{m_hw.group(1)}' re-emitted {m_hw.group(2)}/{m_hw.group(3)} "
-                    "unchanged lines (6x output cost). Use edit_file for surgical changes on existing files."
+                    f"[token-saver] Last write_file on '{m_hw.group(1)}' re-emitted {m_hw.group(2)}/{m_hw.group(3)} "
+                    "unchanged lines; use edit_file for targeted changes to existing files."
                 )
         except OSError:
             pass

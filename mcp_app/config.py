@@ -261,7 +261,7 @@ def parse_iso_ts(ts_str: str) -> float | None:
 #  * COLD_START_TOK = FRESH (15.4k) + PACKET p90 (0.4k) + ~1.2k slack for the max packet and the
 #    model's resume context = 17k. (Previously an unmeasured 22k.)
 #  * REDISCOVERY_TAX_TOK: re-reading files the old chat already had in context. NOT measured ->
-#    kept at the old conservative 8k.
+#    kept as a conservative 6k estimate.
 #  * Warm-up misses: fresh conversations on this machine often miss the prompt cache on their first
 #    1-3 generations (cr=0 at turn 1/2 in 17 of 30 sessions). The counterfactual replays THIS
 #    session's own measured warm-up miss pattern for the new conversation (charged, not assumed 0).

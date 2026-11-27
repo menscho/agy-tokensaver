@@ -1,6 +1,6 @@
 # Performance, Benchmarks and Latency
 
-Every figure below comes directly from running commands in this repository (`eval/runner.py` and `scripts/benchmark.py`). Live end-to-end runs measure actual completion and API token usage; transcript replay numbers are **counterfactual replay estimates** assuming unchanged post-handoff trajectories (`+8k` re-read tax per rollover).
+Every figure below comes directly from running commands in this repository (`eval/runner.py` and `scripts/benchmark.py`). Live end-to-end runs measure actual completion and API token usage; transcript replay numbers are **counterfactual replay estimates** assuming unchanged post-handoff trajectories (`+6k` re-read tax per rollover).
 
 ![Real-Session Replay Estimate Chart](assets/benchmark-chart.svg)
 

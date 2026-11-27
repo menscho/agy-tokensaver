@@ -237,7 +237,7 @@ def run_transcripts() -> int:
     n_unchanged = sum(1 for p in sess_saved if -0.05 <= p <= 0.05)
     n_regressed = sum(1 for p in sess_saved if p < -0.05)
 
-    print(f"=== Counterfactual Rollover Replay ({len(valid)} local transcripts, +8k re-read tax per rollover) ===")
+    print(f"=== Counterfactual Rollover Replay ({len(valid)} local transcripts, +{core.REDISCOVERY_TAX_TOK // 1000}k re-read tax per rollover) ===")
     print("Note: Rollover-only counterfactual from core._simulate_rollover_session (constant output, 30k cost/rollover).")
     print("Quota Delta is signed: negative (-) means less quota used, positive (+) means rollover spent MORE quota.\n")
     print(f"{'Tier':22s} | {'n':>3s} | {'Worse':>5s} | {'Avg Peak':>8s} | {'Sess Median':>11s} | {'Quota Delta':>11s} | {'Upper-Bound Cap':>15s}")

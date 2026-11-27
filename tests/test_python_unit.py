@@ -131,6 +131,16 @@ class TestMcpAppModules(unittest.TestCase):
             agents_p = sb_root / "rules" / "AGENTS.md"
             self.assertTrue(agents_p.is_file())
             self.assertIn("1. Concise replies", agents_p.read_text(encoding="utf-8"))
+            self.assertIn("2. Change existing files with targeted edits", agents_p.read_text(encoding="utf-8"))
+            self.assertFalse(self.rules_sync._rules_text_stale(agents_p))
+            import pre_invocation_handoff as pih
+            self.assertEqual(pih.RULES_TEXT, self.rules_sync._RULES_TEXT, "hook and MCP app must write identical rules")
+            # A rules file written by an older version is detected as drift and rewritten on flush
+            agents_p.write_text("# Token Saver\n" + self.rules_sync._CONCISE_RULE_LINE + "\n", encoding="utf-8")
+            self.assertTrue(self.rules_sync._rules_text_stale(agents_p))
+            with mock.patch.object(self.rules_sync, "load_config", return_value={"concise_output": True}):
+                self.assertTrue(self.rules_sync.flush_pending_concise_sync(force=True))
+            self.assertEqual(agents_p.read_bytes().decode("utf-8"), self.rules_sync._RULES_TEXT)
             self.rules_sync._sync_concise_rule(False)
             self.assertFalse(agents_p.exists())
         cfg = self.config.load_config()
@@ -948,7 +958,7 @@ class TestMcpAppModules(unittest.TestCase):
         (adir / "conv-hw-1.huge_write").write_text("big.py\t180\t200\n", encoding="utf-8")
         hw_out = run_pia({"conversationId": "conv-hw-1", "invocationNum": 5, "transcriptPath": str(tx_hi)})
         sm_hw = hw_out["injectSteps"][0]["systemMessage"]
-        self.assertIn("Use edit_file", sm_hw["systemMessage"])
+        self.assertIn("use edit_file", sm_hw["systemMessage"])
         self.assertIn("6x output cost", sm_hw["metadata"]["user_markdown"])
 
         # Neon 240s warm-cache deferral in rules_sync (idle=200s still protected on Neon!)
