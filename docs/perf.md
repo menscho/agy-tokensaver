@@ -56,3 +56,52 @@ By session length (`86` sessions, Path 2 Delegated / Path 1 Direct): `<75k` (`31
 ## 5. Synthetic Hook Fixture (`python3 scripts/benchmark.py --demo`)
 
 The 7-step deterministic hook benchmark tests blocked lockfiles, large source/JSON/log auto-caps, duplicate slice blocks, `node_modules` excludes, and lazy-truncation write blocks using `python3 -S`: direct tool tokens drop **77.6%** (`45,413` -> `10,181` tokens, median PreToolUse latency **30.0 ms**). Do not extrapolate this synthetic worst-case fixture to normal editing sessions.
+
+## 6. Second-Machine Replay: v1.5.0 vs v1.5.1 and Post-Patch Caching (2026-11-27)
+
+Same counterfactual replay as section 3 (`python3 scripts/benchmark.py --modes --report`), run on a different machine with **30 local sessions** (`1,132` turns, `27.0M` cost-proxy units, recorded 2026-09-02 to 2026-11-17). These sessions are shorter than the 86-session set above: only 3 peak above 250k and 1 above 400k, which is where Auto-Handoff pays most. All of them predate Gemini 4 Neon (launched 2026-11-18) and Antigravity's Neon cache-pool upgrades.
+
+### 6a. v1.5.0 vs v1.5.1 (real hooks of each checkout)
+
+| Metric | v1.5.0 | v1.5.1 |
+| :--- | ---: | ---: |
+| Tool tokens cut | `74,594` | `74,658` (+64) |
+| Duplicate-read tokens cut | `1,749` | `1,833` (+4.8%) |
+| Est. cost saved, Default (delegated) | `1.0460%` | `1.0463%` |
+| Est. cost saved, Guards Only | `0.7383%` | `0.7386%` |
+| Upper bound (phase resets) | `9.4605%` | `9.4609%` |
+
+The v1.5.1 hook changes are effectively invisible on these sessions (+0.0003 percentage points). Changes the replay does not model are smaller still. The handoff packet is 1.6% smaller in total: 2 of 23 rebuildable packets shrink, by 149 and 30 tokens, against an average of 474 tokens. The shorter tool descriptions save 17–76 tokens per turn, which is ≈0.006–0.03% of cost because those tokens are almost always cached.
+
+### 6b. Post-patch cache scenarios
+
+Antigravity enlarged the Neon cache pool on 2026-11-20/21 (about "+4%" hit rate) and again on 2026-11-25 ("+4.5%", "28% more tasks within quota"), per Varun Mohan's posts as reported by [TestingCatalog](https://www.testingcatalog.com/google-stretches-antigravity-neon-quota-with-caching-gains/) and [Sulat](https://news.sulat.com/2026/11/26/antigravity-neon-caching/). Google published no baseline and did not say whether these are percentage points, and users report that zero-hit turns persist. The replay models the patches as recovering cache misses on tokens that were already in the prompt; new content always stays uncached. These sessions already hit 93.4%, and only 3.4 points of misses are recoverable, so "+4 points" already equals a perfect cache.
+
+| Scenario | Hit rate | Bill without plugin | Guards Only | Default (delegated / direct) | Upper bound |
+| :--- | ---: | ---: | ---: | ---: | ---: |
+| As recorded | `93.4%` | `27.0M` | `0.74%` | `1.05%` / `1.08%` | `9.5%` |
+| Half of misses recovered | `95.1%` | `24.9M` (−7.8%) | `0.65%` | `0.59%` / `0.57%` | `9.2%` |
+| All misses recovered | `96.8%` | `22.8M` (−15.7%) | `0.71%` | `0.44%` / `0.55%` | `13.2%` |
+
+v1.5.0 and v1.5.1 produce identical percentages under the post-patch cache. Better caching roughly halves what Auto-Handoff saves (fewer cache drops worth escaping), while the guards hold at about 0.7%.
+
+### 6c. Where the cost goes, and the ceiling for each lever
+
+| Slice of the bill | Share | What can reduce it |
+| :--- | ---: | :--- |
+| Output tokens (reasoning, replies, tool arguments) | `45.5%` | Max mode's concise and targeted-edit rules (opt-in). File-write content is 20% of output; re-emitted unchanged lines in full rewrites are 4.4% of output (≈2.0% of cost). |
+| Cached context re-reads | `22.6%` | Auto-Handoff on very long chats |
+| Cache misses on already-seen context | `≈16.5%` | Antigravity's cache patches (section 6b) |
+| New content entering context for the first time | `≈14.0%` | Read guards (file reads only) |
+| First-turn cold starts (≈15.3k system prompt) | `1.5%` | Nothing plugin-side |
+
+Ceiling if a whole tool's output were deleted outright (impossible without losing information; it bounds what any guard could do):
+
+| Tool output | Calls | Result tokens | Share of tool tokens | Cost if deleted |
+| :--- | ---: | ---: | ---: | ---: |
+| File reads (`read_file` / `view_file`) | `422` | `572,113` | `63.2%` | `6.7%` |
+| Shell (`run_command`, never modified by design) | `616` | `160,305` | `17.7%` | `1.6%` |
+| Browser (`webview_browser`) | `28` | `141,897` | `15.7%` | `0.7%` |
+| Search (`grep_search` / `find_by_name` / `list_dir`) | `66` | `5,995` | `0.7%` | `0.1%` |
+
+The read guards cut 13% of file-read tokens (the provably redundant or junk part) for 0.74% of cost, against a 6.7% ceiling for deleting every file read. The largest slice, output, is only addressed by the opt-in Max mode. In the live hard suite (section 2), Max mode cut cost 9.0% at 18/18, against 1.6% at 17/18 for Default.
