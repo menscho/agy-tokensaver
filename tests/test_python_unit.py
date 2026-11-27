@@ -1360,8 +1360,8 @@ class TestFastAcceleratorModules(unittest.TestCase):
         self.assertEqual(fsnap.parse_porcelain_branch_header("## Initial commit on dev"), ("dev", True))
 
         # is_home_or_system_root detection
-        self.assertTrue(fsnap.is_home_or_system_root("/"))
-        self.assertTrue(fsnap.is_home_or_system_root("/home"))
+        self.assertTrue(fsnap.is_home_or_system_root(os.path.abspath(os.sep)))
+        self.assertTrue(fsnap.is_home_or_system_root(r"C:\Users" if os.name == "nt" else "/home"))
         self.assertTrue(fsnap.is_home_or_system_root(str(Path.home())))
         self.assertFalse(fsnap.is_home_or_system_root(str(self.ws)))
         self.assertIsNone(fsnap.build_workspace_snapshot(str(self.tmp / "nonexistent_dir")))
@@ -1989,15 +1989,20 @@ class TestFastAcceleratorModules(unittest.TestCase):
             self.assertEqual(fu.resolve_edits_format(client_info={"name": "antigravity-cli", "version": ver}, env={})[0], exp_fmt)
         self.assertEqual(fu.resolve_edits_format(client_info={"name": "other-client", "version": "1.5.5"}, env={})[0], "array")
 
-        # Symlink edit preserves symlink, plus missing file / empty hunks / mocked verify timeout
+        # Symlink edit preserves symlink (skip only if OS denies symlink privilege), plus missing file / empty hunks / mocked verify timeout
         real_f = ew / "real_target.txt"
         real_f.write_text("alpha\nbeta\n", encoding="utf-8")
         sym_f = ew / "link_target.txt"
-        os.symlink(str(real_f), str(sym_f))
-        sym_res = fe.run_apply_edits({"cwd": str(ew), "edits": [{"path": "link_target.txt", "hunks": [{"target": "alpha", "replacement": "ALPHA"}]}]})
-        self.assertFalse(sym_res["isError"], sym_res["text"])
-        self.assertTrue(os.path.islink(str(sym_f)))
-        self.assertIn("ALPHA", real_f.read_text(encoding="utf-8"))
+        try:
+            os.symlink(str(real_f), str(sym_f))
+            has_sym = True
+        except OSError:
+            has_sym = False
+        if has_sym:
+            sym_res = fe.run_apply_edits({"cwd": str(ew), "edits": [{"path": "link_target.txt", "hunks": [{"target": "alpha", "replacement": "ALPHA"}]}]})
+            self.assertFalse(sym_res["isError"], sym_res["text"])
+            self.assertTrue(os.path.islink(str(sym_f)))
+            self.assertIn("ALPHA", real_f.read_text(encoding="utf-8"))
         self.assertTrue(fe.run_apply_edits({"cwd": str(ew), "edits": [{"path": "does_not_exist.txt", "hunks": [{"target": "a", "replacement": "b"}]}]})["isError"])
         self.assertTrue(fe.run_apply_edits({"cwd": str(ew), "edits": [{"path": "real_target.txt", "hunks": []}]})["isError"])
         self.assertTrue(fe.run_apply_edits({"cwd": str(ew), "edits": [123]})["isError"])
@@ -2028,6 +2033,67 @@ class TestFastAcceleratorModules(unittest.TestCase):
         )
         self.assertFalse(z_res["isError"])
         self.assertIn("getUserData.toml", z_res["text"])
+
+    def test_fast_search_rg_path_mocked(self) -> None:
+        import fast_search as fs
+        import fast_utils as fu
+
+        def _mk_res(code: int | None = 0, out: str = "", err: str = "", spawn_err: str | None = None) -> fu.ExecResult:
+            return fu.ExecResult(exit_code=code, sig=None, timed_out=False, duration_ms=5, stdout=out, stderr=err, truncated=False, error=spawn_err)
+
+        def _fake_rg(bin_name: str, args: list[str], cwd: str = "", timeout_ms: int = 1000, max_output_bytes: int = 1024 * 1024) -> fu.ExecResult:
+            self.assertEqual(bin_name, "rg")
+            if "--files-with-matches" in args:
+                return _mk_res(0, "src/worker.py\0src/app.ts\0")
+            if "--count-matches" in args or ("--count" in args and "--json" not in args):
+                return _mk_res(0, "src/worker.py\0" + "2\n")
+            if "--json" in args:
+                evs = [
+                    {"type": "context", "data": {"path": {"text": "src/worker.py"}, "line_number": 3, "lines": {"text": "@dataclass\n"}}},
+                    {
+                        "type": "match",
+                        "data": {
+                            "path": {"text": "src/worker.py"},
+                            "line_number": 4,
+                            "lines": {"text": "class Worker:\n    def run(self):\n"} if "--multiline" in args else {"text": "class Worker:\n"},
+                            "submatches": [{"start": 6, "end": 12}],
+                        },
+                    },
+                ]
+                return _mk_res(0, "\n".join(json.dumps(e) for e in evs) + "\n")
+            return _mk_res(2, "", "regex parse error")
+
+        with mock.patch.object(fs, "is_ripgrep_available", return_value=True), \
+             mock.patch.object(fs, "exec_binary", side_effect=_fake_rg):
+            res = fs.run_batch_search(
+                {
+                    "cwd": str(self.ws),
+                    "queries": [
+                        {"type": "text", "pattern": "Worker", "fileType": "python", "contextLines": 1, "caseSensitive": False, "glob": "*.py"},
+                        {"type": "regex", "pattern": "class Worker:\\n", "multiline": True},
+                        {"type": "text", "pattern": "Worker", "outputMode": "files_with_matches"},
+                        {"type": "text", "pattern": "Worker", "outputMode": "count", "multiline": True},
+                        {"type": "text", "pattern": "Worker", "path": "src/worker.py", "glob": "*.py"},
+                        {"type": "text", "pattern": "Worker", "path": "src/worker.py", "fileType": "ts"},
+                        {"type": "text", "pattern": "Worker", "path": "src/worker.py", "glob": "!*.py"},
+                    ],
+                }
+            )
+            self.assertFalse(res["isError"], res["text"])
+            self.assertIn("class Worker:", res["text"])
+            self.assertIn("src/worker.py", res["text"])
+
+        # Also test rg exit_code=2 error propagation and spawn error fallback
+        with mock.patch.object(fs, "is_ripgrep_available", return_value=True), \
+             mock.patch.object(fs, "exec_binary", return_value=_mk_res(2, "", "bad regex")):
+            err_res = fs.run_batch_search({"cwd": str(self.ws), "queries": [{"type": "regex", "pattern": "[bad"}]})
+            self.assertIn("bad regex", err_res["text"])
+
+        with mock.patch.object(fs, "is_ripgrep_available", return_value=True), \
+             mock.patch.object(fs, "exec_binary", return_value=_mk_res(None, "", "", "ENOENT")):
+            fb_res = fs.run_batch_search({"cwd": str(self.ws), "queries": [{"type": "text", "pattern": "Worker"}]})
+            self.assertFalse(fb_res["isError"])
+            self.assertIn("Worker", fb_res["text"])
 
 
 if __name__ == "__main__":

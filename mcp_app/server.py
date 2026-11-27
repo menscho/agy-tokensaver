@@ -735,7 +735,7 @@ def _file_uri_to_path(uri: str) -> str | None:
     path = unquote(parsed.path)
     if os.name == "nt" and re.match(r"^/[A-Za-z]:", path):
         path = path[1:]
-    return path or None
+    return os.path.normpath(path) if path else None
 
 
 def _dispatch(req: dict[str, Any]) -> None:
