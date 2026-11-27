@@ -63,7 +63,7 @@ def main() -> int:
     except OSError:
         emit_allow()
         return 0
-    if old_sz < 4096:
+    if old_sz < 3072:
         emit_allow()
         return 0
     if "/.gemini/antigravity/brain/" in path.replace("\\", "/") or SKIP_EXT_RE.search(path):
@@ -78,7 +78,7 @@ def main() -> int:
         return 0
     old_lines = old_content.split("\n")
     old_cnt = len(old_lines)
-    if old_cnt <= 120:
+    if old_cnt <= 80:
         emit_allow()
         return 0
 
@@ -99,7 +99,7 @@ def main() -> int:
         )
         return 0
 
-    if old_cnt > 120 and new_cnt > 100:
+    if old_cnt > 80 and new_cnt > 70:
         freq = Counter(old_lines)
         matched = 0
         for ln in new_lines:

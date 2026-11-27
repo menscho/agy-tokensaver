@@ -10,7 +10,8 @@ _CONCISE_RULE_LINE = "1. Concise replies: skip pleasantries, preambles, and post
 
 
 def _should_defer_concise_sync() -> bool:
-    """Protect active warm KV caches (>30k tokens, idle <150s) from mid-session system-prompt edits (arXiv:2601.06007)."""
+    """Protect active warm KV caches (>20k tokens, within hot TTL window) from mid-session system-prompt edits (arXiv:2601.06007).
+    Empirical cliffs: Neon retains ~90% cache hits up to 240s (protect 300s); Hydrogen drops at 60-90s (protect 150s)."""
     if _is_sandbox_data_dir() or os.environ.get("AGY_TS_SYNC_RULES") == "1":
         return False
     try:
@@ -20,13 +21,15 @@ def _should_defer_concise_sync() -> bool:
             return False
         now = time.time()
         _mt, sid, tx, db = cands[0]
-        if now - _mt > 180:
+        if now - _mt > 330:
             return False
         rec = parse_session_cached(sid, tx, db)
         if not rec:
             return False
         age = max(0, int(now - rec["last_ts"]))
-        return rec["cur_tot"] >= 30_000 and age < rec.get("ttl_cliff_sec", 150)
+        ttl_cliff = int(rec.get("ttl_cliff_sec") or 240)
+        protect_sec = 150 if ttl_cliff <= 90 else 300
+        return rec["cur_tot"] >= 20_000 and age < protect_sec
     except Exception:
         return False
 

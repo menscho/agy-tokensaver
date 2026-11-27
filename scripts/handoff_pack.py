@@ -361,7 +361,7 @@ def extract_transcript_context(
                             elif name == "run_command":
                                 cmdline = _arg(args, "CommandLine", "command")
                                 if cmdline and any(k in cmdline for k in ("pytest", "cargo test", "npm test", "go test", "run_tests.sh", "run_all.sh", "test_")):
-                                    last_verify = " ".join(cmdline.split())[:110]
+                                    last_verify = " ".join(cmdline.split())[:180]
                             elif name == "update_steps":
                                 raw_steps = args.get("steps") if isinstance(args, dict) else None
                                 if isinstance(raw_steps, list):
@@ -384,11 +384,11 @@ def extract_transcript_context(
                             continue
                         for err_ln in c.splitlines():
                             el_s = err_ln.strip()
-                            # Skip source-code line-number echoes like `124: print("FAIL: ...")`
-                            if re.match(r"^\d+:\s", el_s):
+                            # Skip source-code line-number echoes and bare traceback headers
+                            if re.match(r"^\d+:\s", el_s) or el_s.startswith("Traceback (most recent call last)"):
                                 continue
-                            if re.search(r"(?:Error:|FAIL:|AssertionError|Traceback|Exception:|SyntaxError|TypeError)", el_s) and len(el_s) > 10:
-                                key = el_s[:120]
+                            if re.search(r"(?:Error:|FAIL:|AssertionError|Exception:|SyntaxError|TypeError|ValueError|RuntimeError|ModuleNotFoundError)", el_s) and len(el_s) > 10:
+                                key = el_s[:140]
                                 if key not in seen_err:
                                     seen_err.add(key)
                                     errors.append(key)

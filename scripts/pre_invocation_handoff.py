@@ -59,6 +59,9 @@ DELEGATED_HEAVY_MIN_CTX = 75_000
 DELEGATED_POST_DROP_MIN_CTX = 90_000
 DELEGATED_TRIVIAL_BYPASS_CTX = 180_000
 MIDRUN_ADVISORY_MIN_CTX = 75_000
+HIGH_CTX_FASTTRACK_CTX = 120_000
+HIGH_CTX_FASTTRACK_TURNS = 6
+COOLDOWN_BYPASS_CTX = 180_000
 
 _STAY_RE = re.compile(r"(?:^|\s)(?:\[stay\]|--stay)(?:\s|$)", re.I)
 _HEAVY_PHASE_RE = re.compile(
@@ -95,7 +98,7 @@ def _load_hud_config(dd: str) -> dict[str, Any]:
         "threshold_k": 110,
         "model": "inherit",
         "min_turns": 10,
-        "cooldown_min": 20,
+        "cooldown_min": 8,
         "auto_archive": True,
         "concise_output": False,
         "pending_concise_sync": False,
@@ -242,7 +245,8 @@ def _compute_policy(
 
     ctx = int(state.get("ctx", 0))
     turns = int(state.get("turns", 0))
-    warm_roll = ctx >= cap and turns >= min_turns
+    eff_min_turns = min(min_turns, HIGH_CTX_FASTTRACK_TURNS) if ctx >= HIGH_CTX_FASTTRACK_CTX else min_turns
+    warm_roll = ctx >= cap and turns >= eff_min_turns
     post_drop_floor = DELEGATED_POST_DROP_MIN_CTX if delegated else AUTO_CAP_MIN
     post_drop_roll = drops >= 1 and ctx >= post_drop_floor and turns >= 6
     return {"cap": cap, "cap_k": cap // 1000, "cost_tok": cost, "warm_roll": warm_roll, "post_drop_roll": post_drop_roll}
@@ -298,10 +302,13 @@ def _maybe_terminate_post_handoff(dd: str, cid: str) -> int | None:
     return 0
 
 
-def _maybe_midrun_drop_advisory(dd: str, cid: str, tx: str) -> int:
+def _maybe_midrun_drop_advisory(dd: str, cid: str, tx: str, inv_num: int = 1) -> int:
     """Mid-run (invocationNum > 0) zero-bloat cache-drop shield.
-    Fires AT MOST once per 10 minutes ONLY immediately after a real mid-run KV cache drop
-    on a >=75k chat (cache was just rebuilt anyway -> 0 prefix invalidation)."""
+    Fires AT MOST once per 10-15 minutes in two high-leverage situations:
+      1. Immediately after a real mid-run KV cache drop on a >=75k chat.
+      2. Proactively once when a long autonomous run (inv_num >= 6) crosses the model's
+         high-risk TTL cliff zone (110k on Hydrogen / 180k on Neon) so the agent batches
+         calls and avoids >TTL synchronous waits (appended at tail -> 0 prefix invalidation)."""
     if not cid or not tx or not os.path.isfile(tx):
         return _silent()
     adv_dir = os.path.join(dd, "alerts")
@@ -345,7 +352,19 @@ def _maybe_midrun_drop_advisory(dd: str, cid: str, tx: str) -> int:
     prev_tot = p_in + p_cr
     cur_tot = c_in + c_cr
     is_compaction = cur_tot < prev_tot * 0.80
-    if not (prev_tot >= MIDRUN_ADVISORY_MIN_CTX and c_in >= 40_000 and c_cr < prev_tot * 0.5 and not is_compaction):
+    is_hydro = "hydrogen" in c_m.lower()
+    ttl = 90 if is_hydro else 240
+    is_real_drop = prev_tot >= MIDRUN_ADVISORY_MIN_CTX and c_in >= 40_000 and c_cr < prev_tot * 0.5 and not is_compaction
+
+    proactive_floor = 110_000 if is_hydro else 180_000
+    is_proactive = (
+        not is_real_drop
+        and not is_compaction
+        and inv_num >= 6
+        and cur_tot >= proactive_floor
+        and not os.path.isfile(adv_file)
+    )
+    if not (is_real_drop or is_proactive):
         return _silent()
 
     try:
@@ -355,12 +374,18 @@ def _maybe_midrun_drop_advisory(dd: str, cid: str, tx: str) -> int:
     except OSError:
         pass
 
-    ttl = 90 if "hydrogen" in c_m.lower() else 150
-    msg = (
-        f"[token-saver] Mid-run KV cache drop (~{c_in // 1000}k rebuilt; {ttl}s TTL). "
-        f"Batch remaining tool calls in parallel, avoid >{ttl}s synchronous waits/swarms in this chat, "
-        f"and wrap up this phase cleanly so Auto-Handoff rotates on the next user turn."
-    )
+    if is_real_drop:
+        msg = (
+            f"[token-saver] Mid-run KV cache drop (~{c_in // 1000}k rebuilt; {ttl}s TTL). "
+            f"Batch remaining tool calls in parallel, avoid >{ttl}s synchronous waits/swarms in this chat, "
+            f"and wrap up this phase cleanly so Auto-Handoff rotates on the next user turn."
+        )
+    else:
+        msg = (
+            f"[token-saver] High-context cache shield (~{cur_tot // 1000}k ctx; {ttl}s KV cache TTL). "
+            f"Batch independent tool calls in parallel, avoid >{ttl}s blocking waits/swarms here, "
+            f"and wrap up cleanly so Auto-Handoff rotates to a fresh ~17k chat on the next user turn."
+        )
     emit_json({"injectSteps": [{"systemMessage": {"systemMessage": msg}}]})
     return 0
 
@@ -473,7 +498,7 @@ def main() -> int:
         term_rc = _maybe_terminate_post_handoff(dd, cid)
         if term_rc is not None:
             return term_rc
-        return _maybe_midrun_drop_advisory(dd, cid, tx)
+        return _maybe_midrun_drop_advisory(dd, cid, tx, inv_num=inv_num)
 
     user_input = (get_str(doc, "lastUserInput") or "").strip()
     if not cid or not tx or not user_input or not os.path.isfile(tx):
@@ -522,8 +547,8 @@ def main() -> int:
     last_ts = state.get("last_ts")
     idle_sec = max(0, int(now_ts - last_ts)) if isinstance(last_ts, (int, float)) else 0
     is_hydrogen = "hydrogen" in (hook_model or last_model).lower()
-    ttl_cliff = 90 if is_hydrogen else 150
-    # Empirical cold cliff: Neon keeps ~76% warm hits through 150-300s; Hydrogen drops start ~60-90s.
+    ttl_cliff = 90 if is_hydrogen else 240
+    # Empirical cold cliff: Neon keeps ~90% warm hits through 150-240s; Hydrogen drops start ~60-90s.
     cold_ttl = 90 if is_hydrogen else 240
     delegated = not bool(ls_addr)
 
@@ -581,14 +606,14 @@ def main() -> int:
     ):
         return _silent()
 
-    # Instant-payback triggers (cold cache / model switch) only enforce a 60s anti-burst guard;
-    # warm triggers respect cooldown_min to avoid rapid churn.
-    is_instant_payback = is_cold_trigger or is_model_switch_trigger
-    cooldown_sec = max(60, int(cfg.get("cooldown_min", 20)) * 60)
+    # Instant-payback triggers (cold cache / model switch) and emergency/post-drop rotations
+    # only enforce a 60s anti-burst guard; normal warm triggers respect cooldown_min.
+    is_urgent = is_cold_trigger or is_model_switch_trigger or is_post_drop_trigger or cur_ctx >= COOLDOWN_BYPASS_CTX
+    cooldown_sec = max(60, int(cfg.get("cooldown_min", 8)) * 60)
     last_ro_ts = int(rstate.get("last_rollover_ts") or 0)
-    if not is_instant_payback and int(now_ts) - last_ro_ts < cooldown_sec:
+    if not is_urgent and int(now_ts) - last_ro_ts < cooldown_sec:
         return _silent()
-    if is_instant_payback and int(now_ts) - last_ro_ts < 60:
+    if is_urgent and int(now_ts) - last_ro_ts < 60:
         return _silent()
 
     ws = _resolve_workspace(doc)

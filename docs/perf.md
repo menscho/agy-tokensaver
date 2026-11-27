@@ -32,25 +32,26 @@ On the legacy baseline suite (`eval/results/live_eval.json`, `90` runs on `flash
 
 ## 3. Counterfactual Replay Estimate (`python3 scripts/benchmark.py --modes --report`)
 
-Replayed across **81 local Antigravity sessions** (`4,466` turns, `134.7M` cost-proxy units; `0` tokens/turn prompt overhead; cost mix `38.5%` input / `31.3%` cache / `30.2%` output):
+Replayed across **86 local Antigravity sessions** (`4,688` turns, `142.1M` cost-proxy units; `0` tokens/turn prompt overhead; cost mix `38.7%` input / `31.0%` cache / `30.4%` output) gated strictly on exact `USER_INPUT` turn boundaries (`followed_by_user`):
 
 | Mode | Tool Tok Cut | Median Session | Est Cost Saved (Replay) | p90 Session | Max Session | >5% Share |
 | :--- | ---: | ---: | ---: | ---: | ---: | ---: |
-| **Auto-Handoff + Read Guards (Default)** | `182,348 tk` | `0.0%` | **20.7% est. saved** | `24.5%` | `46.7%` | `14.8%` |
-| **Auto-Handoff + Compact Reads** | `282,784 tk` | `0.0%` | **20.6% est. saved** | `24.5%` | `46.4%` | `14.8%` |
-| **Guards Only (Same Chat)** | `182,348 tk` | `0.0%` | **0.4% est. saved** | `1.8%` | `6.8%` | `1.2%` |
-| **Guards + Compact Reads (Same Chat)** | `282,784 tk` | `0.0%` | **0.6% est. saved** | `2.2%` | `11.7%` | `2.5%` |
+| **Auto-Handoff + Read Guards (Default, Path 2 Delegated)** | `254,916 tk` | `0.0%` | **16.3% est. saved** | `19.9%` | `40.5%` | `14.0%` |
+| **Auto-Handoff + Read Guards (Path 1 Direct 0-tok)** | `254,916 tk` | `0.0%` | **20.9% est. saved** | `28.0%` | `48.2%` | `18.6%` |
+| **Auto-Handoff + Compact Reads (Path 2 / Path 1)** | `381,970 tk` | `0.0%` | **16.5% / 21.1% saved** | `21.8%` / `28.6%` | `40.5%` / `48.1%` | `16.3%` / `20.9%` |
+| **Guards Only (Same Chat)** | `254,916 tk` | `0.0%` | **0.6% est. saved** | `2.0%` | `6.8%` | `1.2%` |
+| **Guards + Compact Reads (Same Chat)** | `381,970 tk` | `0.0%` | **0.9% est. saved** | `2.7%` | `11.7%` | `3.5%` |
 
-By session length (`python3 scripts/benchmark.py --replay`, `81` sessions): `<75k` (`31` chats, avg `49k`): `-0.2%` combined; `75k–110k` (`8`, `91k`): `+0.5%`; `110k–200k` (`11`, `154k`): `-2.0%`; `200k–400k` (`22`, `297k`): `-12.1%`; `>400k` (`9`, `472k`): `-29.7%`.
+By session length (`86` sessions, Path 2 Delegated / Path 1 Direct): `<75k` (`31` chats, avg `49k`): `0.2%` / `0.2%`; `75k–110k` (`8`, `91k`): `0.1%` / `0.1%`; `110k–200k` (`12`, `153k`): `1.4%` / `4.2%`; `200k–400k` (`26`, `292k`): `9.0%` / `13.1%`; `>400k` (`9`, `472k`): `24.1%` / `29.6%`. Upper bound (with mid-run phase resets): `38.9%`.
 
 ## 4. Cost-Proxy Sensitivity (`--weights`)
 
-| Weight Regime (`in / cache / out`) | Basis | Guards Only | Guards + Compact | Default (Auto-Handoff Est.) | + Compact Reads |
+| Weight Regime (`in / cache / out`) | Basis | Guards Only | Guards + Compact | Default Path 2 (Delegated) | Default Path 1 (Direct) |
 | :--- | :--- | ---: | ---: | ---: | ---: |
-| **Default (`1 / 0.05 / 6`)** | Frontier API ratio proxy | `0.4%` | `0.6%` | `20.7%` | `20.6%` |
-| **Anthropic-style (`1 / 0.10 / 5`)** | 10% cache read / 5× out | `0.5%` | `0.7%` | `24.0%` | `23.9%` |
-| **Output-light (`1 / 0.05 / 3`)** | Lower output multiplier | `0.5%` | `0.7%` | `24.3%` | `24.3%` |
-| **Cache-heavy (`1 / 0.25 / 5`)** | Expensive cache reads | `0.6%` | `0.7%` | `27.0%` | `26.8%` |
+| **Default (`1 / 0.05 / 6`)** | Frontier API ratio proxy | `0.6%` | `0.9%` | `16.3%` | `20.9%` |
+| **Anthropic-style (`1 / 0.10 / 5`)** | 10% cache read / 5× out | `0.7%` | `1.0%` | `19.9%` | `23.9%` |
+| **Output-light (`1 / 0.05 / 3`)** | Lower output multiplier | `0.7%` | `1.0%` | `19.2%` | `24.6%` |
+| **Cache-heavy (`1 / 0.25 / 5`)** | Expensive cache reads | `0.8%` | `1.1%` | `23.5%` | `26.4%` |
 
 ## 5. Synthetic Hook Fixture (`python3 scripts/benchmark.py --demo`)
 

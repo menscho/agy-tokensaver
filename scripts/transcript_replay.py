@@ -259,12 +259,12 @@ def _turns_sums(turns: list[tuple[int, int, int]]) -> tuple[int, int, int]:
 
 
 def settled_flags_and_gaps(sess: dict) -> tuple[list[bool] | None, list[float | None] | None, int]:
-    """Per-generation live-tick eligibility, inter-turn idle gaps (s), and measured TTL cliff."""
+    """Per-generation PreInvocation user-turn eligibility, inter-turn idle gaps (s), and measured TTL cliff."""
     if not hasattr(core, "_settled_flags"):
-        return None, None, 150
+        return None, None, 240
     tx, _db = core._session_paths(sess["app_path"], sess["id"])
     if tx is None:
-        return [False] * len(sess["turns"]), None, 150
+        return [False] * len(sess["turns"]), None, 240
     scan = core._scan_transcript(tx)
     planners = scan["planners"]
     meta: list = []
@@ -276,13 +276,15 @@ def settled_flags_and_gaps(sess: dict) -> tuple[list[bool] | None, list[float | 
     n = len(sess["turns"])
     meta = (meta + [None] * n)[:n]
     last_model = next((p["model"] for p in reversed(planners) if p.get("model")), "")
-    ttl_cliff = 90 if "hydrogen" in last_model.lower() else 150
+    ttl_cliff = 90 if "hydrogen" in last_model.lower() else 240
     gaps: list[float | None] = []
     for k in range(n):
         t0 = meta[k].get("ts") if meta[k] else None
         t1 = meta[k + 1].get("ts") if k + 1 < n and meta[k + 1] else None
         gaps.append(max(0.0, t1 - t0) if (t0 and t1 and t1 >= t0) else None)
-    return core._settled_flags(meta, scan["users"] > 0), gaps, ttl_cliff
+    # PreInvocation fires at invocationNum==0 right before each actual USER_INPUT turn (exact ground truth).
+    preinv_elig = [bool(scan["users"] > 0 and m and m.get("followed_by_user") and m.get("final")) for m in meta]
+    return preinv_elig, gaps, ttl_cliff
 
 
 def settled_flags(sess: dict) -> list[bool] | None:
@@ -290,11 +292,15 @@ def settled_flags(sess: dict) -> list[bool] | None:
 
 
 def rollover_totals(turns: list[tuple[int, int, int]], policy: str = "auto", settled: list[bool] | None = None,
-                    cfg: dict | None = None, gaps: list[float | None] | None = None, ttl_cliff: int = 150) -> tuple[int, int, int, int]:
+                    cfg: dict | None = None, gaps: list[float | None] | None = None, ttl_cliff: int = 240,
+                    on_user_turn: bool = True, delegated: bool = False) -> tuple[int, int, int, int]:
     """Return (sim_in, sim_cr, tot_out, nroll) for any weighting."""
     cap = 110_000 if policy == "v1" else None
     try:
-        si, sc, nroll = core._simulate_rollover_session(turns, cap, settled=settled, cfg=cfg, gaps=gaps, ttl_cliff=ttl_cliff)
+        si, sc, nroll = core._simulate_rollover_session(
+            turns, cap, settled=settled, cfg=cfg, gaps=gaps, ttl_cliff=ttl_cliff,
+            on_user_turn=on_user_turn, delegated=delegated,
+        )
     except TypeError:   # v1.0.0 core: oracle simulator, no live gating
         si, sc, nroll = core._simulate_rollover_session(turns, 110_000)
     return int(si), int(sc), sum(t[2] for t in turns), int(nroll)
@@ -323,19 +329,13 @@ def run(detail: bool = False, json_out: str | None = None, quiet: bool = False, 
         extra_env: dict[str, str] | None = None, weights: tuple[float, float, float] | None = None) -> dict:
     wi, wc, wo = weights if weights else (W_IN, W_CR, W_OUT)
     sessions = discover_sessions()
-    # Live auto policy learns p_continue from this machine's OTHER chats (core.continuation_probability)
-    recs = []
-    if hasattr(core, "parse_session_cached"):
-        for s in sessions:
-            tx, db = core._session_paths(s["app_path"], s["id"])
-            r0 = core.parse_session_cached(s["id"], tx, db, s["app"])
-            if r0:
-                recs.append(r0)
     perl_env = {**os.environ, **(extra_env or {})}
     rows = []
     cats_all: collections.Counter = collections.Counter()
     catn_all: collections.Counter = collections.Counter()
-    overhead_tok = plugin_overhead_bytes() // BYTES_PER_TOK
+    inc_rules = perl_env.get("AGY_TS_INCLUDE_RULES", "1") != "0"
+    overhead_tok = plugin_overhead_bytes(include_opt_in_rules=inc_rules) // BYTES_PER_TOK
+    delegated_live = not core.has_direct_handoff_cap() if hasattr(core, "has_direct_handoff_cap") else False
     with tempfile.TemporaryDirectory(prefix="agy-ts-replay-") as td:
         tmp = Path(td)
         for s in sessions:
@@ -353,15 +353,15 @@ def run(detail: bool = False, json_out: str | None = None, quiet: bool = False, 
             q0 = quota(s["turns"], (wi, wc, wo))
             qh = quota(adj, (wi, wc, wo)) + extra
             settled, gaps, ttl_cliff = settled_flags_and_gaps(s)
-            cfg = None
-            if policy == "auto" and hasattr(core, "continuation_probability"):
-                cfg = {**core._SIM_CFG, "p_continue": core.continuation_probability(recs, exclude=s["id"])}
-            r_in, r_cr, r_out, nr = rollover_totals(s["turns"], policy, settled, cfg, gaps, ttl_cliff)
-            hr_in, hr_cr, hr_out, nhr = rollover_totals(adj, policy, settled, cfg, gaps, ttl_cliff)
-            ru_in, ru_cr, ru_out, _ = rollover_totals(s["turns"], policy, None, cfg, gaps, ttl_cliff)
-            hru_in, hru_cr, hru_out, _ = rollover_totals(adj, policy, None, cfg, gaps, ttl_cliff)
+            cfg = {**core._SIM_CFG, "min_turns": 10, "p_continue": 1.0} if policy == "auto" else None
+            r_in, r_cr, r_out, nr = rollover_totals(s["turns"], policy, settled, cfg, gaps, ttl_cliff, on_user_turn=True, delegated=delegated_live)
+            hr_in, hr_cr, hr_out, nhr = rollover_totals(adj, policy, settled, cfg, gaps, ttl_cliff, on_user_turn=True, delegated=delegated_live)
+            p1_in, p1_cr, p1_out, _ = rollover_totals(adj, policy, settled, cfg, gaps, ttl_cliff, on_user_turn=True, delegated=False)
+            ru_in, ru_cr, ru_out, _ = rollover_totals(s["turns"], policy, None, cfg, gaps, ttl_cliff, on_user_turn=False, delegated=False)
+            hru_in, hru_cr, hru_out, _ = rollover_totals(adj, policy, None, cfg, gaps, ttl_cliff, on_user_turn=False, delegated=False)
             qr = r_in * wi + r_cr * wc + r_out * wo
             qhr = hr_in * wi + (hr_cr + retry_cr) * wc + (hr_out + retry_out) * wo
+            qp1 = p1_in * wi + (p1_cr + retry_cr) * wc + (p1_out + retry_out) * wo
             qru = ru_in * wi + ru_cr * wc + ru_out * wo
             qhru = hru_in * wi + (hru_cr + retry_cr) * wc + (hru_out + retry_out) * wo
             stype = _classify_session_type(s, r["cat_n"], r["tool_bytes"])
@@ -369,10 +369,11 @@ def run(detail: bool = False, json_out: str | None = None, quiet: bool = False, 
                 "id": s["id"], "app": s["app"], "src": s["src"], "turns": len(s["turns"]),
                 "session_type": stype,
                 "peak": max(a + b for a, b, _ in s["turns"]),
-                "q0": q0, "q_hooks": qh, "q_roll": qr, "q_both": qhr, "q_roll_ub": qru, "q_both_ub": qhru, "rollovers": nhr,
+                "q0": q0, "q_hooks": qh, "q_roll": qr, "q_both": qhr, "q_both_direct": qp1, "q_roll_ub": qru, "q_both_ub": qhru, "rollovers": nhr,
                 "tok_0": t0_sum, "tok_hooks": th_sum_tot,
                 "tok_roll": (r_in, r_cr, r_out),
                 "tok_both": (hr_in, hr_cr + retry_cr, hr_out + retry_out),
+                "tok_both_direct": (p1_in, p1_cr + retry_cr, p1_out + retry_out),
                 "tok_both_ub": (hru_in, hru_cr + retry_cr, hru_out + retry_out),
                 "saved_bytes": sum(r["saved_by_turn"]), "tool_bytes": r["tool_bytes"],
                 "events": len(s["events"]),
@@ -381,8 +382,8 @@ def run(detail: bool = False, json_out: str | None = None, quiet: bool = False, 
     def pct(a: float, b: float) -> float:
         return (1.0 - b / a) * 100.0 if a else 0.0
 
-    summary: dict = {"n": len(rows), "turns": sum(r["turns"] for r in rows), "tiers": [], "cats": {}, "policy": policy, "weights": [wi, wc, wo]}
-    for key in ("q_hooks", "q_roll", "q_both", "q_roll_ub", "q_both_ub"):
+    summary: dict = {"n": len(rows), "turns": sum(r["turns"] for r in rows), "tiers": [], "cats": {}, "policy": policy, "weights": [wi, wc, wo], "delegated_live": delegated_live}
+    for key in ("q_hooks", "q_roll", "q_both", "q_both_direct", "q_roll_ub", "q_both_ub"):
         per = sorted(pct(r["q0"], r[key]) for r in rows)
         summary[key] = {
             "median": statistics.median(per) if per else 0.0,

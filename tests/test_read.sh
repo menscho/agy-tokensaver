@@ -85,12 +85,22 @@ hook "$(rd "$T/big.py" c11 10)" '"StartLine":1,"EndLine":250' "big unbounded rea
 hook "$(rd "$T/big.py" c11 12)" '"StartLine":251,"EndLine":500' "repeat unbounded read serves 251-500"
 hook "$(rd "$T/big.py" c11 14 ',"StartLine":100,"EndLine":400')" "$DENY" "1-500 now covered"
 
-# --- 6. full-file read then unbounded re-read -> deny; ≤4KB never deduped
+# --- 6. full-file read then unbounded re-read -> deny; <=1KB never deduped; 1.5KB-4KB deduped
 hook "$(rd "$T/a.py" c12 10)" "$ALLOW" "full read allowed"
 hook "$(rd "$T/a.py" c12 12)" "$DENY"  "unchanged full re-read denied"
 printf 'x = 1\n%.0s' $(seq 1 100) > "$T/small.py"
-hook "$(rd "$T/small.py" c12 13)" "$ALLOW" "small file first read"
-hook "$(rd "$T/small.py" c12 14)" "$ALLOW" "small (<=4KB) re-read never denied"
+hook "$(rd "$T/small.py" c12 13)" "$ALLOW" "small file (<=1KB) first read"
+hook "$(rd "$T/small.py" c12 14)" "$ALLOW" "small (<=1KB) re-read never denied"
+seq 1 60 | sed 's/^/def small_mod_fn(): return 12345  # 2.5KB file/' > "$T/mid2k.py"
+hook "$(rd "$T/mid2k.py" c12 15)" "$ALLOW" "mid (2.5KB) first read allowed"
+hook "$(rd "$T/mid2k.py" c12 16)" "$DENY"  "mid (1KB-4KB) unchanged re-read denied"
+
+# --- 6b. spillback tasks/*.log + byte-aware wide spillback cap + blanket bounded data cap
+mkdir -p "$T/.system_generated/tasks"
+seq 1 300 | sed 's/^/2026-11-27 INFO long spillback output line payload_0123456789abcdefghijklmnopqrstuvwxyz_0123456789abcdef_/' > "$T/.system_generated/tasks/task-99.log"
+hook "$(rd "$T/.system_generated/tasks/task-99.log" c14 10 ',"StartLine":1,"EndLine":220')" '"overwrite":\{"StartLine":1,"EndLine":' "wide tasks/*.log spillback byte-capped"
+seq 1 500 | sed 's/^/{"id": 12345, "event": "metric_sample", "payload": "0123456789abcdefghijklmnopqrstuvwxyz"} /' > "$T/bigdata.jsonl"
+hook "$(rd "$T/bigdata.jsonl" c14 12 ',"StartLine":1,"EndLine":500')" '"overwrite":\{"StartLine":1,"EndLine":120\}' "blanket 1-500 data read capped"
 
 # --- 7. fail-open: corrupt history / no ids
 mkdir -p "$PLUGIN_DATA/reads"; printf 'garbage\t\t\nmore\tjunk\n' > "$PLUGIN_DATA/reads/c13.tsv"

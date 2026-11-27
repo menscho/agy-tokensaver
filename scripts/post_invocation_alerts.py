@@ -3,9 +3,11 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import sys
+import time
 from typing import NamedTuple
 
 from hook_common import (
@@ -60,18 +62,80 @@ def _silent() -> int:
     return 0
 
 
+def _maybe_terminate_post_handoff(dd: str, cid: str) -> int | None:
+    """Terminate Turn 2 immediately after delegated `handoff_exec.py` completes inside `run_command`.
+    PostInvocation runs right after tool calls finish, so terminating here avoids spending a 2nd
+    full-context LLM turn just to echo the clickable handoff link."""
+    if not cid:
+        return None
+    ev_path = os.path.join(dd, "last_auto_event.json")
+    if not os.path.isfile(ev_path):
+        return None
+    try:
+        with open(ev_path, "r", encoding="utf-8", errors="replace") as fh:
+            ev = json.loads(fh.read())
+    except Exception:
+        return None
+    if not isinstance(ev, dict) or not ev.get("ok"):
+        return None
+    from_full = str(ev.get("from_conv_full") or "")
+    new_id = str(ev.get("to_conv_full") or "")
+    if not new_id or (from_full != cid and str(ev.get("from_conv") or "") != cid[:8]):
+        return None
+    now_ts = int(time.time())
+    ev_ts = int(ev.get("ts") or 0)
+    if ev_ts <= 0 or (now_ts - ev_ts) > 120:
+        return None
+    done_dir = os.path.join(dd, "alerts")
+    done_file = os.path.join(done_dir, f"{safe_cid(cid)}.handoff_done")
+    try:
+        if os.path.isfile(done_file):
+            with open(done_file, "r", encoding="utf-8", errors="replace") as fh:
+                if fh.read().strip() == new_id:
+                    return None
+        os.makedirs(done_dir, exist_ok=True)
+        with open(done_file, "w", encoding="utf-8") as fh:
+            fh.write(new_id + "\n")
+    except OSError:
+        pass
+    arch_note = " Old chat archived." if ev.get("archived_old", True) else ""
+    md = (
+        f"**Token Saver Auto-Handoff** -> [**Open continued chat**](conversation://{new_id})\n\n"
+        f"Carried your message and compact context into a fresh chat — already running.{arch_note}"
+    )
+    emit_json(
+        {
+            "injectSteps": [
+                {
+                    "systemMessage": {
+                        "systemMessage": "",
+                        "metadata": {"user_markdown": md},
+                    }
+                }
+            ],
+            "terminationBehavior": "terminate",
+        }
+    )
+    return 0
+
+
 def main() -> int:
     plugin_root = script_plugin_root(__file__)
     doc = decode_hook_input(read_stdin_capped())
     if doc is None or hooks_disabled(plugin_root):
         return _silent()
 
+    cid = get_str(doc, "conversationId") or ""
+    dd = data_dir(plugin_root)
+    term_rc = _maybe_terminate_post_handoff(dd, cid)
+    if term_rc is not None:
+        return term_rc
+
     inv_num = get_int(doc, "invocationNum") or 0
     if inv_num < 4:
         return _silent()
 
     tx = get_str(doc, "transcriptPath") or ""
-    cid = get_str(doc, "conversationId") or ""
     if not tx or not cid or not os.path.isfile(tx):
         return _silent()
 
@@ -183,7 +247,7 @@ def main() -> int:
             is_compaction = cur.cp or tot < prev.tot * 0.80
             if not is_compaction:
                 new_drop_ts = cur.ts
-                ttl_s = 90 if "hydrogen" in cur.model.lower() else 150
+                ttl_s = 90 if "hydrogen" in cur.model.lower() else 240
                 cause = "prefix change or backend cache eviction"
                 if prev.model and cur.model and prev.model != cur.model:
                     cause = f"model switch (`{prev.model}` -> `{cur.model}`)"
@@ -204,6 +268,7 @@ def main() -> int:
                     f"rebuilt **{cur.in_tok // 1000}k** uncached) — likely {cause}."
                 )
 
+    model_nudge = ""
     hw_file = os.path.join(state_dir, f"{scid}.huge_write")
     if os.path.isfile(hw_file):
         try:
@@ -215,6 +280,10 @@ def main() -> int:
                 notes.append(
                     f"**Token Saver:** Full-file `write_file` on `{m_hw.group(1)}` re-emitted "
                     f"**{m_hw.group(2)}/{m_hw.group(3)} unchanged lines** (6x output cost) — prefer `edit_file` for surgical hunks."
+                )
+                model_nudge = (
+                    f"[token-saver] Your last write_file on '{m_hw.group(1)}' re-emitted {m_hw.group(2)}/{m_hw.group(3)} "
+                    "unchanged lines (6x output cost). Use edit_file for surgical changes on existing files."
                 )
         except OSError:
             pass
@@ -231,7 +300,7 @@ def main() -> int:
         return _silent()
 
     md = "\n\n".join(notes)
-    emit_json({"injectSteps": [{"systemMessage": {"systemMessage": "", "metadata": {"user_markdown": md}}}]})
+    emit_json({"injectSteps": [{"systemMessage": {"systemMessage": model_nudge, "metadata": {"user_markdown": md}}}]})
     return 0
 
 

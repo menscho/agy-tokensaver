@@ -894,6 +894,71 @@ class TestMcpAppModules(unittest.TestCase):
             {},
         )
 
+        # Proactive high-context cache shield (Hydrogen >=110k at inv_num >= 6) warns ONCE before a drop
+        hi_recs = [
+            {"type": "PLANNER_RESPONSE", "created_at": fresh_ts, "model": "gemini-4-hydrogen-high",
+             "input_tokens": 3000, "cache_read_tokens": 112000, "output_tokens": 200, "tool_calls": "[{\"name\": \"read_file\"}]"},
+            {"type": "PLANNER_RESPONSE", "created_at": fresh_ts, "model": "gemini-4-hydrogen-high",
+             "input_tokens": 3500, "cache_read_tokens": 115000, "output_tokens": 200, "tool_calls": "[{\"name\": \"read_file\"}]"},
+        ]
+        tx_hi = self.tmp / "tx_hi.jsonl"
+        tx_hi.write_text("\n".join(json.dumps(r) for r in hi_recs) + "\n", encoding="utf-8")
+        pro1 = run_pih({**base, "conversationId": "conv-proactive-1", "transcriptPath": str(tx_hi), "invocationNum": 6})
+        self.assertIn("High-context cache shield", pro1["injectSteps"][0]["systemMessage"]["systemMessage"])
+        self.assertEqual(
+            run_pih({**base, "conversationId": "conv-proactive-1", "transcriptPath": str(tx_hi), "invocationNum": 7}),
+            {},
+        )
+
+        # PostInvocation Turn-2 termination + huge_overwrite model nudge
+        import post_invocation_alerts as pia
+
+        def run_pia(payload: dict) -> dict:
+            raw = json.dumps(payload).encode("utf-8")
+            out_buf = io.BytesIO()
+            fake_in = mock.Mock(buffer=io.BytesIO(raw))
+            fake_out = mock.Mock(buffer=out_buf)
+            with mock.patch("sys.stdin", fake_in), mock.patch("sys.stdout", fake_out), \
+                 mock.patch.dict(os.environ, {"PLUGIN_DATA": str(self.tmp / "pdata")}, clear=False):
+                rc = pia.main()
+            self.assertEqual(rc, 0)
+            return json.loads(out_buf.getvalue().decode("utf-8"))
+
+        # PostInvocation terminates immediately after delegated handoff_exec completes (even at inv_num=0!)
+        (self.tmp / "pdata" / "last_auto_event.json").write_text(
+            json.dumps({
+                "ok": True,
+                "ts": int(time.time()),
+                "from_conv": "conv-post",
+                "from_conv_full": "conv-post-term",
+                "to_conv_full": "conv-fresh-9999",
+                "archived_old": True,
+            }),
+            encoding="utf-8",
+        )
+        pt1 = run_pia({"conversationId": "conv-post-term", "invocationNum": 0, "transcriptPath": str(tx_hi)})
+        self.assertEqual(pt1.get("terminationBehavior"), "terminate")
+        self.assertIn("conversation://conv-fresh-9999", pt1["injectSteps"][0]["systemMessage"]["metadata"]["user_markdown"])
+        # Idempotent: does not double-terminate
+        self.assertEqual(run_pia({"conversationId": "conv-post-term", "invocationNum": 1, "transcriptPath": str(tx_hi)}), {})
+
+        # Huge overwrite injects both user_markdown AND a 1-line model nudge
+        adir = self.tmp / "pdata" / "alerts"
+        adir.mkdir(parents=True, exist_ok=True)
+        (adir / "conv-hw-1.huge_write").write_text("big.py\t180\t200\n", encoding="utf-8")
+        hw_out = run_pia({"conversationId": "conv-hw-1", "invocationNum": 5, "transcriptPath": str(tx_hi)})
+        sm_hw = hw_out["injectSteps"][0]["systemMessage"]
+        self.assertIn("Use edit_file", sm_hw["systemMessage"])
+        self.assertIn("6x output cost", sm_hw["metadata"]["user_markdown"])
+
+        # Neon 240s warm-cache deferral in rules_sync (idle=200s still protected on Neon!)
+        neon_warm = {"cur_tot": 25_000, "last_ts": time.time() - 200, "ttl_cliff_sec": 240}
+        with mock.patch.object(self.rules_sync, "_is_sandbox_data_dir", return_value=False), \
+             mock.patch("transcript_io.discover_session_sources", return_value=[(time.time() - 200, "cid-n", self.tmp / "tx", None)]), \
+             mock.patch("transcript_io.parse_session_cached", return_value=neon_warm):
+            os.environ.pop("AGY_TS_SYNC_RULES", None)
+            self.assertTrue(self.rules_sync._should_defer_concise_sync())
+
 
 if __name__ == "__main__":
     unittest.main()

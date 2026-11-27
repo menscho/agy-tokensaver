@@ -281,16 +281,18 @@ def _frontmatter(txt: str) -> dict[str, str]:
     return out
 
 
-def plugin_overhead_bytes() -> int:
+def plugin_overhead_bytes(include_opt_in_rules: bool | None = None) -> int:
     """Always-loaded plugin prompt cost, in the format Antigravity actually renders (decoded from
     the real system prompt in conversations/*.db):
-      rules/AGENTS.md verbatim
+      rules/AGENTS.md verbatim (only when include_opt_in_rules is True; Default mode has 0 rules)
       + per skill:    "- {name} ({install_dir}\\skills\\{dir}\\SKILL.md): {description}\n"
       + per subagent: "- {name}: {description}\n"   (model/tools fields are NOT in the prompt)
     """
     tot = 0
+    if include_opt_in_rules is None:
+        include_opt_in_rules = os.environ.get("AGY_TS_INCLUDE_RULES", "0") == "1"
     rules = ROOT / "rules" / "AGENTS.md"
-    if rules.is_file():
+    if include_opt_in_rules and rules.is_file():
         tot += rules.stat().st_size
     install_dir = str(Path.home() / ".gemini" / "config" / "plugins" / "token-saver")
     for md in sorted((ROOT / "skills").glob("*/SKILL.md")):

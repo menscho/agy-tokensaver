@@ -2,6 +2,24 @@
 
 All notable changes to **agy-tokensaver** (`menscho/agy-tokensaver`) are documented here.
 
+## [1.5.0] — 2026-11-27
+
+### Added & Cachemaxxing
+- **PostInvocation Turn-2 Termination (`scripts/post_invocation_alerts.py`):** terminates the loop immediately after delegated `handoff_exec.py` completes inside `run_command` (running right after tool completion with `terminationBehavior: "terminate"` + clickable `user_markdown`), eliminating the old chat's second full-context echo turn that previously slipped past `PreInvocation`.
+- **Proactive High-Context KV-Cache Shield (`scripts/pre_invocation_handoff.py`):** appends a single 1-line tail advisory (~35 tokens, 0 KV prefix invalidation, at most once per 10–15m) when a long autonomous run (`invocationNum >= 6`) crosses the model's high-risk TTL zone (`110k` on Hydrogen `90s` TTL / `180k` on Neon `240s` TTL) so calls stay batched and avoid mid-run TTL evictions.
+- **Extended KV-Cache Prefix Protection (`mcp_app/rules_sync.py`, `mcp_app/transcript_io.py`, `scripts/post_invocation_alerts.py`):** aligned empirical model TTL cliffs from 4,688 real turns (`90s` Hydrogen / `240s` Neon) and extended `rules_sync.py` deferral to `300s` on Neon (`150s` Hydrogen) for `>=20k` active chats so toggling modes never breaks a hot Neon cache (which empirically retains 90.2% hit rate across 150–240s).
+- **In-Context 6×-Output Overwrite Nudge (`scripts/write_hook.py`, `scripts/post_invocation_alerts.py`):** lowered non-blocking `huge_overwrite` detection to `>80L` / `>=3KB` (`>=75%` unchanged lines) and paired the UI alert with a 1-line tail `systemMessage` nudge so the model switches to `edit_file` for subsequent edits instead of repeating full-file rewrites.
+- **Fast-Growing Session Cooldown & High-Context Fast-Track (`mcp_app/config.py`, `scripts/pre_invocation_handoff.py`, `mcp_app/rollover.py`):** lowered default `cooldown_min` from `20m` to `8m`, bypassed cooldown on emergency (`>=180k`) or post-drop rotations (60s anti-burst guard), and fast-tracked `min_turns` to `6` when context already exceeds `120k`.
+
+### Fixed & Hardened
+- **Zero-Loss Read Guard Upgrades (+29% more tool tokens cut, `scripts/read_hook.py`, `scripts/find_hook.py`):**
+  - Fixed dead-code `<= 4096` early-return that previously bypassed `DEDUPE_MIN_BYTES` on `1–4 KB` files, and lowered `DEDUPE_MIN_BYTES` to `1024` bytes.
+  - Added `/.system_generated/tasks/*.log` to `SPILLBACK_RE` and added byte-aware capping (`<=14 KB`) on wide bounded spillback reads (`150–220+` long lines) and blanket bounded (`>=300L`, `>16 KB`) data/log reads.
+  - Fixed cross-conversation `dirty_hunk` safety by scoping snapshots to `(conversationId, epoch, path)` so a fresh chat's first read is never falsely narrowed, while expanding `dirty_hunk` coverage to `128 KB` / `>=120L` and full-file `1..N` re-reads.
+  - Expanded binary, generated-artifact, vendor, and `find_hook.py` exclude lists (`.mypy_cache`, `.ruff_cache`, `.pytest_cache`, `.turbo`, `.terraform`, `Pods`, `site-packages`, `.cargo/registry`, etc.).
+- **Cleaner Handoff Packets (`scripts/handoff_pack.py`):** increased `last_verify` capture limit to 180 chars and filtered bare `Traceback (most recent call last):` headers so real exception/failure lines are surfaced.
+- **Ground-Truth Replay Accounting (`mcp_app/core.py`, `mcp_app/transcript_io.py`, `mcp_app/rollover.py`, `scripts/transcript_replay.py`, `scripts/replay_io.py`, `scripts/replay_modes.py`):** exported `has_direct_handoff_cap` in `core.py`, gated PreInvocation replay strictly on exact `followed_by_user` (`USER_INPUT`) boundaries (never background-task waits), checked real observed next-turn cache drops in Path 2 replay, and decoupled Default mode overhead (`0 tok/turn`) from local Max-mode `rules/AGENTS.md`.
+
 ## [1.4.0] — 2026-11-27
 
 ### Added

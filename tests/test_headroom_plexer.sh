@@ -150,12 +150,13 @@ o=$("$PY" -S "$S/read_hook.py" <<< "$(printf '{"toolInput":{"Path":"%s"}}' "$T/a
 o=$("$PY" -S "$S/read_hook.py" <<< "$(printf '{"toolInput":{"Path":"%s"}}' "$T/small.log")")
 [[ "$o" == '{"decision":"allow"}' ]] && ok || bad "small <46KB .log stays uncapped" "$o"
 
-# 9. Post-edit dirty-hunk auto-narrowing
+# 9. Post-edit dirty-hunk auto-narrowing (same conversation narrows; different conversation never falsely narrows)
 "$PY" -c 'for i in range(1, 321): print(f"def fn_{i}(x): return x + {i}  # padding comment line")' > "$T/dirty.py"
 o1=$(AGY_TS_COMPACT_READS=0 "$PY" -S "$S/read_hook.py" <<< "$(printf '{"toolInput":{"Path":"%s"},"conversationId":"dh1","stepIdx":1}' "$T/dirty.py")")
 "$PY" -c 'import sys; p=open(sys.argv[1]).read().splitlines(); p[219]="def fn_220(x): return x * 999  # edited"; open(sys.argv[1],"w").write("\n".join(p)+"\n")' "$T/dirty.py"
 o2=$("$PY" -S "$S/read_hook.py" <<< "$(printf '{"toolInput":{"Path":"%s"},"conversationId":"dh1","stepIdx":3}' "$T/dirty.py")")
-[[ "$o1" == *'"decision":"allow"'* && "$o2" == *'"StartLine":205,"EndLine":235'* ]] && ok || bad "post-edit dirty-hunk narrowing" "o1=$o1 o2=$o2"
+o3=$(AGY_TS_COMPACT_READS=0 "$PY" -S "$S/read_hook.py" <<< "$(printf '{"toolInput":{"Path":"%s"},"conversationId":"dh_other_conv","stepIdx":1}' "$T/dirty.py")")
+[[ "$o1" == *'"decision":"allow"'* && "$o2" == *'"StartLine":205,"EndLine":235'* && "$o3" == *'"StartLine":1,"EndLine":250'* ]] && ok || bad "post-edit dirty-hunk narrowing + cross-conv isolation" "o1=$o1 o2=$o2 o3=$o3"
 
 # 10. ts_inspect.py query BM25/FTS5 chunk retrieval
 "$PY" - <<'PYEOF' > "$T/ids.log"

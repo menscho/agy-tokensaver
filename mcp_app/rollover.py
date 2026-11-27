@@ -151,7 +151,7 @@ def _simulate_rollover_session(
     cold_start: int = COLD_START_TOK,
     detail: bool = False,
     gaps: list[float | None] | None = None,
-    ttl_cliff: int = 150,
+    ttl_cliff: int = 240,
     on_user_turn: bool = False,
     cold_min_ctx: int = COLD_MIN_CTX,
     delegated: bool = False,
@@ -231,7 +231,10 @@ def _simulate_rollover_session(
         if ttl_cliff <= 90:
             c_feat["ttl_cliff_sec"] = ttl_cliff
         pol_cold = cold_start + (DELEGATED_EXTRA_TOK if delegated else 0)
-        pol = rollover_policy(c_feat, pcfg, pol_cold, rediscovery_tax)
+        eff_pcfg = pcfg
+        if on_user_turn and conv.ctx >= 120_000 and int(str(pcfg.get("min_turns", 10))) > 6:
+            eff_pcfg = {**pcfg, "min_turns": 6}
+        pol = rollover_policy(c_feat, eff_pcfg, pol_cold, rediscovery_tax)
         is_settled_now = (settled is None) or (idx < len(settled) and settled[idx])
         # PreInvocation hooks only fire when the user actually sends a next turn (never after the final turn).
         if on_user_turn and idx == n - 1:
@@ -265,8 +268,16 @@ def _simulate_rollover_session(
                 sim_in += base + PACKET_REPLY_OUT_TOK * W_OUT / W_IN   # spawned chat nobody used
             else:
                 if delegated:
-                    # Path 2 executes 1 delegated LLM turn in the old chat (Turn 2 is terminated by hook).
-                    next_cold = g_after is not None and g_after >= ttl_cliff
+                    # Path 2 executes 1 delegated LLM turn in the old chat (Turn 2 terminated by PostInvocation).
+                    # Use the real next turn's observed cache hit/drop when available (avoids falsely
+                    # charging a cold rebuild on warm 150-300s Neon hits).
+                    n_in, n_cr, _ = turns[idx + 1]
+                    cur_real = inp + cr
+                    is_next_comp = cur_real >= 20_000 and (n_in + n_cr) < cur_real * 0.6
+                    if cur_real >= 4_000:
+                        next_cold = (not is_next_comp) and n_cr < cur_real * 0.7
+                    else:
+                        next_cold = g_after is not None and g_after >= cold_ttl
                     if next_cold:
                         sim_in += sim_ctx + DELEGATED_EXTRA_TOK
                     else:

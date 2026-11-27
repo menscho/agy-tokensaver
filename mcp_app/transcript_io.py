@@ -163,6 +163,7 @@ def _scan_transcript(tx: Path) -> dict[str, Any]:
                     "ts": parse_iso_ts(str(obj.get("created_at") or "")),
                     "final": final,
                     "quiet": final and not bg and subagents == 0,
+                    "followed_by_user": False,
                     "tok": (int(obj.get("input_tokens") or 0), int(obj.get("cache_read_tokens") or 0),
                             int(obj.get("output_tokens") or 0)),
                     "model": str(obj.get("model") or ""),
@@ -176,6 +177,8 @@ def _scan_transcript(tx: Path) -> dict[str, Any]:
                 if uobj.get("type") != "USER_INPUT":
                     continue
                 users += 1
+                if planners:
+                    planners[-1]["followed_by_user"] = True
                 bg.clear()          # a new user run: earlier background chatter is no longer "pending"
                 uc = str(uobj.get("content") or "")
                 if "# Session Continuation Handoff" in uc:
@@ -296,7 +299,7 @@ def _build_session_record(sid: str, app_name: str, tx: Path | None, db: Path | N
     hi_cont = sum(1 for k in hi_pts if k < turns - 1)
 
     feat = tracker.features()
-    ttl_cliff = 90 if "hydrogen" in last_model.lower() else 150
+    ttl_cliff = 90 if "hydrogen" in last_model.lower() else 240
     gaps: list[float | None] = []
     for k in range(turns):
         m0 = meta[k] if k < len(meta) else None
@@ -304,10 +307,9 @@ def _build_session_record(sid: str, app_name: str, tx: Path | None, db: Path | N
         t0 = m0.get("ts") if isinstance(m0, dict) else None
         t1 = m1.get("ts") if isinstance(m1, dict) else None
         gaps.append(max(0.0, t1 - t0) if (t0 and t1 and t1 >= t0) else None)
-    # PreInvocation Auto-Handoff fires at user turn start (any final reply followed by a next user turn,
-    # p_continue=1.0, never spawning a wasted chat on the final turn). Use realistic Path 2 delegated
-    # economics whenever hook_caps.json shows hooks lack ANTIGRAVITY_LS_ADDRESS.
-    preinv_elig = [bool(has_user and m and m.get("final")) for m in meta]
+    # PreInvocation Auto-Handoff fires at invocationNum==0 right before each real USER_INPUT turn
+    # (never during mid-run tool loops or background-task wakeups, and never after the final turn).
+    preinv_elig = [bool(has_user and m and m.get("followed_by_user") and m.get("final")) for m in meta]
     sim_cfg = {**_SIM_CFG, "min_turns": 10, "p_continue": 1.0}
     sim_in, sim_cr, sim_rollovers = _simulate_rollover_session(
         turn_tuples,

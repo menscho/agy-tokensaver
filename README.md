@@ -2,11 +2,11 @@
 
 <p align="left">
   <a href="https://github.com/menscho/agy-tokensaver/actions/workflows/test.yml"><img src="https://github.com/menscho/agy-tokensaver/actions/workflows/test.yml/badge.svg" alt="CI"/></a>
-  <a href="https://github.com/menscho/agy-tokensaver/releases"><img src="https://img.shields.io/badge/release-v1.4.0-4ade80?style=flat-square&labelColor=0d0d11" alt="Release v1.4.0"/></a>
+  <a href="https://github.com/menscho/agy-tokensaver/releases"><img src="https://img.shields.io/badge/release-v1.5.0-4ade80?style=flat-square&labelColor=0d0d11" alt="Release v1.5.0"/></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-8e8e98?style=flat-square&labelColor=0d0d11" alt="MIT"/></a>
 </p>
 
-Starts fresh continuation chats when a long Google Antigravity session grows overgrown or its prompt cache goes cold, carrying over a compact (~450–535 token) handoff summary so work continues without lost context. Also includes lightweight, fail-open Python read, write, and search guards (`0.4%` replay estimate) with zero prompt overhead and no shell-command rewriting. Single zero-dependency Python 3.9+ runtime (no Perl needed on Windows, macOS, or Linux).
+Starts fresh continuation chats when a long Google Antigravity session grows overgrown or its prompt cache goes cold, carrying over a compact (~450–535 token) handoff summary so work continues without lost context. Also includes cachemaxxing KV-prefix shields and lightweight, fail-open Python read, write, and search guards (`0.6%` replay estimate; `255k` tool tokens cut) with zero prompt overhead and no shell-command rewriting. Single zero-dependency Python 3.9+ runtime (no Perl needed on Windows, macOS, or Linux).
 
 ## How well it works
 
@@ -16,12 +16,12 @@ Every number below comes from runnable commands in this repository (`eval/runner
   Across 18 six-turn sessions (`L01`–`L03`, 108 user turns), handing off to a fresh chat via `handoff_pack.py` after Turn 3 (~533 tokens) passed **9/9 (100%)** vs **9/9 (100%)** for unbroken chats and cut total tokens **31.9%** (18.25M -> 12.43M; peak context 136k -> 75k). On back-to-back hot-cache turns (`92%` cache hits), weighted cost (`1x` in + `0.05x` cache + `6x` out) was `+2.8%` overall (`-9.0%` on `L01`, `+1.0%` `L02`, `+21.8%` `L03`), showing why Auto-Handoff waits for `>150k` or cold-cache chats instead of splitting warm `~110k` caches early.
 - **Hard multi-module tasks (`eval/results/hard_eval.json`, `gemini-4-hydrogen-xhigh`):**
   Across 54 runs (`X01`–`X06` × 3 runs × 3 modes spanning multiple modules, 85 KB logs, 21 KB JSON, and YAML): `off` scored **18/18 (100.0%)**, Default scored **17/18 (94.4%, -15.7% tokens, -1.6% cost)**, and Max scored **18/18 (100.0%, -24.2% tokens, -9.0% cost)**.
-- **Counterfactual replay estimate (`scripts/benchmark.py --modes --report`, 81 sessions):**
-  Assuming unchanged post-handoff agent trajectories (+8k re-read tax per rollover), Default estimates **20.7% lower cost** (24.5% p90, 0.0% median on short chats; 12.1% on 200k–400k chats; 29.7% above 400k). Guards alone estimate **0.4% lower cost** (182k tool tokens cut).
+- **Counterfactual replay estimate (`scripts/benchmark.py --modes --report`, 86 sessions, `4,688` turns, `0 tok/turn` overhead):**
+  Using exact `USER_INPUT` turn boundaries (+6k re-read tax per rollover), Default estimates **16.3% lower cost** in Path 2 delegated desktop mode (19.9% p90, 40.5% max; 24.1% above 400k) and **20.9% lower cost** in Path 1 direct 0-token mode (28.0% p90, 48.2% max; 29.6% above 400k; 38.9% upper bound with phase resets). Guards alone estimate **0.6% lower cost** (`254,916` tool tokens cut; `0.9%` / `381,970` tok with Compact Reads).
 
 ## Install and remove
 
-Download `agy-tokensaver-v1.4.0.zip` from [Releases](https://github.com/menscho/agy-tokensaver/releases), extract it, and run:
+Download `agy-tokensaver-v1.5.0.zip` from [Releases](https://github.com/menscho/agy-tokensaver/releases), extract it, and run:
 
 - **Windows:** `Install-TokenSaver.bat`
 - **macOS:** `Install-TokenSaver.command`
