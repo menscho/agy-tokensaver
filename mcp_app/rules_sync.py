@@ -8,8 +8,16 @@ from pathlib import Path
 from config import CFG_FILE, PLUGIN_ROOT, _atomic_write_json, _cfg_lock, _is_sandbox_data_dir, load_config
 
 _CONCISE_RULE_LINE = "1. Concise replies: skip pleasantries, preambles, and post-tool narration; keep code, diffs, paths, and errors verbatim."
-_EDIT_RULE_LINE = "2. Change existing files with targeted edits, not full-file rewrites."
-_RULES_TEXT = "# Token Saver\n" + _CONCISE_RULE_LINE + "\n" + _EDIT_RULE_LINE + "\n"
+_EDIT_RULE_LINE = "2. Targeted & batched edits: change existing files with targeted edits, not full-file rewrites; batch >=2 hunks/files or edit+verify into `apply_edits` (`bestEffort: true` for >=3 files)."
+_BATCH_RULE_LINE = "3. Hybrid batching: use the `SessionStart` snapshot before running `ls`/`git status`; pack >=2 text/regex/glob/fuzzy/read-only git queries into `batch_search`; outline unknown >300L files with `quick_outline` before parallel ranged `read_file`; batch >=2 independent checks into `run_checks` (`outputMode: \"compact\"`)."
+_CACHE_RULE_LINE = "4. Cache & multimodal hygiene: in >150k sessions delegate image inspection to a subagent returning text-only findings; avoid toggling Plan Mode mid-loop; keep verify commands fast (<=45s) and set `WaitMsBeforeAsync` (5000-10000) for <=10s commands."
+_RULES_TEXT = (
+    "# Token Saver\n"
+    + _CONCISE_RULE_LINE + "\n"
+    + _EDIT_RULE_LINE + "\n"
+    + _BATCH_RULE_LINE + "\n"
+    + _CACHE_RULE_LINE + "\n"
+)
 
 
 def _should_defer_concise_sync() -> bool:

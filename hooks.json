@@ -1,4 +1,13 @@
 {
+  "token-saver-session-start": {
+    "SessionStart": [
+      {
+        "type": "command",
+        "command": "python3 -S ./scripts/session_start_hook.py",
+        "timeout": 5
+      }
+    ]
+  },
   "token-saver-read": {
     "PreToolUse": [
       {

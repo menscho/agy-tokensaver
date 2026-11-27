@@ -248,6 +248,10 @@ def apply_update() -> dict[str, Any]:
             if not (src_root / "plugin.json").is_file():
                 return {"ok": False, "error": "Invalid release archive (missing plugin.json).", "updates": info}
 
+            # Preserve user-owned rules/AGENTS.local.md across updates
+            local_rules_path = PLUGIN_ROOT / "rules" / "AGENTS.local.md"
+            saved_local_rules = local_rules_path.read_bytes() if local_rules_path.is_file() else None
+
             # Copy updated plugin files into PLUGIN_ROOT while NEVER touching .git or plugin_data
             preserve = {".git", ".data", "__pycache__"}
             for item in src_root.iterdir():
@@ -260,6 +264,9 @@ def apply_update() -> dict[str, Any]:
                     shutil.copytree(item, dest)
                 else:
                     shutil.copy2(item, dest)
+            if saved_local_rules is not None:
+                local_rules_path.parent.mkdir(parents=True, exist_ok=True)
+                local_rules_path.write_bytes(saved_local_rules)
 
             # On native Windows, pin real Python executable to avoid Microsoft Store python3 stub
             if os.name == "nt":

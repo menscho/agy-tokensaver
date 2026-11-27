@@ -78,6 +78,7 @@ def load_config() -> dict[str, Any]:
         "cooldown_min": 8,
         "compact_reads": False,
         "concise_output": False,
+        "startup_snapshot": True,
         "pending_concise_sync": False,
     }
     if not CFG_FILE.is_file():
@@ -91,6 +92,7 @@ def load_config() -> dict[str, Any]:
                 mode = "smart_auto" if auto_on else "off"
             compact_reads = bool(d.get("compact_reads", False))
             concise_output = bool(d.get("concise_output", False))
+            startup_snapshot = bool(d.get("startup_snapshot", mode != "off"))
             profile = str(d.get("profile") or _infer_profile(mode, compact_reads, concise_output))
             if profile not in _PROFILE_PRESETS:
                 profile = _infer_profile(mode, compact_reads, concise_output)
@@ -109,6 +111,7 @@ def load_config() -> dict[str, Any]:
                 "cooldown_min": max(5, min(120, int(d.get("cooldown_min", 8)))),
                 "compact_reads": compact_reads,
                 "concise_output": concise_output,
+                "startup_snapshot": startup_snapshot,
                 "pending_concise_sync": bool(d.get("pending_concise_sync", False)),
             }
     except Exception:
@@ -127,12 +130,15 @@ def save_config(patch: dict[str, Any]) -> dict[str, Any]:
                 merged["auto_rollover"] = False
                 merged["compact_reads"] = False
                 merged["concise_output"] = False
+                merged["startup_snapshot"] = False
                 merged["profile"] = "zero_loss"
             else:
                 if prof not in _PROFILE_PRESETS:
                     prof = "auto_handoff"
                 merged["profile"] = prof
                 merged.update(_PROFILE_PRESETS[prof])
+                if "startup_snapshot" not in patch:
+                    merged["startup_snapshot"] = True
         elif "mode" in patch:
             mode = str(patch["mode"])
             if mode not in ("smart_auto", "prepare_only", "off"):
@@ -174,6 +180,7 @@ def save_config(patch: dict[str, Any]) -> dict[str, Any]:
             "cooldown_min": max(5, min(120, int(merged.get("cooldown_min", 8)))),
             "compact_reads": bool(merged.get("compact_reads", False)),
             "concise_output": bool(merged.get("concise_output", False)),
+            "startup_snapshot": bool(merged.get("startup_snapshot", merged["mode"] != "off")),
             "pending_concise_sync": defer_sync or (bool(cur.get("pending_concise_sync", False)) and not concise_changed),
         }
         _atomic_write_json(CFG_FILE, clean)

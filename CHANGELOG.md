@@ -2,6 +2,23 @@
 
 All notable changes to **agy-tokensaver** (`menscho/agy-tokensaver`) are documented here.
 
+## [1.5.2] — 2026-11-27
+
+Integrates the full batched local MCP accelerator suite, sub-50 ms `SessionStart` workspace snapshot, `≤ 8.8 KB` zero-spill output folding, and direct `--cli` Swarm mode—adapted from engineering pioneered by **[INK-Q/agy-fast](https://github.com/INK-Q/agy-fast)** (MIT License) and natively implemented in pure zero-dependency Python 3.9+ stdlib.
+
+### Added
+- **5 Eager Batched Local MCP Accelerator Tools (`mcp_app/server.py`, `mcp_config.json`, `mcp_app/fast_*.py`):** registered with `"eager": true` in `mcp_config.json` (0 lazy-load schema-read turns) and strictly capped at `≤ 8,800` UTF-8 bytes inline to eliminate `output.txt` disk-spill extra turns:
+  - `batch_search` (`mcp_app/fast_search.py`): up to 20 concurrent mixed queries (`text`, `regex`, `glob`, `fuzzy`, hardened read-only `git`) with `rg` + pure-Python fallback, `fileType`/`glob` filters, `multiline`, `outputMode`, `sortBy`, glob auto-recovery (`|` alternation and bare keywords), and file-coverage-first water-filling.
+  - `apply_edits` (`mcp_app/fast_edits.py`): up to 50 files per call with in-memory overlap validation, atomic writes + rollback, `bestEffort: true` partial per-file commits, closest-region & line-drift mismatch hints, hunk aliases (`oldText`/`old_string`, `newText`/`new_string`), UTF-8 BOM / CRLF / mixed-EOL / permission / symlink preservation, `.git` internal write protection, and optional inline `verify`.
+  - `quick_outline` & `read_slices` (`mcp_app/fast_outline.py`): multi-language symbol outlines across 15+ languages (TS/JS incl. routes & tests, Python, GDScript, Go, Rust, Java/Kotlin/C#/Swift/C/C++, HTML/Vue/Svelte with embedded `<script>`/`<style>`, CSS/SCSS/Less, Shell, Markdown, JSON/YAML) with breadth-first water-filling + targeted `slices` / `lineRanges` shorthand.
+  - `run_checks` (`mcp_app/fast_checks.py`): up to 12 concurrent shell checks (`concurrency: 1..8`, shared `150 s` call budget), ANSI/spinner cleanup, Windows `powershell -Command` trivial wrapper unwrapping, green-phase pass collapsing, Pino/Bunyan/Maven noise stripping, and Head-Tail failure compaction in `compact` and `full` modes.
+- **Sub-50 ms `SessionStart` Workspace Snapshot (`scripts/session_start_hook.py`, `mcp_app/fast_snapshot.py`, `hooks.json`):** fail-open `python3 -S` startup hook injecting a `≤ 1.5 KB` snapshot (git branch/status/commits, multi-module manifests, priority-sorted 2-level tree) with a `250 ms` scan circuit-breaker, nested-repo detection, and OS/`$HOME` skip lists. Toggleable in the dashboard or via `AGY_TS_STARTUP_SNAPSHOT=off`.
+- **Direct CLI Mode & Host Compatibility (`mcp_app/fast_cli.py`, `mcp_app/fast_utils.py`, `mcp_app/server.py`):** `python3 mcp_app/server.py --cli <search|outline|slice|edit|check>` for Swarm workers and scripts; MCP `roots/list` workspace root resolution with non-workspace/plugin-dir CWD guards; `--tools` / `AGY_TS_TOOLS` subsetting; `--schema-compat=minimal` / `AGY_TS_SCHEMA_COMPAT`; and automatic `apply_edits.edits` format adaptation for pre-eager CLI 1.5.0–1.5.7.
+
+### Changed
+- **Opt-in Max-Mode Rules (`mcp_app/rules_sync.py`, `scripts/pre_invocation_handoff.py`):** updated byte-identical `rules/AGENTS.md` (still absent by default = 0 passive prompt bytes) with concise hybrid batching, targeted `apply_edits`, and >150k multimodal image-isolation / cache-hygiene rules. User-owned `rules/AGENTS.local.md` is now preserved across `install.py` and `updater.py` updates.
+- **Handoff Packet Tracking & Doctor (`scripts/handoff_pack.py`, `install.py`, `scripts/benchmark.py`):** `handoff_pack.py` now tracks files edited and commands verified via `apply_edits`; `install.py --doctor` reports `rg` availability and probes `SessionStart` latency; `scripts/benchmark.py --demo` benchmarks the `SessionStart` snapshot and `quick_outline`.
+
 ## [1.5.1] — 2026-11-27
 
 Lossless token cuts: the changes remove text the model already has, or shorten text that stays in context. The only behaviour changes are the lower dedup floor and one extra rule in the opt-in Max mode.

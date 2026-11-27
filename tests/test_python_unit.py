@@ -7,6 +7,7 @@ import io
 import json
 import os
 import sqlite3
+import subprocess
 import sys
 import tempfile
 import time
@@ -131,7 +132,8 @@ class TestMcpAppModules(unittest.TestCase):
             agents_p = sb_root / "rules" / "AGENTS.md"
             self.assertTrue(agents_p.is_file())
             self.assertIn("1. Concise replies", agents_p.read_text(encoding="utf-8"))
-            self.assertIn("2. Change existing files with targeted edits", agents_p.read_text(encoding="utf-8"))
+            self.assertIn("2. Targeted & batched edits: change existing files with targeted edits", agents_p.read_text(encoding="utf-8"))
+            self.assertIn("3. Hybrid batching", agents_p.read_text(encoding="utf-8"))
             self.assertFalse(self.rules_sync._rules_text_stale(agents_p))
             import pre_invocation_handoff as pih
             self.assertEqual(pih.RULES_TEXT, self.rules_sync._RULES_TEXT, "hook and MCP app must write identical rules")
@@ -968,6 +970,1064 @@ class TestMcpAppModules(unittest.TestCase):
              mock.patch("transcript_io.parse_session_cached", return_value=neon_warm):
             os.environ.pop("AGY_TS_SYNC_RULES", None)
             self.assertTrue(self.rules_sync._should_defer_concise_sync())
+
+
+class TestFastAcceleratorModules(unittest.TestCase):
+    def setUp(self) -> None:
+        self._td = tempfile.TemporaryDirectory(prefix="agy-fastunit-")
+        self.tmp = Path(self._td.name)
+        self.ws = self.tmp / "repo"
+        self.ws.mkdir()
+        (self.ws / "src").mkdir()
+        (self.ws / "docs").mkdir()
+        (self.ws / "package.json").write_text(
+            json.dumps({"name": "demo-app", "scripts": {"test": "pytest", "build": "tsc"}}),
+            encoding="utf-8",
+        )
+        (self.ws / "pyproject.toml").write_text("[tool.pytest.ini_options]\n[tool.ruff]\n", encoding="utf-8")
+        (self.ws / "Makefile").write_text("build:\n\techo hi\ntest:\n\tpytest\n", encoding="utf-8")
+        (self.ws / "src" / "app.ts").write_text(
+            "export interface User { id: string; }\n"
+            "export type Mode =\n  | 'fast'\n  | 'safe';\n"
+            "export class Service {\n"
+            "  async fetchUser(id: string): Promise<User> {\n"
+            "    return { id };\n"
+            "  }\n"
+            "}\n"
+            "export function registerRoutes(app: any) {\n"
+            + "\n".join(f"  // pad line {i}" for i in range(45))
+            + "\n  app.get('/health', () => 'ok');\n}\n"
+            "describe('Service', () => {\n  it('works', () => {});\n});\n",
+            encoding="utf-8",
+        )
+        (self.ws / "src" / "worker.py").write_text(
+            "import os\n\n"
+            "@dataclass\n"
+            "class Worker:\n"
+            "    def run(self, x: int) -> int:\n"
+            "        return x + 1\n\n"
+            "async def main_loop():\n"
+            "    return 42\n",
+            encoding="utf-8",
+        )
+        (self.ws / "src" / "game.gd").write_text(
+            "class_name Player\nsignal hit(dmg)\nenum State { IDLE, RUN }\n@export var hp := 10\n"
+            "func take_damage(n: int) -> void:\n    hp -= n\n",
+            encoding="utf-8",
+        )
+        (self.ws / "src" / "main.go").write_text(
+            "package main\ntype Server struct { Port int }\nfunc (s *Server) Start() {\n}\nfunc main() {\n}\n",
+            encoding="utf-8",
+        )
+        (self.ws / "src" / "lib.rs").write_text(
+            "pub struct Engine<'a> { pub name: &'a str }\npub fn boot() {\n    let c = 'x';\n}\n",
+            encoding="utf-8",
+        )
+        (self.ws / "src" / "Widget.java").write_text(
+            "public class Widget {\n  public int compute(int a) {\n    return a * 2;\n  }\n}\n",
+            encoding="utf-8",
+        )
+        (self.ws / "src" / "run.sh").write_text("deploy() {\n  echo ok\n}\n", encoding="utf-8")
+        (self.ws / "src" / "view.vue").write_text(
+            "<template>\n  <main id=\"app\"><CustomCard /></main>\n</template>\n"
+            "<script setup>\nfunction onSave() {\n  return 1;\n}\n</script>\n"
+            "<style>\n/* Theme */\n:root { --bg: #000; }\n@media (max-width: 600px) { body { margin: 0; } }\n</style>\n",
+            encoding="utf-8",
+        )
+        (self.ws / "src" / "style.css").write_text(
+            "/* Layout */\n:root { --x: 1; }\n.card {\n  display: flex;\n}\n",
+            encoding="utf-8",
+        )
+        (self.ws / "docs" / "guide.md").write_text("# Intro\ntext\n## Setup\n```md\n# fake\n```\n", encoding="utf-8")
+        (self.ws / "src" / "cfg.yaml").write_text("server:\n  port: 8080\nlogging:\n  level: info\n", encoding="utf-8")
+
+    def tearDown(self) -> None:
+        self._td.cleanup()
+
+    def test_fast_utils_truncation_waterfill_and_output_filter(self) -> None:
+        import fast_utils as fu
+
+        # UTF-8 slicing with multi-byte characters
+        cjk = "你好世界" * 40
+        sl = fu.slice_utf8_bytes(cjk, 20)
+        self.assertLessEqual(fu.utf8_len(sl), 20)
+        slt = fu.slice_utf8_bytes_tail(cjk, 20)
+        self.assertLessEqual(fu.utf8_len(slt), 20)
+        self.assertLessEqual(fu.utf8_len(fu.truncate_with_byte_notice(cjk, 120)), 120)
+        self.assertLessEqual(fu.utf8_len(fu.truncate_head_tail_with_byte_notice(cjk, 220)), 220)
+        self.assertLessEqual(len(fu.truncate_with_notice("a\n" * 200, 120)), 120)
+        self.assertLessEqual(len(fu.truncate_head_tail_with_notice("a\n" * 200, 220)), 220)
+
+        # Water-filling
+        buds = fu.compute_water_fill_budgets([10, 500, 500], 210)
+        self.assertEqual(buds, [10, 100, 100])
+        fitted = fu.fit_sections_to_byte_budget(["short", "x" * 1000, "你好" * 400], 300, 300)
+        self.assertLessEqual(fu.utf8_len(fitted), 300)
+        self.assertIn("short", fitted)
+
+        # ANSI / spinner normalization + noise stripping + green phase folding + head-tail failure
+        raw_term = "\x1b[32mPASS\x1b[0m\r\x1b[2K\x1b[31mFAIL src/a.test.ts\x1b[0m"
+        self.assertEqual(fu.normalize_terminal_output(raw_term), "FAIL src/a.test.ts")
+        self.assertEqual(fu.strip_benign_zero_counts("0 errors, warnings: 0").strip(), ",")
+        self.assertIn("Worker 0 failed", fu.strip_benign_zero_counts("Worker 0 failed"))
+        self.assertTrue(fu.is_failure_noise_line('{"level":30,"msg":"server started"}'))
+        self.assertFalse(fu.is_failure_noise_line('{"level":30,"statusCode":500,"msg":"boom"}'))
+        self.assertTrue(fu.is_failure_noise_line("[ERROR] Re-run Maven using the -X switch"))
+
+        green_log = (
+            ["✓ test_a_pass_ok_long_line_padding_1234567890" for _ in range(10)]
+            + ["ERROR: assertion failed at line 42"]
+            + [f"detail line {i} " + ("z" * 40) for i in range(40)]
+        )
+        folded, cnt = fu.fold_green_build_phase_lines(green_log)
+        self.assertGreaterEqual(cnt, 10)
+        self.assertTrue(any("collapsed" in ln for ln in folded))
+        comp = fu.format_compact_command_output("\n".join(green_log), "", 1, 400)
+        self.assertLessEqual(len(comp), 400)
+        self.assertIn("ERROR: assertion failed", comp)
+        self.assertEqual(fu.format_compact_command_output("", "", 0, 200), "OK")
+        self.assertIn("TIMED OUT", fu.format_compact_command_output("partial", "", None, 200, timed_out=True))
+        self.assertIn("SIGKILL", fu.format_exit_failure_label(137))
+
+        # Arg validation + fuzzy + glob + Windows PS unwrap + schema compat + host compat
+        self.assertEqual(fu.parse_maybe_json_array('["a","b"]'), (True, "ok", ["a", "b"]))
+        self.assertEqual(fu.parse_maybe_json_array("true"), (False, "corrupted_literal", True))
+        self.assertEqual(fu.parse_maybe_string_or_json_array("src/a.py"), (True, "ok", ["src/a.py"]))
+        self.assertIn("corruption", fu.format_corrupted_array_error("H", "t", [("x", True, "obj")], "fallback"))
+        matches, total = fu.rank_fuzzy_paths("app ts", ["src/app.ts", "docs/guide.md"], 5)
+        self.assertEqual(total, 1)
+        self.assertEqual(matches[0][0], "src/app.ts")
+        self.assertTrue(fu.glob_to_regex("**/*.{ts,py}").match("src/app.ts"))
+        self.assertEqual(fu.unwrap_trivial_windows_powershell_command('powershell -NoProfile -Command "git status"'), "git status")
+        self.assertIn("Get-ChildItem", fu.unwrap_trivial_windows_powershell_command('powershell -Command "Get-ChildItem"'))
+        san = fu.sanitize_schema_to_minimal_subset({"type": "object", "properties": {"pattern": {"type": "string", "minLength": 1}, "n": {"type": "integer", "minimum": 1}}})
+        self.assertIn("pattern", san["properties"])
+        self.assertNotIn("minLength", san["properties"]["pattern"])
+        self.assertNotIn("minimum", san["properties"]["n"])
+        fmt, _lbl = fu.resolve_edits_format(client_info={"name": "antigravity-cli", "version": "1.5.5"}, env={})
+        self.assertEqual(fmt, "string")
+        fmt2, _lbl2 = fu.resolve_edits_format(client_info={"name": "antigravity-cli", "version": "1.5.9"}, env={})
+        self.assertEqual(fmt2, "array")
+
+    def test_fast_search_all_modes_and_git_hardening(self) -> None:
+        import fast_search as fs
+
+        # Validate read-only git security
+        self.assertIn("status", fs.validate_readonly_git_args("status --short"))
+        for bad_git in ("push origin main", "status -v", "log && rm -rf /", "branch new-br", "tag v1.0", "remote add x y", "-c core.pager=sh log"):
+            with self.assertRaises(ValueError):
+                fs.validate_readonly_git_args(bad_git)
+
+        # Run mixed batch (text, regex, glob with | auto-recovery, fuzzy) with BOTH rg and Python fallback
+        for force_py in (False, True):
+            res = fs.run_batch_search(
+                {
+                    "cwd": str(self.ws),
+                    "queries": [
+                        {"type": "text", "pattern": "fetchUser", "fileType": "ts", "contextLines": 1},
+                        {"type": "regex", "pattern": "def\\s+run", "outputMode": "files_with_matches"},
+                        {"type": "text", "pattern": "Worker", "outputMode": "count", "fileType": "python"},
+                        {"type": "glob", "pattern": "app|worker", "sortBy": "mtime"},
+                        {"type": "fuzzy", "pattern": "worker py"},
+                    ],
+                },
+                force_python_fallback=force_py,
+            )
+            self.assertFalse(res["isError"], res["text"])
+            self.assertIn("fetchUser", res["text"])
+            self.assertIn("src/worker.py", res["text"])
+            self.assertIn("auto-expanded regex '|'", res["text"])
+            self.assertLessEqual(len(res["text"].encode("utf-8")), 8800)
+
+        # Validation & corruption handling
+        self.assertTrue(fs.run_batch_search({"cwd": str(self.ws), "queries": True})["isError"])
+        self.assertTrue(fs.run_batch_search({"cwd": str(self.ws), "queries": []})["isError"])
+
+    def test_fast_outline_and_read_slices(self) -> None:
+        import fast_outline as fo
+
+        res = fo.run_quick_outline(
+            {
+                "cwd": str(self.ws),
+                "paths": [
+                    "src/app.ts",
+                    "src/worker.py",
+                    "src/game.gd",
+                    "src/main.go",
+                    "src/lib.rs",
+                    "src/Widget.java",
+                    "src/run.sh",
+                    "src/view.vue",
+                    "src/style.css",
+                    "docs/guide.md",
+                    "package.json",
+                    "src/cfg.yaml",
+                ],
+            }
+        )
+        self.assertFalse(res["isError"], res["text"])
+        for expected in (
+            "[class] Service", "[method] fetchUser", "[route] GET /health", "[suite] Service",
+            "[class] Worker", "[function] main_loop", "[class_name] Player", "[signal] hit",
+            "[struct] Server", "[fn] boot", "[class] Widget", "[function] deploy",
+            "[function] onSave", "[tokens] :root", "[h1] Intro", "[key] scripts", "[key] server",
+        ):
+            self.assertIn(expected, res["text"])
+
+        sl = fo.run_read_slices(
+            {
+                "cwd": str(self.ws),
+                "outlines": ["src/worker.py"],
+                "lineRanges": ["src/worker.py:3-6"],
+            }
+        )
+        self.assertFalse(sl["isError"], sl["text"])
+        self.assertIn("## Outline: src/worker.py", sl["text"])
+        self.assertIn("class Worker:", sl["text"])
+        # Corrupt args & invalid ranges
+        self.assertTrue(fo.run_quick_outline({"cwd": str(self.ws), "paths": True})["isError"])
+        self.assertTrue(fo.run_read_slices({"cwd": str(self.ws), "lineRanges": ["badspec"]})["isError"])
+
+    def test_fast_edits_atomic_best_effort_hints_and_verify(self) -> None:
+        import fast_edits as fe
+
+        # Atomic multi-file edit + inline verify
+        res = fe.run_apply_edits(
+            {
+                "cwd": str(self.ws),
+                "edits": [
+                    {"path": "src/worker.py", "hunks": [{"target": "return x + 1", "replacement": "return x + 2"}]},
+                    {"path": "src/new_file.txt", "create": "hello\nworld\n"},
+                ],
+                "verify": f'"{sys.executable}" -c "print(\'2 passed\')"',
+            }
+        )
+        self.assertFalse(res["isError"], res["text"])
+        self.assertIn("Applied edits to 2 file(s):", res["text"])
+        self.assertIn("Verify [PASS", res["text"])
+        self.assertIn("return x + 2", (self.ws / "src" / "worker.py").read_text(encoding="utf-8"))
+        self.assertEqual((self.ws / "src" / "new_file.txt").read_text(encoding="utf-8"), "hello\nworld\n")
+
+        # Line-drift hint + closest-region snippet + atomic rollback (0 files modified)
+        bad = fe.run_apply_edits(
+            {
+                "cwd": str(self.ws),
+                "edits": [
+                    {"path": "src/worker.py", "hunks": [{"target": "return x + 2", "replacement": "return x + 99", "startLine": 1, "endLine": 2}]},
+                    {"path": "src/new_file.txt", "hunks": [{"target": "hello", "replacement": "changed"}]},
+                ],
+            }
+        )
+        self.assertTrue(bad["isError"])
+        self.assertIn("Exact match found outside range", bad["text"])
+        self.assertEqual((self.ws / "src" / "new_file.txt").read_text(encoding="utf-8"), "hello\nworld\n")
+
+        # bestEffort commits valid file and reports closest match for failed file
+        be = fe.run_apply_edits(
+            {
+                "cwd": str(self.ws),
+                "bestEffort": True,
+                "edits": [
+                    {"path": "src/new_file.txt", "hunks": [{"oldText": "hello", "newText": "hi"}]},
+                    {"path": "src/worker.py", "hunks": [{"target": "def run(self, x: int) -> str:\n    return x + 999", "replacement": "pass"}]},
+                ],
+            }
+        )
+        self.assertTrue(be["isError"])
+        self.assertIn("Partial edit applied", be["text"])
+        self.assertIn("Closest match near line", be["text"])
+        self.assertIn("hi\n", (self.ws / "src" / "new_file.txt").read_text(encoding="utf-8"))
+
+        # .git write protection + JSON array string format + CRLF preservation
+        crlf_f = self.ws / "src" / "win.txt"
+        crlf_f.write_bytes(b"\xef\xbb\xbfa\r\nb\r\n")
+        ok_str = fe.run_apply_edits(
+            {
+                "cwd": str(self.ws),
+                "edits": json.dumps([{"path": "src/win.txt", "hunks": [{"target": "a\nb", "replacement": "a\nc"}]}]),
+            }
+        )
+        self.assertFalse(ok_str["isError"], ok_str["text"])
+        self.assertEqual(crlf_f.read_bytes(), b"\xef\xbb\xbfa\r\nc\r\n")
+
+        git_block = fe.run_apply_edits({"cwd": str(self.ws), "edits": [{"path": ".git/config", "create": "x"}]})
+        self.assertTrue(git_block["isError"])
+        self.assertIn(".git", git_block["text"])
+
+    def test_fast_checks_compact_full_and_budget(self) -> None:
+        import fast_checks as fc
+
+        res = fc.run_checks(
+            {
+                "cwd": str(self.ws),
+                "commands": [
+                    {"name": "ok1", "command": f'"{sys.executable}" -c "print(\'5 tests passed\')"'},
+                    {"name": "fail1", "command": f'"{sys.executable}" -c "import sys; print(\'ERROR: boom\'); sys.exit(1)"'},
+                ],
+                "concurrency": 2,
+                "outputMode": "compact",
+            }
+        )
+        self.assertFalse(res["isError"])
+        self.assertIn("1/2 passed, 1 failed", res["text"])
+        self.assertIn("[PASS", res["text"])
+        self.assertIn("ERROR: boom", res["text"])
+        self.assertLessEqual(len(res["text"].encode("utf-8")), 8800)
+
+        full = fc.run_checks(
+            {
+                "cwd": str(self.ws),
+                "commands": [{"name": "p", "command": f'"{sys.executable}" -c "print(\'hello_full\')"'}],
+                "outputMode": "full",
+            }
+        )
+        self.assertFalse(full["isError"])
+        self.assertIn("hello_full", full["text"])
+        self.assertTrue(fc.run_checks({"cwd": str(self.ws), "commands": []})["isError"])
+
+    def test_fast_snapshot_session_start_hook_and_cli_and_server(self) -> None:
+        import fast_cli
+        import fast_snapshot
+        import server
+        import session_start_hook as ssh
+
+        snap = fast_snapshot.build_workspace_snapshot(str(self.ws))
+        self.assertIsNotNone(snap)
+        assert snap is not None
+        self.assertIn("package.json (demo-app)", snap)
+        self.assertIn("pyproject.toml (pytest, ruff)", snap)
+        self.assertIn("Makefile targets: build, test", snap)
+        self.assertIn("Layout (2 levels):", snap)
+        self.assertLessEqual(len(snap.encode("utf-8")), 1500)
+
+        # SessionStart hook subprocess check
+        out_buf = io.BytesIO()
+        fake_in = mock.Mock(buffer=io.BytesIO(json.dumps({"cwd": str(self.ws)}).encode("utf-8")))
+        fake_out = mock.Mock(buffer=out_buf)
+        with mock.patch("sys.stdin", fake_in), mock.patch("sys.stdout", fake_out), \
+             mock.patch.dict(os.environ, {"PLUGIN_DATA": str(self.tmp / "pdata")}, clear=False):
+            rc = ssh.main()
+        self.assertEqual(rc, 0)
+        ss_doc = json.loads(out_buf.getvalue().decode("utf-8"))
+        self.assertIn("injectSteps", ss_doc)
+
+        # Kill switch disables SessionStart cleanly
+        out_off = io.BytesIO()
+        with mock.patch("sys.stdin", mock.Mock(buffer=io.BytesIO(json.dumps({"cwd": str(self.ws)}).encode("utf-8")))), \
+             mock.patch("sys.stdout", mock.Mock(buffer=out_off)), \
+             mock.patch.dict(os.environ, {"AGY_TS_STARTUP_SNAPSHOT": "off"}, clear=False):
+            ssh.main()
+        self.assertEqual(json.loads(out_off.getvalue().decode("utf-8")), {})
+
+        # Direct --cli runner for outline, search, slice, edit, check
+        for cli_args, expected in (
+            (["--help"], "agy-tokensaver direct CLI mode"),
+            (["outline", "--cwd", str(self.ws), "src/worker.py"], "[class] Worker"),
+            (["search", "--cwd", str(self.ws), "--text", "fetchUser"], "fetchUser"),
+            (["slice", "--cwd", str(self.ws), "src/worker.py:3-6"], "class Worker:"),
+            (["check", "--cwd", str(self.ws), f'"{sys.executable}" -c "print(\'ok\')"'], "1/1 passed"),
+        ):
+            so, se = io.StringIO(), io.StringIO()
+            rc_cli = fast_cli.run_cli(cli_args, stdin=io.StringIO(""), stdout=so, stderr=se)
+            self.assertEqual(rc_cli, 0, se.getvalue() + so.getvalue())
+            self.assertIn(expected, so.getvalue())
+
+        # MCP server exposes all 5 eager accelerator tools + respects --tools / --schema-compat
+        sent: list[dict] = []
+        with mock.patch.object(server, "_send", side_effect=sent.append):
+            server._dispatch({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-03-26", "clientInfo": {"name": "antigravity-cli", "version": "1.5.10"}}})
+            server._dispatch({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}})
+            server._dispatch({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "quick_outline", "arguments": {"cwd": str(self.ws), "paths": ["src/worker.py"]}}})
+        tool_names = {t["name"] for t in sent[1]["result"]["tools"]}
+        self.assertTrue({"open_token_saver", "batch_search", "apply_edits", "quick_outline", "read_slices", "run_checks"}.issubset(tool_names))
+        self.assertIn("[class] Worker", sent[2]["result"]["content"][0]["text"])
+
+        show_h, err = server.parse_server_args(["--tools", "batch_search,quick_outline", "--schema-compat=minimal"])
+        self.assertFalse(show_h)
+        self.assertIsNone(err)
+        filtered_names = {t["name"] for t in server.get_exposed_tools()}
+        self.assertIn("batch_search", filtered_names)
+        self.assertNotIn("run_checks", filtered_names)
+        server.parse_server_args([])
+
+    def test_fast_snapshot_git_nested_manifests_and_capping(self) -> None:
+        import fast_snapshot as fsnap
+
+        # parse_porcelain_branch_header variants
+        self.assertEqual(fsnap.parse_porcelain_branch_header("## main...origin/main [ahead 2]"), ("main", False))
+        self.assertEqual(fsnap.parse_porcelain_branch_header("## No commits yet on feat/x"), ("feat/x", True))
+        self.assertEqual(fsnap.parse_porcelain_branch_header("## HEAD (no branch)"), ("HEAD", False))
+        self.assertEqual(fsnap.parse_porcelain_branch_header("## Initial commit on dev"), ("dev", True))
+
+        # is_home_or_system_root detection
+        self.assertTrue(fsnap.is_home_or_system_root("/"))
+        self.assertTrue(fsnap.is_home_or_system_root("/home"))
+        self.assertTrue(fsnap.is_home_or_system_root(str(Path.home())))
+        self.assertFalse(fsnap.is_home_or_system_root(str(self.ws)))
+        self.assertIsNone(fsnap.build_workspace_snapshot(str(self.tmp / "nonexistent_dir")))
+
+        # Real git repo with unborn branch -> initial commit -> dirty working tree -> nested subdir + multi-module manifests
+        repo = self.tmp / "git_snap_repo"
+        repo.mkdir()
+        (repo / "pom.xml").write_text("<project><parent><artifactId>p</artifactId></parent><artifactId>demo-svc</artifactId></project>\n", encoding="utf-8")
+        (repo / "build.gradle.kts").write_text("plugins {}\n", encoding="utf-8")
+        (repo / "Cargo.toml").write_text("[workspace]\nmembers = [\"crates/a\"]\n", encoding="utf-8")
+        (repo / "go.mod").write_text("module example.com/demo\n\ngo 1.22\n", encoding="utf-8")
+        (repo / "docs").mkdir()
+        (repo / "docs" / "a.md").write_text("# A\n", encoding="utf-8")
+        (repo / "packages" / "api").mkdir(parents=True)
+        (repo / "packages" / "api" / "package.json").write_text(json.dumps({"name": "api", "scripts": {"dev": "vite"}}), encoding="utf-8")
+        (repo / "packages" / "api" / "index.ts").write_text("export const x = 1;\n", encoding="utf-8")
+        for idx in range(22):
+            (repo / f"extra_file_{idx:02d}_very_long_filename_here.txt").write_text("x\n", encoding="utf-8")
+
+        def _git(*args: str) -> None:
+            subprocess.run(["git", *args], cwd=str(repo), check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        _git("init", "-b", "main")
+        _git("config", "user.email", "test@example.com")
+        _git("config", "user.name", "Test User")
+
+        unborn_snap = fsnap.build_workspace_snapshot(str(repo))
+        self.assertIsNotNone(unborn_snap)
+        assert unborn_snap is not None
+        self.assertIn("unborn, no commits yet", unborn_snap)
+        self.assertIn("demo-svc, maven", unborn_snap)
+        self.assertIn("Cargo.toml (workspace)", unborn_snap)
+        self.assertIn("go.mod (example.com/demo)", unborn_snap)
+        self.assertIn("docs/ (a.md)", unborn_snap)
+
+        _git("add", "pom.xml", "packages/api/index.ts")
+        _git("commit", "-m", "initial commit")
+
+        # Clean nested subdir inside repo
+        nested = repo / "packages" / "api"
+        nested_snap = fsnap.build_workspace_snapshot(str(nested))
+        self.assertIsNotNone(nested_snap)
+        assert nested_snap is not None
+        self.assertIn("repo root: ../..", nested_snap)
+        self.assertIn("initial commit", nested_snap)
+
+        # Modify tracked file + add untracked file -> Modified summary
+        (repo / "pom.xml").write_text("<project><artifactId>demo-svc-2</artifactId></project>\n", encoding="utf-8")
+        dirty_snap = fsnap.build_workspace_snapshot(str(repo))
+        self.assertIsNotNone(dirty_snap)
+        assert dirty_snap is not None
+        self.assertIn("Modified (", dirty_snap)
+
+        # Tight byte cap exercises _fit_sec_bytes and proportional truncation
+        capped = fsnap.build_workspace_snapshot(str(repo), max_bytes=320)
+        self.assertIsNotNone(capped)
+        assert capped is not None
+        self.assertLessEqual(len(capped.encode("utf-8")), 320)
+
+        # Tiny cap exercises header-only truncate_with_byte_notice fallback
+        tiny = fsnap.build_workspace_snapshot(str(repo), max_bytes=40)
+        self.assertIsNotNone(tiny)
+        assert tiny is not None
+        self.assertLessEqual(len(tiny.encode("utf-8")), 40)
+
+        # Home-mode 1-level layout
+        with mock.patch.object(fsnap, "is_home_or_system_root", return_value=True):
+            home_snap = fsnap.build_workspace_snapshot(str(repo))
+            self.assertIsNotNone(home_snap)
+            assert home_snap is not None
+            self.assertIn("Layout (1 level):", home_snap)
+
+        # Scan deadline already expired triggers skipped dirs note
+        expired = fsnap.build_workspace_snapshot(str(repo), scan_timeout_ms=1)
+        self.assertIsNotNone(expired)
+
+    def test_fast_search_git_multiline_edges_and_fallbacks(self) -> None:
+        import fast_search as fs
+
+        repo = self.tmp / "search_git_repo"
+        repo.mkdir()
+        (repo / "src").mkdir()
+        (repo / "src" / "alpha.py").write_text(
+            "def first():\n    return 'hello'\n\ndef second():\n    # AlphaMarker\n    return 'world'\n",
+            encoding="utf-8",
+        )
+        (repo / "src" / "beta.ts").write_text(
+            "export function greet(name: string) {\n  return `hi ${name}`;\n}\n",
+            encoding="utf-8",
+        )
+        subprocess.run(["git", "init", "-b", "main"], cwd=str(repo), check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["git", "config", "user.email", "t@e.com"], cwd=str(repo), check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["git", "config", "user.name", "T"], cwd=str(repo), check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["git", "add", "."], cwd=str(repo), check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["git", "commit", "-m", "init search repo"], cwd=str(repo), check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        (repo / "src" / "alpha.py").write_text(
+            "def first():\n    return 'hello2'\n\ndef second():\n    # AlphaMarker\n    return 'world'\n",
+            encoding="utf-8",
+        )
+
+        for force_py in (False, True):
+            res = fs.run_batch_search(
+                {
+                    "cwd": str(repo),
+                    "queries": [
+                        {"type": "regex", "pattern": "def first\\(\\):\\n\\s+return", "multiline": True},
+                        {"type": "text", "pattern": "alphamarker", "caseSensitive": False, "glob": "*.py"},
+                        {"type": "text", "pattern": "greet", "path": "src/beta.ts"},
+                        {"type": "glob", "pattern": "alpha"},
+                        {"type": "glob", "pattern": "*.ts", "sortBy": "path"},
+                        {"type": "fuzzy", "pattern": "nonexistent_xyz_file"},
+                        {"type": "git", "pattern": "status --short"},
+                        {"type": "git", "pattern": "log -n 2 --oneline"},
+                        {"type": "git", "pattern": "diff --stat"},
+                        {"type": "git", "pattern": "ls-files"},
+                        {"type": "git", "pattern": "rev-parse --abbrev-ref HEAD"},
+                        {"type": "git", "pattern": "branch -a"},
+                        {"type": "git", "pattern": "show --stat HEAD"},
+                        {"type": "git", "pattern": "grep greet"},
+                    ],
+                },
+                force_python_fallback=force_py,
+            )
+            self.assertFalse(res["isError"], res["text"])
+            self.assertIn("AlphaMarker", res["text"])
+            self.assertIn("init search repo", res["text"])
+            self.assertIn("src/beta.ts", res["text"])
+            self.assertLessEqual(len(res["text"].encode("utf-8")), 8800)
+
+        # Validation & error branches
+        self.assertTrue(fs.run_batch_search({"cwd": str(self.tmp / "nope"), "queries": [{"type": "text", "pattern": "a"}]})["isError"])
+        self.assertTrue(fs.run_batch_search({"cwd": str(repo), "queries": [{"type": "text", "pattern": "a"}] * 21})["isError"])
+        self.assertTrue(fs.run_batch_search({"cwd": str(repo), "queries": [123]})["isError"])
+        bogus_q = fs.run_batch_search({"cwd": str(repo), "queries": [{"type": "bogus", "pattern": "a"}]})
+        self.assertIn("error", bogus_q["text"].lower())
+        empty_q = fs.run_batch_search({"cwd": str(repo), "queries": [{"type": "text", "pattern": ""}]})
+        self.assertIn("error", empty_q["text"].lower())
+        bad_re = fs.run_batch_search({"cwd": str(repo), "queries": [{"type": "regex", "pattern": "[unclosed"}]})
+        self.assertIn("error", bad_re["text"].lower())
+        # Tight maxChars budget packing
+        tight = fs.run_batch_search(
+            {
+                "cwd": str(repo),
+                "maxChars": 500,
+                "queries": [
+                    {"type": "text", "pattern": "return", "maxResults": 50},
+                    {"type": "git", "pattern": "diff"},
+                ],
+            }
+        )
+        self.assertFalse(tight["isError"])
+        self.assertLessEqual(len(tight["text"].encode("utf-8")), 8800)
+
+    def test_fast_outline_and_slices_overflow_and_extra_languages(self) -> None:
+        import fast_outline as fo
+
+        extra = self.tmp / "outline_extra"
+        extra.mkdir()
+        # Large TS file with many classes/methods to trigger nested + top-level budget packing
+        big_ts = "\n".join(
+            [f"export class Service{i} {{\n  handle{i}() {{\n    return {i};\n  }}\n}}" for i in range(60)]
+        ) + "\n"
+        (extra / "big.ts").write_text(big_ts, encoding="utf-8")
+        # Broken Python syntax triggers regex fallback
+        (extra / "broken.py").write_text("class Broken(\n    pass\n\ndef recover_fn():\n    return 1\n", encoding="utf-8")
+        # Pure HTML, C++, pretty JSON, binary file
+        (extra / "index.html").write_text(
+            "<html><head><style>:root { --c: 1; }</style></head><body><main id=\"root\"><script>function boot() { return 1; }</script></main></body></html>\n",
+            encoding="utf-8",
+        )
+        (extra / "engine.cpp").write_text("namespace core {\nclass Engine {\n  int run() {\n    return 0;\n  }\n};\n}\n", encoding="utf-8")
+        (extra / "pretty.json").write_text(json.dumps({"alpha": 1, "beta": {"nested": True}}, indent=2) + "\n", encoding="utf-8")
+        (extra / "bin.dat").write_bytes(b"\x00\x01\x02\x03")
+
+        res = fo.run_quick_outline(
+            {
+                "cwd": str(extra),
+                "paths": ["big.ts", "broken.py", "index.html", "engine.cpp", "pretty.json", "bin.dat", "missing.py"],
+                "maxChars": 1200,
+            }
+        )
+        self.assertFalse(res["isError"])
+        self.assertIn("recover_fn", res["text"])
+        self.assertIn("pretty.json", res["text"])
+        self.assertLessEqual(len(res["text"].encode("utf-8")), 8800)
+
+        # Very small per-file budget forces top-level L<min>-L<max> truncation footer
+        tiny_out = fo.run_quick_outline({"cwd": str(extra), "paths": ["big.ts"], "maxChars": 1000})
+        self.assertFalse(tiny_out["isError"])
+        self.assertIn("omitted", tiny_out["text"])
+
+        # read_slices with structured slices array + overlapping/clamped ranges + error paths
+        sl = fo.run_read_slices(
+            {
+                "cwd": str(extra),
+                "slices": [
+                    {"path": "big.ts", "ranges": [[1, 5], [3, 8], [999, 1005]]},
+                    {"path": "missing.ts", "ranges": [[1, 5]]},
+                ],
+                "outlines": ["pretty.json"],
+                "maxChars": 1000,
+            }
+        )
+        self.assertFalse(sl["isError"])
+        self.assertIn("Service0", sl["text"])
+        self.assertTrue(fo.run_read_slices({"cwd": str(extra)})["isError"])
+        self.assertTrue(fo.run_quick_outline({"cwd": str(extra), "paths": []})["isError"])
+        self.assertTrue(fo.run_quick_outline({"cwd": str(extra), "paths": ["a.py"] * 41})["isError"])
+
+    def test_fast_edits_edge_cases_and_checks_budget_and_timeout(self) -> None:
+        import fast_checks as fc
+        import fast_edits as fe
+
+        ed = self.tmp / "edits_ws"
+        ed.mkdir()
+        (ed / "a.py").write_text("x = 1\nx = 1\ny = 2\n", encoding="utf-8")
+
+        # dryRun does not write file
+        dr = fe.run_apply_edits(
+            {
+                "cwd": str(ed),
+                "dryRun": True,
+                "edits": [{"path": "a.py", "hunks": [{"old_string": "y = 2", "new_string": "y = 9"}]}],
+                "verify": f'"{sys.executable}" -c "print(\'should skip\')"',
+            }
+        )
+        self.assertFalse(dr["isError"], dr["text"])
+        self.assertIn("Dry run", dr["text"])
+        self.assertIn("y = 2", (ed / "a.py").read_text(encoding="utf-8"))
+
+        # Ambiguous multiple matches fail without replaceAll; succeed with replaceAll
+        amb = fe.run_apply_edits({"cwd": str(ed), "edits": [{"path": "a.py", "hunks": [{"target": "x = 1", "replacement": "x = 2"}]}]})
+        self.assertTrue(amb["isError"])
+        self.assertIn("2 times", amb["text"])
+
+        rep_all = fe.run_apply_edits(
+            {"cwd": str(ed), "edits": [{"path": "a.py", "hunks": [{"target": "x = 1", "replacement": "x = 2", "replaceAll": True}]}]}
+        )
+        self.assertFalse(rep_all["isError"], rep_all["text"])
+        self.assertEqual((ed / "a.py").read_text(encoding="utf-8"), "x = 2\nx = 2\ny = 2\n")
+
+        # No-op edit + overlapping hunks + failing verify + validation errors
+        noop = fe.run_apply_edits(
+            {"cwd": str(ed), "edits": [{"path": "a.py", "hunks": [{"target": "y = 2", "replacement": "y = 2"}]}]}
+        )
+        self.assertFalse(noop["isError"])
+        self.assertIn("no-op", noop["text"])
+
+        ov = fe.run_apply_edits(
+            {
+                "cwd": str(ed),
+                "edits": [
+                    {
+                        "path": "a.py",
+                        "hunks": [
+                            {"target": "x = 2\nx = 2", "replacement": "z = 1"},
+                            {"target": "x = 2\ny = 2", "replacement": "z = 2"},
+                        ],
+                    }
+                ],
+            }
+        )
+        self.assertTrue(ov["isError"])
+        self.assertIn("overlap", ov["text"].lower())
+
+        vfail = fe.run_apply_edits(
+            {
+                "cwd": str(ed),
+                "edits": [{"path": "a.py", "hunks": [{"target": "y = 2", "replacement": "y = 3"}]}],
+                "verify": f'"{sys.executable}" -c "import sys; print(\'FAIL detail\'); sys.exit(2)"',
+                "maxVerifyChars": 400,
+            }
+        )
+        self.assertFalse(vfail["isError"])
+        self.assertIn("Verify [FAIL", vfail["text"])
+        self.assertIn("FAIL detail", vfail["text"])
+
+        # Invalid args & duplicate file path
+        self.assertTrue(fe.run_apply_edits({"cwd": str(ed), "edits": True})["isError"])
+        self.assertTrue(fe.run_apply_edits({"cwd": str(ed), "edits": []})["isError"])
+        self.assertTrue(fe.run_apply_edits({"cwd": str(ed), "edits": [{"path": "a.py", "create": "x", "hunks": [{"target": "a", "replacement": "b"}]}]})["isError"])
+        self.assertTrue(
+            fe.run_apply_edits(
+                {"cwd": str(ed), "edits": [{"path": "a.py", "create": "1"}, {"path": "a.py", "create": "2"}]}
+            )["isError"]
+        )
+
+        # fast_checks: budget exhaustion -> [NOT RUN], timeout -> [TIMEOUT], pass shrinking, full Head-Tail truncation
+        not_run = fc.run_checks(
+            {
+                "cwd": str(ed),
+                "concurrency": 1,
+                "commands": [
+                    f'"{sys.executable}" -c "import time; time.sleep(0.25)"',
+                    f'"{sys.executable}" -c "print(\'second\')"',
+                ],
+            },
+            budget_ms=150,
+        )
+        self.assertFalse(not_run["isError"])
+        self.assertIn("[NOT RUN]", not_run["text"])
+
+        noisy_fail = fc.run_checks(
+            {
+                "cwd": str(ed),
+                "maxChars": 700,
+                "commands": [
+                    {"name": "p1", "command": f'"{sys.executable}" -c "print(\'10 tests passed\')"'},
+                    {"name": "p2", "command": f'"{sys.executable}" -c "print(\'20 tests passed\')"'},
+                    {
+                        "name": "bigfail",
+                        "command": f'"{sys.executable}" -c "import sys; print(\'\\n\'.join(f\'ERR line {{i}}: \' + \'x\'*40 for i in range(60))); sys.exit(1)"',
+                    },
+                ],
+                "outputMode": "compact",
+            }
+        )
+        self.assertFalse(noisy_fail["isError"])
+        self.assertIn("[FAIL", noisy_fail["text"])
+        self.assertLessEqual(len(noisy_fail["text"].encode("utf-8")), 8800)
+
+        full_trunc = fc.run_checks(
+            {
+                "cwd": str(ed),
+                "maxChars": 500,
+                "outputMode": "full",
+                "commands": [
+                    {
+                        "name": "longcmd",
+                        "command": f'"{sys.executable}" -c "print(\'\\n\'.join(f\'line {{i}}\' for i in range(120)))"',
+                    }
+                ],
+            }
+        )
+        self.assertFalse(full_trunc["isError"])
+        self.assertIn("folded", full_trunc["text"])
+        self.assertTrue(fc.run_checks({"cwd": str(ed), "commands": True})["isError"])
+        self.assertTrue(fc.run_checks({"cwd": str(ed), "commands": [123]})["isError"])
+        self.assertTrue(fc.run_checks({"cwd": str(ed), "commands": [{"command": "echo hi", "cwd": "does_not_exist"}]})["isError"])
+
+    def test_fast_cli_and_utils_and_server_roots_guards(self) -> None:
+        import fast_cli
+        import fast_utils as fu
+        import server
+
+        # fast_utils: output noise filters, head-tail compaction, env host compat, schema compat, fuzzy ranking
+        noisy = "\n".join(
+            [
+                "\x1b[32m[INFO] Building demo\x1b[0m",
+                '{"level":30,"time":1700000000,"msg":"pino info"}',
+                "0 errors, 0 warnings",
+                "PASS tests/a.test.ts",
+                "PASS tests/b.test.ts",
+                "FAIL tests/c.test.ts",
+                "AssertionError: expected 1 to equal 2",
+            ]
+        )
+        compact = fu.format_compact_command_output(noisy, "", 1, 600)
+        self.assertIn("AssertionError", compact)
+        self.assertNotIn("pino info", compact)
+        self.assertNotIn("\x1b[32m", compact)
+        long_txt = "\n".join(f"L{i}: " + "z" * 30 for i in range(80))
+        self.assertIn("folded", fu.truncate_head_tail_with_notice(long_txt, 400))
+        self.assertIn("folded", fu.truncate_head_tail_with_byte_notice(long_txt, 400))
+        self.assertEqual(fu.resolve_edits_format(client_info=None, env={"AGY_TS_EDITS_FORMAT": "string"})[0], "string")
+        self.assertEqual(fu.resolve_edits_format(client_info=None, env={"AGY_FAST_EDITS_FORMAT": "array"})[0], "array")
+        self.assertIn(";", fu.unwrap_trivial_windows_powershell_command('powershell -Command "echo a; echo b"'))
+        san = fu.sanitize_schema_to_minimal_subset(
+            {"type": "object", "properties": {"arr": {"type": "array", "minItems": 1, "maxItems": 10, "items": {"type": "string", "pattern": "^[a-z]+$"}}}}
+        )
+        self.assertNotIn("minItems", san["properties"]["arr"])
+        self.assertNotIn("maxItems", san["properties"]["arr"])
+        self.assertNotIn("pattern", san["properties"]["arr"]["items"])
+        ranked, total_ranked = fu.rank_fuzzy_paths("auth token", ["src/utils/auth_token.py", "README.md", "src/auth.py"], 5)
+        self.assertGreaterEqual(total_ranked, 1)
+        self.assertEqual(ranked[0][0], "src/utils/auth_token.py")
+
+        # fast_cli: all subcommands, flags, JSON shorthand, stdin, errors, non-zero exit codes
+        cases = [
+            (["search", "--cwd", str(self.ws), "--regex", "def\\s+run", "--file-type=python", "--output-mode=count", "-i", "--max-chars=2000"], "", 0),
+            (["search", "--cwd", str(self.ws), "--glob", "*.py", "--sort-by=mtime", "--context", "1", "--max-results", "5", "--multiline"], "", 0),
+            (["search", "--cwd", str(self.ws), "--fuzzy", "worker", "--", "fetchUser"], "", 0),
+            (["search", "--cwd", str(self.ws), "--json", json.dumps([{"type": "text", "pattern": "Worker"}])], "", 0),
+            (["outline", "--cwd", str(self.ws), "--json", json.dumps(["src/worker.py"])], "", 0),
+            (["slice", "--cwd", str(self.ws), "--outline", "src/worker.py", "src/worker.py:1-4"], "", 0),
+            (["slice", "--cwd", str(self.ws), "--json", json.dumps([{"path": "src/worker.py", "ranges": [[1, 3]]}])], "", 0),
+            (
+                ["edit", "--cwd", str(self.ws), "--dry-run", "--best-effort", "--verify", f'"{sys.executable}" -c "print(1)"', "--verify-timeout", "10", "--max-verify-chars", "500", "--stdin"],
+                json.dumps([{"path": "src/worker.py", "hunks": [{"target": "class Worker:", "replacement": "class Worker2:"}]}]),
+                0,
+            ),
+            (["check", "--cwd", str(self.ws), "--full", "--concurrency", "1", "--timeout", "10", "--json", json.dumps([f'"{sys.executable}" -c "print(1)"'])], "", 0),
+            (["check", "--cwd", str(self.ws), "--compact", f'"{sys.executable}" -c "import sys; sys.exit(1)"'], "", 1),
+            (["unknown_cmd"], "", 1),
+            (["search", "--cwd", str(self.ws)], "", 1),
+            (["outline", "--cwd", str(self.ws)], "", 1),
+            (["slice", "--cwd", str(self.ws)], "", 1),
+            (["edit", "--cwd", str(self.ws)], "", 1),
+            (["check", "--cwd", str(self.ws)], "", 1),
+            (["search", "--bad-flag"], "", 1),
+            (["search", "--type", "invalid", "x"], "", 1),
+            (["search", "--max-results", "notint", "x"], "", 1),
+            (["search", "--json", "{bad json"], "", 1),
+        ]
+        for argv, stdin_txt, exp_rc in cases:
+            so, se = io.StringIO(), io.StringIO()
+            rc = fast_cli.run_cli(argv, stdin=io.StringIO(stdin_txt), stdout=so, stderr=se)
+            self.assertEqual(rc, exp_rc, f"argv={argv} rc={rc} out={so.getvalue()} err={se.getvalue()}")
+
+        # server.py: roots/list handshake, notifications/roots/list_changed, CWD guard, host-compat edits schema, CLI/help/framing
+        sent: list[dict] = []
+        with mock.patch.object(server, "_send", side_effect=sent.append):
+            server._dispatch(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 10,
+                    "method": "initialize",
+                    "params": {
+                        "protocolVersion": "2025-03-26",
+                        "clientInfo": {"name": "antigravity-cli", "version": "1.5.5"},
+                        "capabilities": {"roots": {"listChanged": True}},
+                    },
+                }
+            )
+            # Server requested roots/list
+            self.assertTrue(any(m.get("method") == "roots/list" for m in sent))
+            # Client replies with file:// URI for self.ws
+            server._dispatch({"jsonrpc": "2.0", "id": "ts-roots-init", "result": {"roots": [{"uri": self.ws.as_uri()}]}})
+            self.assertEqual(server._default_workspace_cwd, str(self.ws))
+            # tools/list switches apply_edits.edits schema to string for CLI 1.5.5
+            server._dispatch({"jsonrpc": "2.0", "id": 11, "method": "tools/list", "params": {}})
+            tools_map = {t["name"]: t for t in sent[-1]["result"]["tools"]}
+            self.assertEqual(tools_map["apply_edits"]["inputSchema"]["properties"]["edits"]["type"], "string")
+            # roots/list_changed notification triggers refresh
+            server._dispatch({"jsonrpc": "2.0", "method": "notifications/roots/list_changed"})
+            self.assertEqual(sent[-1].get("id"), "ts-roots-refresh")
+            # Call all 5 accelerator tools through server._dispatch using resolved root
+            server._dispatch({"jsonrpc": "2.0", "id": 12, "method": "tools/call", "params": {"name": "batch_search", "arguments": {"queries": [{"type": "text", "pattern": "Worker"}]}}})
+            self.assertIn("Worker", sent[-1]["result"]["content"][0]["text"])
+            server._dispatch({"jsonrpc": "2.0", "id": 13, "method": "tools/call", "params": {"name": "read_slices", "arguments": {"lineRanges": ["src/worker.py:1-5"]}}})
+            self.assertIn("class Worker", sent[-1]["result"]["content"][0]["text"])
+            server._dispatch({"jsonrpc": "2.0", "id": 14, "method": "tools/call", "params": {"name": "run_checks", "arguments": {"commands": [{"command": f'"{sys.executable}" -c "print(42)"'}]}}})
+            self.assertIn("1/1 passed", sent[-1]["result"]["content"][0]["text"])
+            server._dispatch({"jsonrpc": "2.0", "id": 15, "method": "tools/call", "params": {"name": "apply_edits", "arguments": {"dryRun": True, "edits": [{"path": "src/worker.py", "hunks": [{"target": "class Worker:", "replacement": "class W:"}]}]}}})
+            self.assertIn("Dry run", sent[-1]["result"]["content"][0]["text"])
+
+            # CWD safety guard blocks plugin-root / home CWD when roots/list is absent and explicit cwd is omitted
+            server._default_workspace_cwd = None
+            with mock.patch("os.getcwd", return_value=str(Path.home())):
+                server._dispatch({"jsonrpc": "2.0", "id": 16, "method": "tools/call", "params": {"name": "batch_search", "arguments": {"queries": [{"type": "text", "pattern": "x"}]}}})
+            self.assertTrue(sent[-1]["result"].get("isError"))
+            self.assertIn("explicitly in 'cwd'", sent[-1]["result"]["content"][0]["text"])
+
+        # parse_server_args error & help branches + _read_messages Content-Length framing
+        self.assertEqual(server.parse_server_args(["--help"]), (True, None))
+        self.assertIsNotNone(server.parse_server_args(["--tools", "bogus"])[1])
+        self.assertIsNotNone(server.parse_server_args(["--schema-compat", "bogus"])[1])
+        self.assertIsNotNone(server.parse_server_args(["--unknown"])[1])
+        server.parse_server_args([])
+        server._active_client_info = None
+        server._default_workspace_cwd = None
+
+        frame = b'{"jsonrpc":"2.0","id":1,"method":"ping"}'
+        framed_stream = b"Content-Length: " + str(len(frame)).encode() + b"\r\n\r\n" + frame + b"\n" + frame + b"\n"
+        with mock.patch("sys.stdin", mock.Mock(buffer=io.BytesIO(framed_stream))):
+            msgs = list(server._read_messages())
+        self.assertEqual(len(msgs), 2)
+        with mock.patch("sys.stdout", io.StringIO()):
+            self.assertEqual(server.main(["--help"]), 0)
+            self.assertEqual(server.main(["--cli", "--help"]), 0)
+
+    def test_fast_security_mixed_eol_rollback_and_noise_filters(self) -> None:
+        import fast_edits as fe
+        import fast_search as fs
+        import fast_utils as fu
+
+        # Comprehensive read-only git validation + hardening coverage
+        for ok_git in (
+            "branch --list main",
+            "branch --contains HEAD",
+            "branch --sort=refname -l",
+            "branch --merged=HEAD -- main",
+            "tag --list v*",
+            "tag -n5 -l",
+            "tag --contains HEAD",
+            "tag --sort=creatordate --points-at=HEAD",
+            "remote -v",
+            "remote show origin",
+            "remote get-url --push origin",
+            "blame src/a.py",
+            "shortlog -sn",
+            "shortlog -s -- src/a.py",
+        ):
+            args = fs.validate_readonly_git_args(ok_git)
+            hardened = fs._harden_git_args(args)
+            self.assertIn("--no-optional-locks", hardened)
+            if ok_git.startswith("shortlog"):
+                self.assertIn("HEAD", hardened)
+            if ok_git == "remote show origin":
+                self.assertIn("-n", hardened)
+
+        for bad_git in (
+            "branch --delete x",
+            "branch --foo=1",
+            "branch --contains -x",
+            "branch -D x",
+            "branch -- main",
+            "tag --delete v1",
+            "tag --foo=1",
+            "tag --contains -x",
+            "tag -d v1",
+            "tag -- v1",
+            "remote --bad",
+            "remote show --bad origin",
+            "remote show https://example.com/a.git",
+        ):
+            with self.assertRaises(ValueError, msg=f"expected ValueError for {bad_git}"):
+                fs.validate_readonly_git_args(bad_git)
+
+        # Glob fallback with wildcard '|' branches + pure-Python truncation caps
+        gdir = self.tmp / "glob_py_ws"
+        gdir.mkdir()
+        for i in range(6):
+            (gdir / f"f{i}.py").write_text("\n".join(f"hit_token line {j}" for j in range(15)) + "\n", encoding="utf-8")
+        (gdir / "f0.ts").write_text("export const hit_token = 1;\n", encoding="utf-8")
+        py_res = fs.run_batch_search(
+            {
+                "cwd": str(gdir),
+                "queries": [
+                    {"type": "glob", "pattern": "*.py|*.ts"},
+                    {"type": "text", "pattern": "hit_token", "maxResults": 4, "contextLines": 1},
+                    {"type": "text", "pattern": "hit_token", "outputMode": "files_with_matches", "maxResults": 2},
+                    {"type": "text", "pattern": "hit_token", "outputMode": "count", "maxResults": 2},
+                ],
+            },
+            force_python_fallback=True,
+        )
+        self.assertFalse(py_res["isError"], py_res["text"])
+        self.assertIn("auto-expanded regex '|'", py_res["text"])
+
+        # fast_edits: mixed EOL preservation, nested dir creation, atomic rollback on I/O failure, alias conflict, bad line bounds
+        ew = self.tmp / "edits_edge_ws"
+        ew.mkdir()
+        mixed = ew / "mixed.txt"
+        mixed.write_bytes(b"line1\r\nline2\nline3\r\nline4\n")
+        m_res = fe.run_apply_edits(
+            {
+                "cwd": str(ew),
+                "edits": [
+                    {"path": "mixed.txt", "hunks": [{"target": "line1\nline2", "replacement": "LINE1\nLINE2"}]},
+                    {"path": "deep/sub/new.txt", "create": "fresh\n"},
+                ],
+            }
+        )
+        self.assertFalse(m_res["isError"], m_res["text"])
+        self.assertEqual(mixed.read_bytes(), b"LINE1\r\nLINE2\nline3\r\nline4\n")
+        self.assertTrue((ew / "deep" / "sub" / "new.txt").is_file())
+
+        # Atomic rollback restores existing file and removes newly created file + dirs when a later replace fails
+        orig_bytes = mixed.read_bytes()
+        real_replace = os.replace
+        call_n = {"n": 0}
+
+        def _flaky_replace(src: str, dst: str) -> None:
+            call_n["n"] += 1
+            if call_n["n"] == 2:
+                raise OSError("simulated disk full")
+            real_replace(src, dst)
+
+        with mock.patch("os.replace", side_effect=_flaky_replace):
+            rb = fe.run_apply_edits(
+                {
+                    "cwd": str(ew),
+                    "edits": [
+                        {"path": "mixed.txt", "hunks": [{"target": "LINE1", "replacement": "ROLLBACK_ME"}]},
+                        {"path": "rb_dir/sub/f2.txt", "create": "temp\n"},
+                    ],
+                }
+            )
+        self.assertTrue(rb["isError"])
+        self.assertEqual(mixed.read_bytes(), orig_bytes)
+        self.assertFalse((ew / "rb_dir" / "sub" / "f2.txt").exists())
+
+        # Hunk alias conflicts & invalid line ranges & verify timeout
+        self.assertTrue(
+            fe.run_apply_edits(
+                {"cwd": str(ew), "edits": [{"path": "mixed.txt", "hunks": [{"target": "a", "oldText": "b", "replacement": "c"}]}]}
+            )["isError"]
+        )
+        self.assertTrue(
+            fe.run_apply_edits(
+                {"cwd": str(ew), "edits": [{"path": "mixed.txt", "hunks": [{"target": "LINE1", "replacement": "X", "startLine": 5, "endLine": 2}]}]}
+            )["isError"]
+        )
+        self.assertTrue(fe.run_apply_edits({"cwd": str(ew), "edits": "[object Object]"})["isError"])
+
+        # fast_utils: corrupted literals, glob_to_regex, green-phase pass folding, missing binary, shell timeout
+        self.assertEqual(fu.parse_maybe_json_array("true")[1], "corrupted_literal")
+        self.assertEqual(fu.parse_maybe_json_array("null")[1], "corrupted_literal")
+        self.assertEqual(fu.parse_maybe_json_array("[object Object]")[1], "invalid_json")
+        self.assertEqual(fu.parse_maybe_json_array("{bad")[1], "invalid_json")
+        self.assertEqual(fu.parse_maybe_string_or_json_array("true")[1], "corrupted_literal")
+        gre = fu.glob_to_regex("src/**/{a,b}_?.py")
+        self.assertIsNotNone(gre.match("src/sub/a_1.py"))
+        self.assertIsNone(gre.match("src/sub/c_1.py"))
+        green_then_fail = "\n".join([f"PASS tests/t{i}.spec.ts" for i in range(18)] + ["FAIL tests/broken.spec.ts", "TypeError: boom"])
+        folded = fu.format_compact_command_output(green_then_fail, "", 1, 500)
+        self.assertIn("TypeError: boom", folded)
+        miss_bin = fu.exec_binary("definitely_nonexistent_binary_agy_ts_xyz", ["--version"], cwd=str(ew), timeout_ms=1000)
+        self.assertIsNotNone(miss_bin.error)
+        tout = fu.run_shell_command(f'"{sys.executable}" -c "import time; time.sleep(2)"', cwd=str(ew), timeout_ms=120)
+        self.assertTrue(tout.timed_out)
+
+        # Multi-byte UTF-8 safe truncation, water-filling, byte budget fitting, exit labels, host compat versions
+        emoji = "🔥" * 80
+        self.assertLessEqual(len(fu.truncate_with_byte_notice(emoji, 60).encode("utf-8")), 60)
+        self.assertLessEqual(len(fu.truncate_with_notice(emoji, 30)), 30)
+        self.assertEqual(fu.compute_water_fill_budgets([100, 100], 0), [0, 0])
+        self.assertEqual(sum(fu.compute_water_fill_budgets([50, 500, 1000], 300)), 300)
+        fitted = fu.fit_sections_to_byte_budget(["a" * 300, "b" * 300], 200, 200, "\n\n")
+        self.assertLessEqual(len(fitted.encode("utf-8")), 200)
+        self.assertIn("SIGTERM", fu.format_exit_failure_label(None, "SIGTERM"))
+        self.assertIn("exit 3", fu.format_exit_failure_label(3, None))
+        for ver, exp_fmt in (("1.4.9", "array"), ("1.5.0", "string"), ("1.5.7", "string"), ("1.5.8", "array")):
+            self.assertEqual(fu.resolve_edits_format(client_info={"name": "antigravity-cli", "version": ver}, env={})[0], exp_fmt)
+        self.assertEqual(fu.resolve_edits_format(client_info={"name": "other-client", "version": "1.5.5"}, env={})[0], "array")
+
+        # Symlink edit preserves symlink, plus missing file / empty hunks / mocked verify timeout
+        real_f = ew / "real_target.txt"
+        real_f.write_text("alpha\nbeta\n", encoding="utf-8")
+        sym_f = ew / "link_target.txt"
+        os.symlink(str(real_f), str(sym_f))
+        sym_res = fe.run_apply_edits({"cwd": str(ew), "edits": [{"path": "link_target.txt", "hunks": [{"target": "alpha", "replacement": "ALPHA"}]}]})
+        self.assertFalse(sym_res["isError"], sym_res["text"])
+        self.assertTrue(os.path.islink(str(sym_f)))
+        self.assertIn("ALPHA", real_f.read_text(encoding="utf-8"))
+        self.assertTrue(fe.run_apply_edits({"cwd": str(ew), "edits": [{"path": "does_not_exist.txt", "hunks": [{"target": "a", "replacement": "b"}]}]})["isError"])
+        self.assertTrue(fe.run_apply_edits({"cwd": str(ew), "edits": [{"path": "real_target.txt", "hunks": []}]})["isError"])
+        self.assertTrue(fe.run_apply_edits({"cwd": str(ew), "edits": [123]})["isError"])
+        fake_to = fu.ExecResult(exit_code=None, sig="SIGTERM", timed_out=True, stdout="partial", stderr="", truncated=False, duration_ms=1000, error=None)
+        with mock.patch.object(fe, "run_shell_command", return_value=fake_to):
+            vt = fe.run_apply_edits(
+                {
+                    "cwd": str(ew),
+                    "edits": [{"path": "real_target.txt", "hunks": [{"target": "beta", "replacement": "BETA"}]}],
+                    "verify": "echo slow",
+                    "verifyTimeoutSec": 1,
+                }
+            )
+            self.assertIn("Verify [TIMEOUT", vt["text"])
+
+        # Search zero-match, non-git dir git query, fileType unknown ext, camelCase fuzzy match
+        (gdir / "getUserData.toml").write_text("key = 1\n", encoding="utf-8")
+        z_res = fs.run_batch_search(
+            {
+                "cwd": str(gdir),
+                "queries": [
+                    {"type": "text", "pattern": "never_matches_anything_xyz", "fileType": "toml"},
+                    {"type": "glob", "pattern": "*.doesnotexist"},
+                    {"type": "fuzzy", "pattern": "getUserData"},
+                    {"type": "git", "pattern": "status --short"},
+                ],
+            }
+        )
+        self.assertFalse(z_res["isError"])
+        self.assertIn("getUserData.toml", z_res["text"])
 
 
 if __name__ == "__main__":

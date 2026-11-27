@@ -5,6 +5,23 @@
       "args": ["${PLUGIN_ROOT}/mcp_app/server.py"],
       "env": {
         "PLUGIN_DATA": "${PLUGIN_DATA}"
+      },
+      "tools": {
+        "batch_search": {
+          "eager": true
+        },
+        "apply_edits": {
+          "eager": true
+        },
+        "read_slices": {
+          "eager": true
+        },
+        "quick_outline": {
+          "eager": true
+        },
+        "run_checks": {
+          "eager": true
+        }
       }
     }
   }

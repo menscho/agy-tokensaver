@@ -175,6 +175,10 @@ def install_or_update(remote: bool = False, log: Callable[[str], None] = print) 
         PLUGIN_DIR.mkdir(parents=True, exist_ok=True)
         DATA_DIR.mkdir(parents=True, exist_ok=True)
 
+        # Preserve user-owned rules/AGENTS.local.md across re-installs/updates
+        local_rules_path = PLUGIN_DIR / "rules" / "AGENTS.local.md"
+        saved_local_rules = local_rules_path.read_bytes() if local_rules_path.is_file() else None
+
         # Copy plugin files without touching user statistics in DATA_DIR
         for item in src.iterdir():
             if item.name in PRESERVE_NAMES:
@@ -186,6 +190,9 @@ def install_or_update(remote: bool = False, log: Callable[[str], None] = print) 
                 shutil.copytree(item, dest)
             else:
                 shutil.copy2(item, dest)
+        if saved_local_rules is not None:
+            local_rules_path.parent.mkdir(parents=True, exist_ok=True)
+            local_rules_path.write_bytes(saved_local_rules)
 
         if os.name == "nt":
             # Avoid the Microsoft Store `python3` placeholder stub on native Windows
@@ -328,6 +335,31 @@ def run_doctor(log: Callable[[str], None] = print) -> int:
                 row("OK", "Hook registration", f"{count} hook command(s) registered cleanly in {hj}")
         except Exception as exc:
             row("FAIL", "Hook registration", f"invalid JSON: {exc}", "Run: python3 install.py --yes")
+
+    rg_bin = shutil.which("rg") or shutil.which("rg.exe")
+    if rg_bin:
+        row("OK", "ripgrep (rg)", f"{rg_bin} (fast batch_search enabled)")
+    else:
+        row("WARN", "ripgrep (rg)", "not installed (batch_search uses built-in pure-Python fallback)")
+
+    ss_hook = PLUGIN_DIR / "scripts" / "session_start_hook.py"
+    if ss_hook.is_file():
+        import time as _time
+        t0 = _time.perf_counter()
+        try:
+            sp = subprocess.run(
+                [sys.executable, "-S", str(ss_hook)],
+                input=json.dumps({"cwd": str(PLUGIN_DIR)}),
+                capture_output=True, text=True, timeout=5,
+            )
+            dt_ms = (_time.perf_counter() - t0) * 1000.0
+            parsed_ss = json.loads(sp.stdout or "{}")
+            if sp.returncode == 0 and isinstance(parsed_ss, dict):
+                row("OK", "SessionStart hook", f"responded cleanly in {dt_ms:.1f} ms")
+            else:
+                row("WARN", "SessionStart hook", f"unexpected output rc={sp.returncode}")
+        except Exception as exc:
+            row("WARN", "SessionStart hook", f"probe error: {exc}")
 
     return 0 if ok_all else 1
 

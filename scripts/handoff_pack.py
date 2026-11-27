@@ -343,6 +343,22 @@ def extract_transcript_context(
                                 fp = _arg(args, "TargetFile", "Path", "AbsolutePath", "path")
                                 if fp:
                                     edited[fp] = order
+                            elif name == "apply_edits" or name.endswith("_apply_edits"):
+                                raw_ed = args.get("edits") if isinstance(args, dict) else None
+                                if isinstance(raw_ed, str):
+                                    try:
+                                        raw_ed = json.loads(raw_ed)
+                                    except Exception:
+                                        raw_ed = None
+                                if isinstance(raw_ed, list):
+                                    for ed in raw_ed:
+                                        if isinstance(ed, dict) and isinstance(ed.get("path"), str) and ed["path"].strip():
+                                            order += 1
+                                            edited[ed["path"].strip()] = order
+                                v_spec = args.get("verify") if isinstance(args, dict) else None
+                                v_cmd = v_spec if isinstance(v_spec, str) else (v_spec.get("command") if isinstance(v_spec, dict) else "")
+                                if isinstance(v_cmd, str) and v_cmd and any(k in v_cmd for k in ("pytest", "cargo test", "npm test", "go test", "run_tests.sh", "run_all.sh", "test_")):
+                                    last_verify = " ".join(v_cmd.split())[:180]
                             elif name in READ_TOOLS:
                                 fp = _arg(args, "AbsolutePath", "Path", "path")
                                 if fp:

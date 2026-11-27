@@ -515,6 +515,17 @@
 
         <div class="row">
           <div class="row-info">
+            <div class="row-title">Startup Snapshot (SessionStart)</div>
+            <div class="row-desc">Injects a &le;1.5 KB git, manifest, and 2-level layout snapshot once per session (&lt;50 ms) to skip cold-start exploration turns.</div>
+          </div>
+          <select id="sel-snap" aria-label="Startup snapshot">
+            <option value="on">On (Recommended)</option>
+            <option value="off">Off</option>
+          </select>
+        </div>
+
+        <div class="row">
+          <div class="row-info">
             <div class="row-title">Manual Actions</div>
             <div class="row-desc">Zero LLM tokens — archive this session or start a clean continuation</div>
           </div>
@@ -599,7 +610,7 @@
       <div class="box">
         <div class="row">
           <div class="row-info">
-            <div class="row-title" id="upd-headline">agy-tokensaver v1.5.1</div>
+            <div class="row-title" id="upd-headline">agy-tokensaver v1.5.2</div>
             <div class="row-desc" id="upd-sub">Up to date · all statistics and archive entries are preserved across updates</div>
           </div>
           <div class="actions">
@@ -640,7 +651,7 @@
 
     <section class="section">
       <div class="section-head">
-        <span class="section-title" id="chg-title">Release Notes (v1.5.1)</span>
+        <span class="section-title" id="chg-title">Release Notes (v1.5.2)</span>
         <span class="section-note" id="chg-date">Latest changes</span>
       </div>
       <div class="box">
@@ -735,6 +746,7 @@
     document.getElementById('sel-profile').value = prof;
     document.getElementById('profile-desc').textContent = PROFILE_DESCS[prof];
     document.getElementById('sel-thresh').value = cfg.threshold_mode || 'auto';
+    document.getElementById('sel-snap').value = (cfg.startup_snapshot === false || cfg.mode === 'off') ? 'off' : 'on';
     document.getElementById('adaptive-reason').textContent = adp.reason || '';
 
     // Totals strip
@@ -991,8 +1003,9 @@
   async function saveSettings() {
     const profile = document.getElementById('sel-profile').value;
     const threshold_mode = document.getElementById('sel-thresh').value;
+    const startup_snapshot = document.getElementById('sel-snap').value !== 'off';
     setStatus('Saving…');
-    const res = await callTool('ts_save_settings', { profile, threshold_mode });
+    const res = await callTool('ts_save_settings', { profile, threshold_mode, startup_snapshot });
     if (res && res.state) {
       render(res.state);
       const pending = !!(res.config && res.config.pending_concise_sync);
@@ -1012,6 +1025,7 @@
   }
   document.getElementById('sel-profile').onchange = saveSettings;
   document.getElementById('sel-thresh').onchange = saveSettings;
+  document.getElementById('sel-snap').onchange = saveSettings;
 
   document.getElementById('btn-handoff').onclick = async () => {
     const res = await callTool('ts_build_handoff', { workspace: lastState?.workspace, archive: false });

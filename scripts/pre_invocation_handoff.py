@@ -43,7 +43,9 @@ from hook_common import (
 RULES_TEXT = (
     "# Token Saver\n"
     "1. Concise replies: skip pleasantries, preambles, and post-tool narration; keep code, diffs, paths, and errors verbatim.\n"
-    "2. Change existing files with targeted edits, not full-file rewrites.\n"
+    "2. Targeted & batched edits: change existing files with targeted edits, not full-file rewrites; batch >=2 hunks/files or edit+verify into `apply_edits` (`bestEffort: true` for >=3 files).\n"
+    "3. Hybrid batching: use the `SessionStart` snapshot before running `ls`/`git status`; pack >=2 text/regex/glob/fuzzy/read-only git queries into `batch_search`; outline unknown >300L files with `quick_outline` before parallel ranged `read_file`; batch >=2 independent checks into `run_checks` (`outputMode: \"compact\"`).\n"
+    "4. Cache & multimodal hygiene: in >150k sessions delegate image inspection to a subagent returning text-only findings; avoid toggling Plan Mode mid-loop; keep verify commands fast (<=45s) and set `WaitMsBeforeAsync` (5000-10000) for <=10s commands.\n"
 )
 
 # Shared causal rollover constants (kept in sync with mcp_app/config.py & rollover.py)

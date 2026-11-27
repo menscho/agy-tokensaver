@@ -167,6 +167,20 @@ def run_demo() -> int:
         assert res.get("decision") == "deny", f"write_hook should block lazy truncation: {res}"
         rows.append(("7. write_file lazy truncation guard", 1000, len(res.get("reason", "").encode("utf-8")), "blocked accidental wipeout"))
 
+        # Step 8: SessionStart startup snapshot (<= 1.5 KB)
+        ss_res, ss_ms = _run_hook("session_start_hook.py", {"cwd": str(proj)}, env)
+        latencies.append(ss_ms)
+        ss_msg = (ss_res.get("injectSteps") or [{}])[0].get("systemMessage", {}).get("systemMessage", "")
+        assert ss_msg and len(ss_msg.encode("utf-8")) <= 1500, f"unexpected SessionStart snapshot: {ss_res}"
+        rows.append(("8. SessionStart snapshot (1-shot layout)", 4000, len(ss_msg.encode("utf-8")), f"<=1.5KB in {ss_ms:.0f}ms"))
+
+        # Step 9: quick_outline on 900L service.py vs full-file dump
+        sys.path.insert(0, str(ROOT / "mcp_app"))
+        from fast_outline import run_quick_outline
+        qo = run_quick_outline({"cwd": str(tmp), "paths": ["service.py"]})
+        assert not qo["isError"] and len(qo["text"].encode("utf-8")) <= 8800
+        rows.append(("9. quick_outline 900L service.py", min(py_file.stat().st_size, NATIVE_READ_CAP), len(qo["text"].encode("utf-8")), "symbol map <=8.8KB cap"))
+
     tot_before = sum(r[1] for r in rows)
     tot_after = sum(r[2] for r in rows)
     tok_before = tot_before // 4

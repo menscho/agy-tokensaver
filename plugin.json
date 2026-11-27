@@ -1,14 +1,14 @@
 {
   "name": "token-saver",
   "displayName": "agy-tokensaver",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "author": {
     "name": "menscho",
     "url": "https://github.com/menscho"
   },
   "homepage": "https://github.com/menscho/agy-tokensaver",
   "repository": "https://github.com/menscho/agy-tokensaver",
-  "description": "Auto-handoff for long Google Antigravity chats with compact continuation packets, cache telemetry, and lightweight read/write/search guards.",
+  "description": "Auto-handoff, 5 eager batched MCP accelerator tools (search, outlines, atomic edits, concurrent checks), sub-50ms SessionStart workspace snapshots, and lightweight read/write/search guards for Google Antigravity.",
   "logo": "assets/logo.svg",
   "suggestedPrompts": [
     "Run /token-stats to see real savings, cache-hit rates, and output-per-turn trends",
